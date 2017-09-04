@@ -1,0 +1,246 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{BAC25DAE-A0F2-405F-A890-78A756DEA7C2}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>BluewingServerFullPowah</RootNamespace>
+    <WindowsTargetPlatformVersion>
+    </WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140_xp</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(ProjectDir)$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(ProjectDir)$(Configuration)\</OutDir>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_lacewing_debug;_CRTDBG_MAP_ALLOC;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <MinimalRebuild>false</MinimalRebuild>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;ws2_32.lib;mswsock.lib;mpr.lib;secur32.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>ws2_32.lib;mswsock.lib;mpr.lib;secur32.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Lacewing\PhiAddress.cc" />
+    <ClCompile Include="Lacewing\RelayServer.cc" />
+    <ClCompile Include="Lacewing\src\address.c" />
+    <ClCompile Include="Lacewing\src\cxx\address2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\client2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\error2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\event2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\eventpump2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\fdstream2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\file2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\filter2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\flashpolicy2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\pipe2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\pump2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\server2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\stream2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\sync2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\thread2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\timer2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\udp2.cc" />
+    <ClCompile Include="Lacewing\src\error.c" />
+    <ClCompile Include="Lacewing\src\filter.c" />
+    <ClCompile Include="Lacewing\src\flashpolicy.c" />
+    <ClCompile Include="Lacewing\src\global.c" />
+    <ClCompile Include="Lacewing\src\heapbuffer.c" />
+    <ClCompile Include="Lacewing\src\list.c" />
+    <ClCompile Include="Lacewing\src\nvhash.c" />
+    <ClCompile Include="Lacewing\src\pipe.c" />
+    <ClCompile Include="Lacewing\src\pump.c" />
+    <ClCompile Include="Lacewing\src\refcount-dbg.c" />
+    <ClCompile Include="Lacewing\src\stream.c" />
+    <ClCompile Include="Lacewing\src\streamgraph.c" />
+    <ClCompile Include="Lacewing\src\util.c" />
+    <ClCompile Include="Lacewing\src\windows\client.c" />
+    <ClCompile Include="Lacewing\src\windows\compat.c" />
+    <ClCompile Include="Lacewing\src\windows\event.c" />
+    <ClCompile Include="Lacewing\src\windows\eventpump.c" />
+    <ClCompile Include="Lacewing\src\windows\fdstream.c" />
+    <ClCompile Include="Lacewing\src\windows\file.c" />
+    <ClCompile Include="Lacewing\src\windows\global2.c" />
+    <ClCompile Include="Lacewing\src\windows\server.c" />
+    <ClCompile Include="Lacewing\src\windows\sslclient.c" />
+    <ClCompile Include="Lacewing\src\windows\ssl\clientssl.c" />
+    <ClCompile Include="Lacewing\src\windows\ssl\serverssl.c" />
+    <ClCompile Include="Lacewing\src\windows\ssl\ssl.c" />
+    <ClCompile Include="Lacewing\src\windows\sync.c" />
+    <ClCompile Include="Lacewing\src\windows\thread.c" />
+    <ClCompile Include="Lacewing\src\windows\timer.c" />
+    <ClCompile Include="Lacewing\src\windows\udp.c" />
+    <ClCompile Include="Main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConsoleColors.h" />
+    <ClInclude Include="Lacewing\FrameBuilder.h" />
+    <ClInclude Include="Lacewing\FrameReader.h" />
+    <ClInclude Include="Lacewing\IDPool.h" />
+    <ClInclude Include="Lacewing\Lacewing.h" />
+    <ClInclude Include="Lacewing\MessageBuilder.h" />
+    <ClInclude Include="Lacewing\MessageReader.h" />
+    <ClInclude Include="Lacewing\src\address.h" />
+    <ClInclude Include="Lacewing\src\common.h" />
+    <ClInclude Include="Lacewing\src\flashpolicy.h" />
+    <ClInclude Include="Lacewing\src\heapbuffer-cxx.h" />
+    <ClInclude Include="Lacewing\src\heapbuffer.h" />
+    <ClInclude Include="Lacewing\src\nvhash.h" />
+    <ClInclude Include="Lacewing\src\pump.h" />
+    <ClInclude Include="Lacewing\src\refcount-dbg.h" />
+    <ClInclude Include="Lacewing\src\refcount.h" />
+    <ClInclude Include="Lacewing\src\stream.h" />
+    <ClInclude Include="Lacewing\src\streamgraph.h" />
+    <ClInclude Include="Lacewing\src\windows\common.h" />
+    <ClInclude Include="Lacewing\src\windows\compat.h" />
+    <ClInclude Include="Lacewing\src\windows\fdstream.h" />
+    <ClInclude Include="Lacewing\src\windows\sslclient.h" />
+    <ClInclude Include="Lacewing\src\windows\typeof.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
