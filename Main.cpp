@@ -36,19 +36,34 @@ lacewing::timer globalmsgrecvcounttimer;
 lacewing::relayserver * globalserver;
 std::string flashpolicypath;
 
+// In case of idiocy
+struct BanEntry
+{
+	std::string ip;
+	int disconnects;
+	std::string reason;
+	__time64_t resetAt;
+	BanEntry(std::string ip, int disconnects, std::string reason, __time64_t resetAt) :
+		ip(ip), disconnects(disconnects), reason(reason), resetAt(resetAt)
+	{
+		// yay
+	}
+};
+static std::vector<BanEntry> banIPList;
+
 // Define if you want Flash hosted. Policy file will automatically be generated.
 #define FLASH_ENABLED
 
 // Upload limit for ENTIRE SERVER, TCP + UDP, in bytes
 // UDP messages received above this limit will be discarded
 // TCP messages received above this limit are still delivered. See TCP_CLIENT_UPLOAD_CAP.
-// #define TOTAL_UPLOAD_CAP 30000
+#define TOTAL_UPLOAD_CAP 300000
 
 // TCP upload limit for single clients, per second, in bytes.
 // TCP messages received above this limit will send the client an error message
 // and disconnect them.
 // UDP upload limit is not defined.
-// #define TCP_CLIENT_UPLOAD_CAP 1536
+#define TCP_CLIENT_UPLOAD_CAP 3000
 
 // Set this to 0 for the app to ask the user what port it is, on bootup;
 // or to another number to use that by default
@@ -64,6 +79,9 @@ int main()
 #ifdef _lacewing_debug
 	freopen("Bluewing Server error.log", "w", stderr);
 #endif
+	// Block some idiots by default
+	//banIPList.push_back(BanEntry("75.128.140.10", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
+	//banIPList.push_back(BanEntry("127.0.0.1", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
 
 	globalpump = lacewing::eventpump_new();
 	globalserver = new lacewing::relayserver(globalpump);
@@ -74,6 +92,10 @@ int main()
 	#ifdef _DEBUG
 		sprintf_s(message, 256, "This is a Bluewing Server build %i. Currently under debug testing. "
 			"You may be disconnected randomly as server is restarted.", lacewing::relayserver::buildnum);
+	#elif TCP_CLIENT_UPLOAD_CAP
+		sprintf_s(message, 256, "This is a Bluewing Server build %i. An upload cap is in place. Please pay "
+			"attention to Sent server -> peer text messages on subchannels 0 and 1, or you may be banned.",
+			lacewing::relayserver::buildnum);
 	#else
 		sprintf_s(message, 256, "This is a Bluewing Server build %i.", lacewing::relayserver::buildnum);
 	#endif
@@ -210,11 +232,28 @@ struct clientstats
 static std::vector<clientstats *> clientdata;
 void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::client &client)
 {
+	const char * ipAddress = client.getaddress();
+	char addr[64];
+	lacewing::lw_addr_prettystring(client.getaddress(), addr, 64);
+
+	auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
+	if (banEntry != banIPList.end())
+	{
+		if (banEntry->resetAt < _time64(NULL))
+			banIPList.erase(banEntry);
+		else if (banEntry->disconnects > 3)
+		{
+			banEntry->resetAt = _time64(NULL) + (banEntry->disconnects++ << 2) * 60LL * 60LL;
+
+			std::cout << green << "\r" << buffer << " | Blocked client from IP " << addr << " was dropped."
+				<< std::string(45, ' ') << "\r\n" << yellow;
+			return server.connect_response(client, banEntry->reason.c_str());
+		}
+	}
+
 	server.connect_response(client, nullptr);
 	UpdateTitle(server.clientcount());
 
-	char addr[64];
-	lacewing::lw_addr_prettystring(client.getaddress(), addr, 64);
 	std::cout << green << "\r" << buffer << " | New client ID " << client.id() << ", IP " << addr << " connected." 
 		<< std::string(45, ' ') << "\r\n" << yellow;
 	clientdata.push_back(new clientstats(&client));
@@ -272,11 +311,22 @@ void OnTimerTick(lacewing::timer timer)
 	{
 		if (c->exceeded)
 		{
-			std::cout << red << "\r" << buffer << " | Client ID " << c->c->id() << ", IP " << c->c->getaddress() <<
+			char addr[64];
+			const char * ipAddress = c->c->getaddress();
+			lacewing::lw_addr_prettystring(ipAddress, addr, 64);
+
+			auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
+			if (banEntry == banIPList.end())
+				banIPList.push_back(BanEntry(ipAddress, 1, "You have been banned for heavy TCP usage. Contact Phi on Clickteam Discord.", _time64(NULL) + 60LL));
+			else
+				++banEntry->disconnects;
+
+			std::cout << red << "\r" << buffer << " | Client ID " << c->c->id() << ", IP " << addr <<
 				" dropped for heavy TCP upload (" << c->bytesIn << " bytes in " << c->numMessagesIn << " msgs)" << yellow << "\r\n";
-			c->c->send(1, "You have exceeded the TCP upload limit. Please contact Phi on Clickteam Discord.", 80, 0);
-			c->c->send(0, "You have exceeded the TCP upload limit. Please contact Phi on Clickteam Discord.", 80, 0);
+			c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
+			c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
 			c->c->disconnect();
+
 			break;
 		}
 	}
@@ -395,7 +445,13 @@ void OnChannelMessage(lacewing::relayserver &server, lacewing::relayserver::clie
 
 void GenerateFlashPolicy(int port)
 {
-	std::stringstream flashPolicy;	flashPolicy << "<?xml version=\"1.0\"?>\r\n"		"<!DOCTYPE cross-domain-policy SYSTEM \"/xml/dtds/cross-domain-policy.dtd\">\r\n"		"<cross-domain-policy>\r\n"		"\t<site-control permitted-cross-domain-policies=\"master-only\"/>\r\n"		"\t<allow-access-from domain=\"*\" to-ports=\"843," << port << ",583\" secure=\"false\" />\r\n"		"</cross-domain-policy>";
+	std::stringstream flashPolicy;
+	flashPolicy << "<?xml version=\"1.0\"?>\r\n"
+		"<!DOCTYPE cross-domain-policy SYSTEM \"/xml/dtds/cross-domain-policy.dtd\">\r\n"
+		"<cross-domain-policy>\r\n"
+		"\t<site-control permitted-cross-domain-policies=\"master-only\"/>\r\n"
+		"\t<allow-access-from domain=\"*\" to-ports=\"843," << port << ",583\" secure=\"false\" />\r\n"
+		"</cross-domain-policy>";
 
 	char filenameBuf[1024];
 	// Get full path of EXE, including EXE filename + ext
