@@ -69,6 +69,20 @@ static std::vector<BanEntry> banIPList;
 // or to another number to use that by default
 static const int FIXEDPORT = 6121;
 
+int ExitWithError(const char * msg, int error)
+{
+	std::cout << red << msg << ", got error number " << error << ".\r\n";
+	std::cout << "Press any key to exit.\r\n";
+
+	// Clear input for getchar()
+	std::cin.clear();
+	std::cin.ignore();
+	std::cin.ignore();
+
+	getchar(); // wait for user keypress
+	return 1;
+}
+
 int main()
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -77,9 +91,17 @@ int main()
 	// for colouring
 	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #ifdef _lacewing_debug
-	freopen("Bluewing Server error.log", "w", stderr);
+	FILE * f = NULL;
+	if (fopen_s(&f, "Bluewing Server error.log", "w"))
+		return ExitWithError("Couldn't open log file", errno);
+
+	if (freopen_s(&f, "CONOUT$", "w", stderr))
+	{
+		fclose(f);
+		return ExitWithError("Couldn't redirect error to log file", errno);
+	}
 #endif
-	// Block some idiots by default
+	// Block some IPs by default
 	//banIPList.push_back(BanEntry("75.128.140.10", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
 	//banIPList.push_back(BanEntry("127.0.0.1", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
 
@@ -234,7 +256,7 @@ void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::clie
 {
 	const char * ipAddress = client.getaddress();
 	char addr[64];
-	lacewing::lw_addr_prettystring(client.getaddress(), addr, 64);
+	lw_addr_prettystring(client.getaddress(), addr, sizeof(addr));
 
 	auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 	if (banEntry != banIPList.end())
@@ -264,7 +286,7 @@ void OnDisconnect(lacewing::relayserver &server, lacewing::relayserver::client &
 	const char * name = client.name();
 	name = name ? name : "[unset]";
 	char addr[64];
-	lacewing::lw_addr_prettystring(client.getaddress(), addr, 64);
+	lw_addr_prettystring(client.getaddress(), addr, sizeof(addr));
 	auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](clientstats *const &c) {
 		return c->c == &client; }
 	);
@@ -313,7 +335,7 @@ void OnTimerTick(lacewing::timer timer)
 		{
 			char addr[64];
 			const char * ipAddress = c->c->getaddress();
-			lacewing::lw_addr_prettystring(ipAddress, addr, 64);
+			lw_addr_prettystring(ipAddress, addr, sizeof(addr));
 
 			auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 			if (banEntry == banIPList.end())
