@@ -35,6 +35,7 @@ lacewing::eventpump globalpump;
 lacewing::timer globalmsgrecvcounttimer;
 lacewing::relayserver * globalserver;
 std::string flashpolicypath;
+static char timeBuffer[10];
 
 // In case of idiocy
 struct BanEntry
@@ -110,16 +111,16 @@ int main()
 	globalmsgrecvcounttimer = lacewing::timer_new(globalpump);
 
 	{
-		char * message = (char *)alloca(256U);
+		char message[256];
 	#ifdef _DEBUG
-		sprintf_s(message, 256, "This is a Bluewing Server build %i. Currently under debug testing. "
+		sprintf_s(message, "This is a Bluewing Server build %i. Currently under debug testing. "
 			"You may be disconnected randomly as server is restarted.", lacewing::relayserver::buildnum);
 	#elif TCP_CLIENT_UPLOAD_CAP
-		sprintf_s(message, 256, "This is a Bluewing Server build %i. An upload cap is in place. Please pay "
+		sprintf_s(message, "This is a Bluewing Server build %i. An upload cap is in place. Please pay "
 			"attention to Sent server -> peer text messages on subchannels 0 and 1, or you may be banned.",
 			lacewing::relayserver::buildnum);
 	#else
-		sprintf_s(message, 256, "This is a Bluewing Server build %i.", lacewing::relayserver::buildnum);
+		sprintf_s(message, "This is a Bluewing Server build %i.", lacewing::relayserver::buildnum);
 	#endif
 		globalserver->setwelcomemessage(message);
 	}
@@ -181,14 +182,15 @@ int main()
 
 	if (error)
 	{
-		std::cout << red << "\r\nError occurred in pump: " << error->tostring() << "\r\n";
+		std::cout << red << "\r\n" << timeBuffer << " | Error occurred in pump: " << error->tostring() << "\r\n";
 
+#ifdef _DEBUG
 		// Clear input for getchar()
 		std::cin.clear();
 		std::cin.ignore();
 		std::cin.ignore();
-
 		getchar(); // wait for user keypress
+#endif
 	}
 
 	// Cleanup time
@@ -201,7 +203,7 @@ int main()
 
 	// [Phi] I did track down some nasty leaks earlier but confirmed no problem now
 #ifdef _CRTDBG_MAP_ALLOC
-	std::cout << green << "Program completed. Press any key to dump memory.\r\n";
+	std::cout << green << timeBuffer << " | Program completed. Press any key to dump memory.\r\n";
 	// Clear input for getchar()
 	std::cin.clear();
 	std::cin.ignore();
@@ -213,7 +215,7 @@ int main()
 	_CrtDumpMemoryLeaks();
 #endif
 
-	std::cout << green << "Program completed. Press any key to exit.\r\n";
+	std::cout << green << timeBuffer << " | Program completed. Press any key to exit.\r\n";
 	// Clear input for getchar()
 	std::cin.clear();
 	std::cin.ignore();
@@ -233,7 +235,7 @@ void UpdateTitle(int clientCount)
 		channelCount, channelCount == 1 ? "" : "s");
 	SetConsoleTitleA(name);
 }
-static char buffer[10];
+
 static size_t numMessagesIn = 0, numMessagesOut = 0;
 static size_t bytesIn = 0, bytesOut = 0;
 struct clientstats
@@ -241,14 +243,16 @@ struct clientstats
 	lacewing::relayserver::client * c;
 	size_t totalBytesIn;
 	size_t totalNumMessagesIn;
+	size_t wastedServerMessages;
 #ifdef TCP_CLIENT_UPLOAD_CAP
 	size_t bytesIn;
 	size_t numMessagesIn;
 	bool exceeded;
 	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0)
-		, bytesIn(0), numMessagesIn(0), exceeded(false) {}
+		, bytesIn(0), numMessagesIn(0), exceeded(false), wastedServerMessages(0) {}
 #else
-	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0) {}
+	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
+		wastedServerMessages(0) {}
 #endif
 };
 static std::vector<clientstats *> clientdata;
@@ -267,7 +271,7 @@ void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::clie
 		{
 			banEntry->resetAt = _time64(NULL) + (banEntry->disconnects++ << 2) * 60LL * 60LL;
 
-			std::cout << green << "\r" << buffer << " | Blocked client from IP " << addr << " was dropped."
+			std::cout << green << "\r" << timeBuffer << " | Blocked client from IP " << addr << " was dropped."
 				<< std::string(45, ' ') << "\r\n" << yellow;
 			return server.connect_response(client, banEntry->reason.c_str());
 		}
@@ -276,7 +280,7 @@ void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::clie
 	server.connect_response(client, nullptr);
 	UpdateTitle(server.clientcount());
 
-	std::cout << green << "\r" << buffer << " | New client ID " << client.id() << ", IP " << addr << " connected." 
+	std::cout << green << "\r" << timeBuffer << " | New client ID " << client.id() << ", IP " << addr << " connected." 
 		<< std::string(45, ' ') << "\r\n" << yellow;
 	clientdata.push_back(new clientstats(&client));
 }
@@ -291,7 +295,7 @@ void OnDisconnect(lacewing::relayserver &server, lacewing::relayserver::client &
 		return c->c == &client; }
 	);
 
-	std::cout << green << "\r" << buffer << " | Client ID " << client.id() << ", name " << name << ", IP " << addr << " disconnected.";
+	std::cout << green << "\r" << timeBuffer << " | Client ID " << client.id() << ", name " << name << ", IP " << addr << " disconnected.";
 	if (a != clientdata.cend())
 		std::cout << " Uploaded " << (**a).totalBytesIn << " bytes in " << (**a).totalNumMessagesIn << " msgs total.";
 	else
@@ -311,11 +315,11 @@ void OnTimerTick(lacewing::timer timer)
 	std::tm timeinfo = { 0 };
 	std::time(&rawtime);
 	if (!localtime_s(&timeinfo, &rawtime))
-		std::strftime(buffer, sizeof(buffer), "%T", &timeinfo);
+		std::strftime(timeBuffer, sizeof(timeBuffer), "%T", &timeinfo);
 	else
-		strcpy_s(buffer, sizeof(buffer), "XX:XX:XX");
+		strcpy_s(timeBuffer, sizeof(timeBuffer), "XX:XX:XX");
 
-	std::cout << buffer << " | Last sec received " << numMessagesIn << " messages (" << bytesIn << " bytes), forwarded " 
+	std::cout << timeBuffer << " | Last sec received " << numMessagesIn << " messages (" << bytesIn << " bytes), forwarded " 
 		<< numMessagesOut << " (" << bytesOut << " bytes)." << std::string(15, ' ') << "\r";
 	numMessagesOut = numMessagesIn = 0U;
 	bytesIn = bytesOut = 0U;
@@ -343,7 +347,7 @@ void OnTimerTick(lacewing::timer timer)
 			else
 				++banEntry->disconnects;
 
-			std::cout << red << "\r" << buffer << " | Client ID " << c->c->id() << ", IP " << addr <<
+			std::cout << red << "\r" << timeBuffer << " | Client ID " << c->c->id() << ", IP " << addr <<
 				" dropped for heavy TCP upload (" << c->bytesIn << " bytes in " << c->numMessagesIn << " msgs)" << yellow << "\r\n";
 			c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
 			c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
@@ -367,7 +371,7 @@ void Shutdown()
 }
 void OnError(lacewing::relayserver &server, lacewing::error error)
 {
-	std::cout << red << "\r" << buffer << " | Error occured: " << error->tostring() << ". Execution continues."
+	std::cout << red << "\r" << timeBuffer << " | Error occured: " << error->tostring() << ". Execution continues."
 		<< std::string(25, ' ') << "\r\n" << yellow;
 }
 
@@ -379,14 +383,29 @@ void OnServerMessage(lacewing::relayserver &server, lacewing::relayserver::clien
 
 	if (blasted || variant != 0 || subchannel != 0)
 	{
-		std::cout << red << "\r" << buffer << " | Dropped server message, invalid type."
+		char addr[64];
+		lw_addr_prettystring(senderclient.getaddress(), addr, sizeof(addr));
+		std::cout << red << "\r" << timeBuffer << " | Dropped server message from IP " << addr << ", invalid type."
 			<< std::string(35, ' ') << "\r\n" << yellow;
+		auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](clientstats *&b) { return b->c == &senderclient; });
+		if (cd != clientdata.end())
+		{
+			(**cd).totalBytesIn += size;
+			++(**cd).totalNumMessagesIn;
+
+			if ((**cd).wastedServerMessages++ > 5) {
+				banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
+					_time64(NULL) + 60LL * 60LL));
+				senderclient.send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord.");
+				senderclient.disconnect();
+			}
+		}
 		return;
 	}
 	const char * name = senderclient.name();
 	name = name ? name : "[unset]";
 
-	std::cout << white << "\r" << buffer << " | Message from client ID " << senderclient.id() << ", name " << name 
+	std::cout << white << "\r" << timeBuffer << " | Message from client ID " << senderclient.id() << ", name " << name 
 		<< ":" << std::string(35, ' ') << "\r\n"
 		<< std::string(data, size) << "\r\n" << yellow;
 }
@@ -522,14 +541,14 @@ BOOL WINAPI CloseHandler(DWORD ctrlType)
 	{
 		if (!shutdowned)
 		{
-			std::cout << red << "\r" << buffer << " | Got Ctrl-C or Close, ending app." << std::string(70, ' ') << "\r\n" << yellow;
+			std::cout << red << "\r" << timeBuffer << " | Got Ctrl-C or Close, ending app." << std::string(70, ' ') << "\r\n" << yellow;
 			Shutdown();
 			return true;
 		}
 	}
 	else if (ctrlType == CTRL_BREAK_EVENT)
 	{
-		std::cout << red << "\r" << buffer << " | Ignoring Ctrl-Break." << std::string(80, ' ') << "\r\n" << yellow;
+		std::cout << red << "\r" << timeBuffer << " | Ignoring Ctrl-Break." << std::string(80, ' ') << "\r\n" << yellow;
 		return true;
 	}
 	return false;
