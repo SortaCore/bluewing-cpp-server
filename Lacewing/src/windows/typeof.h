@@ -12,20 +12,20 @@ namespace msvc_typeof_impl {
 	as its parameter, thus extracting its type. The big problem traditionally now is how to get
 	that type out of the vartypeID() instance, and here's how we do it:
 		1. unique_type_id() returns a monotonically increasing integer for every unique type
-		   passed to it during this compilation unit. It also specialises an instance of
-		   msvc_extract_type<unique_type_id, type>::id2type_impl<true>.
+			passed to it during this compilation unit. It also specialises an instance of
+			msvc_extract_type<unique_type_id, type>::id2type_impl<true>.
 		2. vartypeID() returns a sized<unique_type_id> for the type where
-		   sizeof(sized<unique_type_id>)==unique_type_id. We vector through sized as a means
-		   of returning the unique_type_id at compile time rather than runtime.
+			sizeof(sized<unique_type_id>)==unique_type_id. We vector through sized as a means
+			of returning the unique_type_id at compile time rather than runtime.
 		3. msvc_extract_type<unique_type_id> then extracts the type by using a bug in MSVC to
-		   reselect the specialised child type (id2type_impl<true>) from within the specialisation
-		   of itself originally performed by the above instance of unique_type_id. This bug works
-		   because when MSVC calculated the signature of the specialised
-		   msvc_extract_type<unique_type_id, type>::id2type_impl<true>, it does not include the
-		   value of type in the signature of id2type_impl<true>. Therefore when we reselect
-		   msvc_extract_type<unique_type_id>::id2type_impl<true> it erroneously returns the one
-		   already in its list of instantiated types rather than correctly generating a newly
-		   specialised msvc_extract_type<unique_type_id, msvc_extract_type_default_param>::id2type_impl<true>
+			reselect the specialised child type (id2type_impl<true>) from within the specialisation
+			of itself originally performed by the above instance of unique_type_id. This bug works
+			because when MSVC calculated the signature of the specialised
+			msvc_extract_type<unique_type_id, type>::id2type_impl<true>, it does not include the
+			value of type in the signature of id2type_impl<true>. Therefore when we reselect
+			msvc_extract_type<unique_type_id>::id2type_impl<true> it erroneously returns the one
+			already in its list of instantiated types rather than correctly generating a newly
+			specialised msvc_extract_type<unique_type_id, msvc_extract_type_default_param>::id2type_impl<true>
 
 	This bug allows the impossible and gives us a working typeof() in MSVC. Hopefully Microsoft
 	won't fix this bug until they implement a native typeof.
@@ -43,7 +43,7 @@ namespace msvc_typeof_impl {
 
 	template<int ID, typename T> struct msvc_extract_type : msvc_extract_type<ID, msvc_extract_type_default_param> 
 	{ 
-		template<> struct id2type_impl<true> //VC8.0 specific bugfeature 
+		template<> struct id2type_impl<true> // VC8.0 specific bugfeature 
 		{ 
 			typedef T type; 
 		}; 

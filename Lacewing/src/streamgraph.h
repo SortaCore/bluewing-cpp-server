@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,28 +32,28 @@
 
 typedef struct _lwp_streamgraph_link
 {
-   lw_stream to, to_exp;
-   lw_stream from, from_exp;
+	lw_stream to, to_exp;
+	lw_stream from, from_exp;
 
-   size_t bytes_left; /* ctor: = -1 */
+	size_t bytes_left; /* ctor: = -1 */
 
-   lw_bool delete_stream;
+	lw_bool delete_stream;
 
 } * lwp_streamgraph_link;
 
 typedef struct _lwp_streamgraph
 {
-   lwp_refcounted;
-   lw_bool dead;
+	lwp_refcounted;
+	lw_bool dead;
 
-   /* Each StreamGraph actually stores two graphs - one public without the
-    * filters, and an internally expanded version with the filters included.
-    */
+	/* Each StreamGraph actually stores two graphs - one public without the
+	* filters, and an internally expanded version with the filters included.
+	*/
 
-   list (lw_stream, roots);
-   list (lw_stream, roots_expanded);
+	list (lw_stream, roots);
+	list (lw_stream, roots_expanded);
 
-   int last_expand;
+	int last_expand;
 
 } * lwp_streamgraph;
 

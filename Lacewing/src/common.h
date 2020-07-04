@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,48 +31,48 @@
 
 #ifdef _WIN32
 
-   #if defined (_lacewing_vld)
-       #include <vld.h>
-   #endif
+	#if defined (_lacewing_vld)
+		#include <vld.h>
+	#endif
 
-   #if defined(_DEBUG) && !defined(_lacewing_debug)
-      // #define _lacewing_debug
-   #endif
+	#if defined(_DEBUG) && !defined(_lacewing_debug)
+	  // #define _lacewing_debug
+	#endif
 
-   #ifndef _CRT_SECURE_NO_WARNINGS
-      #define _CRT_SECURE_NO_WARNINGS
-   #endif
+	#ifndef _CRT_SECURE_NO_WARNINGS
+	  #define _CRT_SECURE_NO_WARNINGS
+	#endif
 
-   #ifndef _CRT_NONSTDC_NO_WARNINGS
-      #define _CRT_NONSTDC_NO_WARNINGS
-   #endif
+	#ifndef _CRT_NONSTDC_NO_WARNINGS
+	  #define _CRT_NONSTDC_NO_WARNINGS
+	#endif
 
-   #ifdef HAVE_CONFIG_H
-      #include "../config.h"
-   #endif
+	#ifdef HAVE_CONFIG_H
+	  #include "../config.h"
+	#endif
 
 #else
 
-   #ifndef _GNU_SOURCE
-      #define _GNU_SOURCE
-   #endif
+	#ifndef _GNU_SOURCE
+	  #define _GNU_SOURCE
+	#endif
 
-   #include "config.h"
+	#include "config.h"
 
 #endif
 
 #ifdef _WIN32
-   #ifndef _lacewing_static
-      #define lw_import __declspec(dllexport)
-   #endif
+	#ifndef _lacewing_static
+	  #define lw_import __declspec(dllexport)
+	#endif
 #else
-   #ifdef __GNUC__
-      #ifndef _lacewing_static
-         #define lw_import __attribute__((visibility("default")))
-      #endif
-   #else
-      #define lw_import
-   #endif
+	#ifdef __GNUC__
+	  #ifndef _lacewing_static
+		 #define lw_import __attribute__((visibility("default")))
+	  #endif
+	#else
+	  #define lw_import
+	#endif
 #endif
 
 /* For convenience, some types (such as lw_client and lw_ws_req) are typedef-d
@@ -82,50 +82,50 @@
  * library.
  */
 
- typedef struct _lw_thread            * lw_thread;
- typedef struct _lw_addr              * lw_addr;
- typedef struct _lw_filter            * lw_filter;
- typedef struct _lw_pump              * lw_pump;
- typedef struct _lw_pump_watch        * lw_pump_watch;
- typedef struct _lw_eventpump         * lw_eventpump;
- typedef struct _lw_stream            * lw_stream;
- typedef struct _lw_fdstream          * lw_fdstream;
- typedef struct _lw_file              * lw_file;
- typedef struct _lw_timer             * lw_timer;
- typedef struct _lw_sync              * lw_sync;
- typedef struct _lw_event             * lw_event;
- typedef struct _lw_error             * lw_error;
- typedef struct _lw_client            * lw_client;
- typedef struct _lw_server            * lw_server;
- typedef struct _lw_server_client     * lw_server_client;
- typedef struct _lw_udp               * lw_udp;
- typedef struct _lw_flashpolicy       * lw_flashpolicy;
- typedef struct _lw_ws                * lw_ws;
- typedef struct _lw_ws_req            * lw_ws_req;
- typedef struct _lw_ws_req_hdr        * lw_ws_req_hdr;
- typedef struct _lw_ws_req_param      * lw_ws_req_param;
- typedef struct _lw_ws_req_cookie     * lw_ws_req_cookie;
- typedef struct _lw_ws_upload         * lw_ws_upload;
- typedef struct _lw_ws_upload_hdr     * lw_ws_upload_hdr;
- typedef struct _lw_ws_session        * lw_ws_session;
- typedef struct _lw_ws_sessionitem    * lw_ws_sessionitem;
+ typedef struct _lw_thread			* lw_thread;
+ typedef struct _lw_addr			  * lw_addr;
+ typedef struct _lw_filter			* lw_filter;
+ typedef struct _lw_pump			  * lw_pump;
+ typedef struct _lw_pump_watch		* lw_pump_watch;
+ typedef struct _lw_eventpump		 * lw_eventpump;
+ typedef struct _lw_stream			* lw_stream;
+ typedef struct _lw_fdstream		  * lw_fdstream;
+ typedef struct _lw_file			  * lw_file;
+ typedef struct _lw_timer			 * lw_timer;
+ typedef struct _lw_sync			  * lw_sync;
+ typedef struct _lw_event			 * lw_event;
+ typedef struct _lw_error			 * lw_error;
+ typedef struct _lw_client			* lw_client;
+ typedef struct _lw_server			* lw_server;
+ typedef struct _lw_server_client	 * lw_server_client;
+ typedef struct _lw_udp				* lw_udp;
+ typedef struct _lw_flashpolicy		* lw_flashpolicy;
+ typedef struct _lw_ws				* lw_ws;
+ typedef struct _lw_ws_req			* lw_ws_req;
+ typedef struct _lw_ws_req_hdr		* lw_ws_req_hdr;
+ typedef struct _lw_ws_req_param	  * lw_ws_req_param;
+ typedef struct _lw_ws_req_cookie	 * lw_ws_req_cookie;
+ typedef struct _lw_ws_upload		 * lw_ws_upload;
+ typedef struct _lw_ws_upload_hdr	 * lw_ws_upload_hdr;
+ typedef struct _lw_ws_session		* lw_ws_session;
+ typedef struct _lw_ws_sessionitem	* lw_ws_sessionitem;
 
 #include "../include/lacewing.h"
 
 #ifdef _MSC_VER
-    #ifndef __cplusplus
-        #error "Can only compile as C++ with MSVC"
+	#ifndef __cplusplus
+		#error "Can only compile as C++ with MSVC"
 		#error "Try enabling /TP, using Compile As property in C/C++ > Advanced page."
-    #endif
-    #pragma warning(disable: 4200) /* zero-sized array in struct/union */
-    #pragma warning(disable: 4800) /* forcing value to bool 'true' or 'false' */
-    #include "windows/typeof.h"
+	#endif
+	#pragma warning(disable: 4200) /* zero-sized array in struct/union */
+	#pragma warning(disable: 4800) /* forcing value to bool 'true' or 'false' */
+	#include "windows/typeof.h"
 #endif
 
 #include "list.h"
 
 #ifdef __cplusplus
-   extern "C" {
+	extern "C" {
 #endif
 
 void lwp_init ();
@@ -139,15 +139,15 @@ void lwp_deinit ();
 #include <time.h>
 
 #ifdef _lacewing_debug
-   #include "refcount-dbg.h"
+	#include "refcount-dbg.h"
 #else
-   #include "refcount.h"
+	#include "refcount.h"
 #endif
 
 #ifndef container_of
-   #define container_of(p, type, v) \
-        ((type *)  (((char *) p) - offsetof(type, v)) )
-        
+	#define container_of(p, type, v) \
+		((type *)  (((char *) p) - offsetof(type, v)) )
+		
 #endif
 
 #include "heapbuffer.h"
@@ -158,19 +158,19 @@ void lwp_deinit ();
 #define lwp_max_path 512
 
 #ifdef _WIN32
-   #include "windows/common.h"
+	#include "windows/common.h"
 #else
-   #include "unix/common.h"
+	#include "unix/common.h"
 #endif
 
 #if defined(HAVE_MALLOC_H) || defined(_WIN32)
-   #include <malloc.h>
+	#include <malloc.h>
 #endif
 
 #if defined(_lacewing_debug) || defined(_lacewing_debug_output)
-   #define lwp_trace lw_trace
+	#define lwp_trace lw_trace
 #else
-   #define lwp_trace(x, ...)
+	#define lwp_trace(x, ...)
 #endif
 
 /* TODO : find the optimal value for this?  make adjustable? */
@@ -187,7 +187,7 @@ long lwp_socket_port (lwp_socket socket);
 void lwp_close_socket (lwp_socket socket);
 
 lw_bool lwp_urldecode (const char * in, size_t in_length,
-                       char * out, size_t out_length, lw_bool plus_spaces);
+						char * out, size_t out_length, lw_bool plus_spaces);
 
 lw_bool lwp_begins_with (const char * string, const char * substring);
 
@@ -208,16 +208,16 @@ lwp_socket lwp_create_server_socket (lw_filter, int type, int protocol, lw_error
 
 #ifdef __cplusplus
 
-   } /* extern "C" */
+	} /* extern "C" */
 
-   using namespace lacewing;
-   #include <new> 
+	using namespace lacewing;
+	#include <new> 
 
 #endif
 
 #define lwp_def_hook(c, hook) \
-    void lw_##c##_on_##hook (lw_##c ctx, lw_##c##_hook_##hook hook)           \
-    {   ctx->on_##hook = hook;                                                \
-    }                                                                         \
+	void lw_##c##_on_##hook (lw_##c ctx, lw_##c##_hook_##hook hook)			\
+	{	ctx->on_##hook = hook;												\
+	}																		 \
 
 

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -28,11 +28,11 @@
  */
 
 #ifndef WINVER
-   #define WINVER 0x0501
+	#define WINVER 0x0501
 #endif
 
 #ifndef _WIN32_WINNT
-   #define _WIN32_WINNT 0x0501
+	#define _WIN32_WINNT 0x0501
 #endif
 
 #include <winsock2.h>
@@ -60,7 +60,7 @@ typedef SOCKET lwp_socket;
 #define lwp_last_socket_error WSAGetLastError()
 
 #ifdef _MSC_VER
-    #define ssize_t SSIZE_T
+	#define ssize_t SSIZE_T
 #endif
 
 #define strcasecmp _stricmp

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -34,164 +34,159 @@
 
 class framereader
 {
-    
+	
 protected:
 
-    messagebuilder buffer;
-        
-    int            state;
-    int            sizebytesleft;
-    size_t		   messagesize;
-    unsigned char  messagetype; 
+	messagebuilder buffer;
+		
+	lw_i32	state = 0;
+	lw_i32	sizebytesleft = 0;
+	lw_ui32	messagesize = 0;
+	lw_ui8  messagetype = 0; 
 
 public:
 
-    void  * tag;
-    bool (* messagehandler) (void * tag, unsigned char type, const char * message, size_t size);
+	void  * tag = nullptr;
+	bool (* messagehandler) (void * tag, unsigned char type, const char * message, size_t size) = nullptr;
 
-    framereader()
-    {
-        messagehandler = 0;
-        state          = 0;
-		messagesize	   = 0;
-		messagetype    = 0;
-    }
+	framereader() {
+	}
 
-    inline void process(char * data, unsigned int size)
-    {
-        while(state < 3 && size -- > 0)
-        {
-            unsigned char byte = *(data ++);
+	inline void process(const char * data, unsigned int size)
+	{
+		while(state < 3 && size -- > 0)
+		{
+			unsigned char byte = *(data ++);
 
-            switch(state)
-            {
-                case 0: /* haven't yet got type */
-                    
-                    messagetype = byte;
-                    state = 1;
-                    sizebytesleft = 0;
+			switch(state)
+			{
+				case 0: /* haven't yet got type */
+					
+					messagetype = byte;
+					state = 1;
+					sizebytesleft = 0;
 
-                    break;
-            
-                case 1: /* have type, but no size */
-                {
-                    if (sizebytesleft > 0)
-                    {
-                        buffer.add <char> (byte);
-                        
-                        if ((-- sizebytesleft) == 0)
-                        {
-                            switch(buffer.size)
-                            {
-                            case 2:
+					break;
+			
+				case 1: /* have type, but no size */
+				{
+					if (sizebytesleft > 0)
+					{
+						buffer.add <char> (byte);
+						
+						if ((-- sizebytesleft) == 0)
+						{
+							switch(buffer.size)
+							{
+							case 2:
 
-                                messagesize = *(lw_i16 *) buffer.buffer;
-                                break;
+								messagesize = *(lw_i16 *) buffer.buffer;
+								break;
 
-                            case 4:
+							case 4:
 
-                                messagesize = *(lw_i32 *) buffer.buffer;
-                                break;
-                            }
+								messagesize = *(lw_i32 *) buffer.buffer;
+								break;
+							}
 
-                            buffer.reset();
+							buffer.reset();
 
-                            state = 3;
-                            break;
-                        }
+							state = 3;
+							break;
+						}
 
-                        break;
-                    }
+						break;
+					}
 
-                    /* byte is the first byte of the size */
+					/* byte is the first byte of the size */
 
-                    if (byte == 254)
-                    {
-                        /* 16 bit message size to follow */
+					if (byte == 254)
+					{
+						/* 16 bit message size to follow */
 
-                        sizebytesleft = 2;
-                        break;
-                    }
+						sizebytesleft = 2;
+						break;
+					}
 
-                    if (byte == 255)
-                    {
-                        /* 32 bit message size to follow */
+					if (byte == 255)
+					{
+						/* 32 bit message size to follow */
 
-                        sizebytesleft = 4;
-                        break;
-                    }
+						sizebytesleft = 4;
+						break;
+					}
 
-                    /* 8 bit message size */
+					/* 8 bit message size */
 
-                    messagesize = byte;
-                    state = 3;
+					messagesize = byte;
+					state = 3;
 
-                    break;
-                }
-            };
-        }
+					break;
+				}
+			};
+		}
 
-        if (state < 3) /* header not complete yet */
-            return;
+		if (state < 3) /* header not complete yet */
+			return;
 
-        if (buffer.size == 0)
-        {
-            if (size == messagesize)
-            {
-                /* the message isn't fragmented, and it's the only message. */
+		if (buffer.size == 0)
+		{
+			if (size == messagesize)
+			{
+				/* the message isn't fragmented, and it's the only message. */
 
 				if (!messagehandler(tag, messagetype, data, messagesize))
 					return;
-                state = 0;
+				state = 0;
 				
 
-                return;
-            }
+				return;
+			}
 
-            if (size > messagesize)
-            {
-                /* there message isn't fragmented, but there are more messages than
-                   this one.  lovely hack to give it a null terminator without copying
-                   the message..!  */
+			if (size > messagesize)
+			{
+				/* their message isn't fragmented, but there are more messages than
+					this one.  lovely hack to give it a null terminator without copying
+					the message..!  */
 
 				char nextbyte = data[messagesize];
-				data[messagesize] = 0;
+				*(char *)&data[messagesize] = 0;
 
 				if (!messagehandler(tag, messagetype, data, messagesize))
 					return;
-				data[messagesize] = nextbyte;
+				*(char *)&data[messagesize] = nextbyte;
 
 				state = 0;
 				process(data + messagesize, size - messagesize);
+				
+				return;
+			}
+		}
 
-                return;
-            }
-        }
+		unsigned int thismessagebytes = messagesize - buffer.size;
 
-        unsigned int thismessagebytes = messagesize - buffer.size;
+		if (size < thismessagebytes)
+			thismessagebytes = size;
 
-        if (size < thismessagebytes)
-            thismessagebytes = size;
+		buffer.add(data, thismessagebytes);
+		
+		size -= thismessagebytes;
+		data += thismessagebytes;
 
-        buffer.add(data, thismessagebytes);
-        
-        size -= thismessagebytes;
-        data += thismessagebytes;
-
-        if (buffer.size == messagesize)
-        {
-            buffer.add <char> (0);
+		if (buffer.size == messagesize)
+		{
+			buffer.add <char> (0);
 
 			if (!messagehandler(tag, messagetype, buffer.buffer, messagesize))
 				return;
-            buffer.reset();
+			buffer.reset();
 
-            state = 0;
+			state = 0;
 
-            if (size > 0)
-                process(data, size);
-        }
-    }
+			if (size > 0)
+				process(data, size);
+		}
+	}
 
 
 };

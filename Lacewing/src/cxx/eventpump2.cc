@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,29 +31,29 @@
 
 eventpump lacewing::eventpump_new ()
 {
-   return (eventpump) lw_eventpump_new ();
+	return (eventpump) lw_eventpump_new ();
 }
 
 error _eventpump::start_eventloop ()
 {
-   return (error) lw_eventpump_start_eventloop ((lw_eventpump) this);
+	return (error) lw_eventpump_start_eventloop ((lw_eventpump) this);
 }
 
 error _eventpump::tick ()
 {
-   return (error) lw_eventpump_tick ((lw_eventpump) this);
+	return (error) lw_eventpump_tick ((lw_eventpump) this);
 }
 
 error _eventpump::start_sleepy_ticking
-      (void (lw_callback * on_tick_needed) (eventpump))
+	  (void (lw_callback * on_tick_needed) (eventpump))
 {
-   return (error) lw_eventpump_start_sleepy_ticking
-      ((lw_eventpump) this, (void (*) (lw_eventpump)) on_tick_needed);
+	return (error) lw_eventpump_start_sleepy_ticking
+	  ((lw_eventpump) this, (void (*) (lw_eventpump)) on_tick_needed);
 }
 
 void _eventpump::post_eventloop_exit ()
 {
-   lw_eventpump_post_eventloop_exit ((lw_eventpump) this);
+	lw_eventpump_post_eventloop_exit ((lw_eventpump) this);
 }
 
 

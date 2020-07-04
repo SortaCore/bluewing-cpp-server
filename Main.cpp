@@ -11,18 +11,18 @@
 #include "Lacewing\Lacewing.h"
 
 // declare thou
-void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::client &client);
-void OnDisconnect(lacewing::relayserver &server, lacewing::relayserver::client &client);
+void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
+void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 void OnTimerTick(lacewing::timer timer);
 void OnError(lacewing::relayserver &server, lacewing::error error);
-void OnServerMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	bool blasted, int subchannel, const char * data, size_t size, int variant);
-void OnChannelMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	lacewing::relayserver::channel &channel,
-	bool blasted, int subchannel, const char * data, size_t size, int variant);
-void OnPeerMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	lacewing::relayserver::channel &viachannel, lacewing::relayserver::client &receiverclient,
-	bool blasted, int subchannel, const char * data, size_t size, int variant);
+void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant);
+void OnChannelMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant);
+void OnPeerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	std::shared_ptr<lacewing::relayserver::channel> viachannel, std::shared_ptr<lacewing::relayserver::client> receiverclient,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant);
 
 
 void GenerateFlashPolicy(int port);
@@ -240,7 +240,7 @@ static size_t numMessagesIn = 0, numMessagesOut = 0;
 static size_t bytesIn = 0, bytesOut = 0;
 struct clientstats
 {
-	lacewing::relayserver::client * c;
+	std::shared_ptr<lacewing::relayserver::client> c;
 	size_t totalBytesIn;
 	size_t totalNumMessagesIn;
 	size_t wastedServerMessages;
@@ -248,19 +248,18 @@ struct clientstats
 	size_t bytesIn;
 	size_t numMessagesIn;
 	bool exceeded;
-	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0)
+	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0)
 		, bytesIn(0), numMessagesIn(0), exceeded(false), wastedServerMessages(0) {}
 #else
 	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
 		wastedServerMessages(0) {}
 #endif
 };
-static std::vector<clientstats *> clientdata;
-void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::client &client)
+static std::vector<std::unique_ptr<clientstats>> clientdata;
+void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
-	const char * ipAddress = client.getaddress();
 	char addr[64];
-	lw_addr_prettystring(client.getaddress(), addr, sizeof(addr));
+	lw_addr_prettystring(client->getaddress().data(), addr, sizeof(addr));
 
 	auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 	if (banEntry != banIPList.end())
@@ -280,22 +279,22 @@ void OnConnectRequest(lacewing::relayserver &server, lacewing::relayserver::clie
 	server.connect_response(client, nullptr);
 	UpdateTitle(server.clientcount());
 
-	std::cout << green << "\r" << timeBuffer << " | New client ID " << client.id() << ", IP " << addr << " connected." 
+	std::cout << green << "\r" << timeBuffer << " | New client ID " << client->id() << ", IP " << addr << " connected." 
 		<< std::string(45, ' ') << "\r\n" << yellow;
-	clientdata.push_back(new clientstats(&client));
+	clientdata.push_back(std::make_unique<clientstats>(client));
 }
-void OnDisconnect(lacewing::relayserver &server, lacewing::relayserver::client &client)
+void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
 	UpdateTitle(server.clientcount());
-	const char * name = client.name();
-	name = name ? name : "[unset]";
+	std::string name = client->name();
+	name = !name.empty() ? name : "[unset]";
 	char addr[64];
-	lw_addr_prettystring(client.getaddress(), addr, sizeof(addr));
-	auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](clientstats *const &c) {
-		return c->c == &client; }
+	lw_addr_prettystring(client->getaddress().data(), addr, sizeof(addr));
+	auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const std::unique_ptr<clientstats> &c) {
+		return c->c == client; }
 	);
 
-	std::cout << green << "\r" << timeBuffer << " | Client ID " << client.id() << ", name " << name << ", IP " << addr << " disconnected.";
+	std::cout << green << "\r" << timeBuffer << " | Client ID " << client->id() << ", name " << name << ", IP " << addr << " disconnected.";
 	if (a != clientdata.cend())
 		std::cout << " Uploaded " << (**a).totalBytesIn << " bytes in " << (**a).totalNumMessagesIn << " msgs total.";
 	else
@@ -303,10 +302,7 @@ void OnDisconnect(lacewing::relayserver &server, lacewing::relayserver::client &
 	std::cout << "\r\n" << yellow;
 
 	if (a != clientdata.cend())
-	{
-		delete (*a);
 		clientdata.erase(a);
-	}
 }
 
 void OnTimerTick(lacewing::timer timer)
@@ -325,7 +321,7 @@ void OnTimerTick(lacewing::timer timer)
 	bytesIn = bytesOut = 0U;
 
 #ifdef TCP_CLIENT_UPLOAD_CAP
-	for (auto c : clientdata)
+	for (auto& c : clientdata)
 	{
 		if (!c->exceeded)
 		{
@@ -333,12 +329,12 @@ void OnTimerTick(lacewing::timer timer)
 			c->numMessagesIn = 0;
 		}
 	}
-	for (auto c : clientdata)
+	for (auto& c : clientdata)
 	{
 		if (c->exceeded)
 		{
 			char addr[64];
-			const char * ipAddress = c->c->getaddress();
+			const char * ipAddress = c->c->getaddress().data();
 			lw_addr_prettystring(ipAddress, addr, sizeof(addr));
 
 			auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
@@ -349,8 +345,8 @@ void OnTimerTick(lacewing::timer timer)
 
 			std::cout << red << "\r" << timeBuffer << " | Client ID " << c->c->id() << ", IP " << addr <<
 				" dropped for heavy TCP upload (" << c->bytesIn << " bytes in " << c->numMessagesIn << " msgs)" << yellow << "\r\n";
-			c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
-			c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 80, 0);
+			c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 0);
+			c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord.", 0);
 			c->c->disconnect();
 
 			break;
@@ -375,43 +371,43 @@ void OnError(lacewing::relayserver &server, lacewing::error error)
 		<< std::string(25, ' ') << "\r\n" << yellow;
 }
 
-void OnServerMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	bool blasted, int subchannel, const char * data, size_t size, int variant)
+void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant)
 {
 	++numMessagesIn;
-	bytesIn += size;
+	bytesIn += data.size();
 
 	if (blasted || variant != 0 || subchannel != 0)
 	{
 		char addr[64];
-		lw_addr_prettystring(senderclient.getaddress(), addr, sizeof(addr));
+		lw_addr_prettystring(senderclient->getaddress().data(), addr, sizeof(addr));
 		std::cout << red << "\r" << timeBuffer << " | Dropped server message from IP " << addr << ", invalid type."
 			<< std::string(35, ' ') << "\r\n" << yellow;
-		auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](clientstats *&b) { return b->c == &senderclient; });
+		auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](std::unique_ptr<clientstats> &b) { return b->c == senderclient; });
 		if (cd != clientdata.end())
 		{
-			(**cd).totalBytesIn += size;
+			(**cd).totalBytesIn += data.size();
 			++(**cd).totalNumMessagesIn;
 
 			if ((**cd).wastedServerMessages++ > 5) {
 				banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
 					_time64(NULL) + 60LL * 60LL));
-				senderclient.send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord.");
-				senderclient.disconnect();
+				senderclient->send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord.");
+				senderclient->disconnect();
 			}
 		}
 		return;
 	}
-	const char * name = senderclient.name();
-	name = name ? name : "[unset]";
+	std::string name = senderclient->name();
+	name = !name.empty() ? name : "[unset]";
 
-	std::cout << white << "\r" << timeBuffer << " | Message from client ID " << senderclient.id() << ", name " << name 
+	std::cout << white << "\r" << timeBuffer << " | Message from client ID " << senderclient->id() << ", name " << name 
 		<< ":" << std::string(35, ' ') << "\r\n"
-		<< std::string(data, size) << "\r\n" << yellow;
+		<< data << "\r\n" << yellow;
 }
-bool IncrementClient(lacewing::relayserver::client &client, size_t size, bool blasted)
+bool IncrementClient(std::shared_ptr<lacewing::relayserver::client> client, size_t size, bool blasted)
 {
-	auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](clientstats *&b) { return b->c == &client; });
+	auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](std::unique_ptr<clientstats> &b) { return b->c == client; });
 	if (cd != clientdata.end())
 	{
 		(**cd).totalBytesIn += size;
@@ -428,60 +424,60 @@ bool IncrementClient(lacewing::relayserver::client &client, size_t size, bool bl
 	}
 	return true;
 }
-void OnPeerMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	lacewing::relayserver::channel &viachannel, lacewing::relayserver::client &receiverclient,
-	bool blasted, int subchannel, const char * data, size_t size, int variant)
+void OnPeerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	std::shared_ptr<lacewing::relayserver::channel> viachannel, std::shared_ptr<lacewing::relayserver::client> receiverclient,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant)
 {
 	++numMessagesIn;
-	bytesIn += size;
+	bytesIn += data.size();
 #ifdef TOTAL_UPLOAD_CAP
 	if (bytesOut > 50000 && blasted)
 	{
-		server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, size, variant, false);
+		server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, variant, false);
 		return;
 	}
 #endif
 
 	// False means it's exceeded TCP limits (if TCP limit is off, this'll always return true)
-	if (!IncrementClient(senderclient, size, blasted))
+	if (!IncrementClient(senderclient, data.size(), blasted))
 	{
-		server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, size, variant, false);
+		server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, variant, false);
 		return;
 	}
 
 	++numMessagesOut;
-	bytesOut += size;
-	server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, size, variant, true);
+	bytesOut += data.size();
+	server.clientmessage_permit(senderclient, viachannel, receiverclient, blasted, subchannel, data, variant, true);
 }
 
-void OnChannelMessage(lacewing::relayserver &server, lacewing::relayserver::client &senderclient,
-	lacewing::relayserver::channel &channel,
-	bool blasted, int subchannel, const char * data, size_t size, int variant)
+void OnChannelMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
+	std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant)
 {
 	++numMessagesIn;
-	bytesIn += size;
+	bytesIn += data.size();
 
 #ifdef TOTAL_UPLOAD_CAP
 	if (bytesOut > TOTAL_UPLOAD_CAP && blasted)
 	{
-		server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, size, variant, false);
+		server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, variant, false);
 		++numMessagesIn;
-		bytesIn += size;
+		bytesIn += data.size();
 		return;
 	}
 #endif
 
 	// False means it's exceeded TCP limits (if TCP limit is off, this'll always return true)
-	if (!IncrementClient(senderclient, size, blasted))
+	if (!IncrementClient(senderclient, data.size(), blasted))
 	{
-		server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, size, variant, false);
+		server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, variant, false);
 		return;
 	}
 
-	server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, size, variant, true);
-	size_t numCli = channel.clientcount() - 1U;
+	server.channelmessage_permit(senderclient, channel, blasted, subchannel, data, variant, true);
+	size_t numCli = channel->clientcount() - 1U;
 	numMessagesOut += numCli;
-	bytesOut += numCli * size;
+	bytesOut += numCli * data.size();
 }
 
 void GenerateFlashPolicy(int port)

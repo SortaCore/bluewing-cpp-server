@@ -7,11 +7,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -29,93 +29,93 @@
 #include "common.h"
 
 void lwp_nvhash_set (lwp_nvhash * hash, const char * key, const char * value,
-                    lw_bool copy)
+					lw_bool copy)
 {
-   lwp_nvhash_set_ex (hash, strlen (key), key, strlen (value), value, copy);
+	lwp_nvhash_set_ex (hash, strlen (key), key, strlen (value), value, copy);
 }
 
 void lwp_nvhash_set_ex (lwp_nvhash * hash, size_t key_len, const char * key,
-                       size_t value_len, const char * value,
-                       lw_bool copy)
+						size_t value_len, const char * value,
+						lw_bool copy)
 {
-   lwp_nvhash item;
+	lwp_nvhash item;
 
-   HASH_FIND (hh, *hash, key, key_len, item);
+	HASH_FIND (hh, *hash, key, key_len, item);
 
-   if (item)
-   {
-      if (copy)
-      {
-         item->value = (char *) realloc (item->value, value_len + 1);
+	if (item)
+	{
+	  if (copy)
+	  {
+		 item->value = (char *) realloc (item->value, value_len + 1);
 
-         memcpy (item->value, value, value_len);
-         item->value [value_len] = 0;
-      }
-      else
-      {
-         free (item->value);
-         item->value = (char *) value;
-      }
+		 memcpy (item->value, value, value_len);
+		 item->value [value_len] = 0;
+	  }
+	  else
+	  {
+		 free (item->value);
+		 item->value = (char *) value;
+	  }
 
-      return;
-   }
+	  return;
+	}
 
-   item = (lwp_nvhash) calloc (sizeof (*item), 1);
+	item = (lwp_nvhash) calloc (sizeof (*item), 1);
 
-   if (copy)
-   {
-      item->key = (char *) malloc (key_len + 1);
-      memcpy (item->key, key, key_len);
-      item->key [key_len] = 0;
+	if (copy)
+	{
+	  item->key = (char *) malloc (key_len + 1);
+	  memcpy (item->key, key, key_len);
+	  item->key [key_len] = 0;
 
-      item->value = (char *) malloc (value_len + 1);
-      memcpy (item->value, value, value_len);
-      item->value [value_len] = 0;
-   }
-   else
-   {
-      item->key = (char *) key;
-      item->value = (char *) value;
-   }
+	  item->value = (char *) malloc (value_len + 1);
+	  memcpy (item->value, value, value_len);
+	  item->value [value_len] = 0;
+	}
+	else
+	{
+	  item->key = (char *) key;
+	  item->value = (char *) value;
+	}
 
-   HASH_ADD_KEYPTR (hh, *hash, item->key, key_len, item);
+	HASH_ADD_KEYPTR (hh, *hash, item->key, key_len, item);
 }
 
 const char * lwp_nvhash_get (lwp_nvhash * hash, const char * key,
-                            const char * def)
+							const char * def)
 {
-   lwp_nvhash item;
+	lwp_nvhash item;
 
-   HASH_FIND (hh, *hash, key, strlen (key), item);
+	HASH_FIND (hh, *hash, key, strlen (key), item);
 
-   if (item)
-      return item->value;
+	if (item)
+	  return item->value;
 
-   return def;
+	return def;
 }
 
 void lwp_nvhash_clear (lwp_nvhash * hash)
 {
-   lwp_nvhash tail, item, tmp;
+	lwp_nvhash tail, item, tmp;
 
-   HASH_ITER (hh, *hash, item, tmp)
-   {
-      HASH_DEL (*hash, item);
+	HASH_ITER (hh, *hash, item, tmp)
+	{
+	  HASH_DEL (*hash, item);
 
-      free (item->key);
-      free (item->value);
+	  free (item->key);
+	  free (item->value);
 
-      free (item);
-   }
+	  free (item);
+	}
 
-   while (*hash)
-   {
-      tail = (lwp_nvhash) (*hash)->hh.tbl->tail;
+	while (*hash)
+	{
+	  tail = (lwp_nvhash) (*hash)->hh.tbl->tail;
 
-      HASH_DEL (*hash, tail);
+	  HASH_DEL (*hash, tail);
 
-      free (tail->key);
-      free (tail->value);
-   }
+	  free (tail->key);
+	  free (tail->value);
+	}
 }
 

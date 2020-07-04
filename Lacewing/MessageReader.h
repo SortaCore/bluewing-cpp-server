@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -35,143 +35,131 @@ class messagereader
 {
 protected:
 
-    const char * buffer;
-    
+	const char * buffer;
+	
 	size_t size;
 
-    std::vector<char *> tofree;
+	std::vector<char *> tofree;
 
 public:
 
-    unsigned int offset;
+	unsigned int offset;
 
-    bool failed;
+	bool failed;
 
-    inline messagereader(const char * buffer, size_t size)
-    {
-        failed = false;
+	inline messagereader(const char * buffer, size_t size)
+	{
+		failed = false;
 
-        this->buffer = buffer;
-        this->size = size;
+		this->buffer = buffer;
+		this->size = size;
 
-        this->offset = 0;
-    }
+		this->offset = 0;
+	}
 
-    inline ~messagereader()
-    {
+	inline ~messagereader()
+	{
 		std::for_each(tofree.begin(), tofree.end(), [&](char * &c) { free(c); });
 		tofree.clear();
-    }
+	}
 
-    inline bool check(unsigned int size)
-    {
-        if (failed)
-            return false;
+	inline bool check(unsigned int size)
+	{
+		if (failed)
+			return false;
 
-        if (offset + size > this->size)
-        {
-            failed = true;
-            return false;
-        }
+		if (offset + size > this->size)
+		{
+			failed = true;
+			return false;
+		}
 
-        return true;
-    }
+		return true;
+	}
 
-    template<class t> inline t get()
-    {
-        if (!check(sizeof(t)))
-            return 0;
+	template<class t> inline t get()
+	{
+		if (!check(sizeof(t)))
+			return 0;
 
-        t value = *(t *) (buffer + offset);
+		t value = *(t *) (buffer + offset);
 
-        offset += sizeof(t);
-        return value;
-    }
+		offset += sizeof(t);
+		return value;
+	}
 
-    char * get (unsigned int size)
-    {
-        if (!check(size))
-            return 0;
+	std::string_view get (unsigned int size)
+	{
+		if (!check(size))
+			return std::string_view();
 
-        char * output = (char *) calloc (size + 1, 1);
+		std::string_view output (buffer + offset, size);
+		offset += size;
 
-        if (!output)
-        {
-            failed = true;
-            return 0;
-        }
+		return output;
+	}
 
-        tofree.push_back (output);
+	inline int bytesleft ()
+	{
+		return size - offset;
+	}
 
-        memcpy(output, buffer + offset, size);
-        output[size] = 0;
+	inline const char * cursor ()
+	{
+		return buffer + offset;
+	}
 
-        offset += size;
+	inline std::string_view getremaining(bool allowempty = true)
+	{
+		if (failed)
+			return this->buffer;
 
-        return output;
-    }
+		std::string_view remaining(this->buffer + offset, bytesleft());
+		offset += size;
 
-    inline int bytesleft ()
-    {
-        return size - offset;
-    }
+		if (!allowempty && (remaining.empty() || !remaining.front()))
+			failed = true;
 
-    inline const char * cursor ()
-    {
-        return buffer + offset;
-    }
+		return remaining;
+	}
 
-    inline const char * getremaining(bool allowempty = true)
-    {
-        if (failed)
-            return this->buffer;
+	inline void getremaining(const char * &buffer, unsigned int &size, unsigned int minimumlength = 0U, unsigned int maximumlength = 0xffffffff)
+	{
+		buffer = this->buffer + offset;
+		size	= this->size - offset;
 
-        const char * remaining = this->buffer + offset;
-        offset += size;
+		if (size > maximumlength || size < minimumlength)
+			failed = true;
 
-        if (!allowempty && !*remaining)
-            failed = true;
+		offset += size;
+	}
 
-        return remaining;
-    }
+	/* inline short Network16Bit ()
+	{
+		return ntohs (Get <short> ());
+	}
+	
+	inline int Network24Bit ()
+	{
+		if (!Check (3))
+			return 0;
+		
+		return Read24Bit (Buffer + Offset);
+	}
 
-    inline void getremaining(const char * &buffer, unsigned int &size, unsigned int minimumlength = 0U, unsigned int maximumlength = 0xffffffff)
-    {
-        buffer = this->buffer + offset;
-        size   = this->size - offset;
-
-        if (size > maximumlength || size < minimumlength)
-            failed = true;
-
-        offset += size;
-    }
-
-   /* inline short Network16Bit ()
-    {
-        return ntohs (Get <short> ());
-    }
-    
-    inline int Network24Bit ()
-    {
-        if (!Check (3))
-            return 0;
-        
-        return Read24Bit (Buffer + Offset);
-    }
-
-    inline int Network32Bit ()
-    {
-        return ntohl (Get <int> ());
-    }
-    
-    inline int NetworkX31Bit ()
-    {
-        int value = Get <int> ();
-   
-        *(char *) &value &= 0x7F;
-        
-        return ntohl (value);
-    }*/
+	inline int Network32Bit ()
+	{
+		return ntohl (Get <int> ());
+	}
+	
+	inline int NetworkX31Bit ()
+	{
+		int value = Get <int> ();
+	
+		*(char *) &value &= 0x7F;
+		
+		return ntohl (value);
+	}*/
 };
 
 #endif

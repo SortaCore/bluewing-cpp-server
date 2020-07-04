@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,23 +31,23 @@
 
 typedef struct _lwp_ws_httpclient
 {
-   struct _lwp_ws_client client;
+	struct _lwp_ws_client client;
 
-   lw_ws_req request; /* HTTP is one request at a time, so this is just reused */
+	lw_ws_req request; /* HTTP is one request at a time, so this is just reused */
 
-   time_t last_activity;
+	time_t last_activity;
 
-   http_parser parser;
+	http_parser parser;
 
-   lw_bool parsing_headers, signal_eof;
-    
-   char * cur_header_name;
-   size_t cur_header_name_length;
+	lw_bool parsing_headers, signal_eof;
+	
+	char * cur_header_name;
+	size_t cur_header_name_length;
 
 } * lwp_ws_httpclient;
 
 lwp_ws_client lwp_ws_httpclient_new
-   (lw_ws, lw_server_client socket, lw_bool secure);
+	(lw_ws, lw_server_client socket, lw_bool secure);
 
 void lwp_ws_httpclient_delete (lw_ws, lwp_ws_httpclient);
 

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,36 +31,36 @@
 
 thread lacewing::thread_new (const char * name, void * proc)
 {
-   return (thread) lw_thread_new (name, proc);
+	return (thread) lw_thread_new (name, proc);
 }
 
 void lacewing::thread_delete (lacewing::thread thread)
 {
-   lw_thread_delete ((lw_thread) thread);
+	lw_thread_delete ((lw_thread) thread);
 }
 
 void _thread::start (void * param)
 {
-   lw_thread_start ((lw_thread) this, param);
+	lw_thread_start ((lw_thread) this, param);
 }
 
 bool _thread::started ()
 {
-   return lw_thread_started ((lw_thread) this);
+	return lw_thread_started ((lw_thread) this);
 }
 
 void * _thread::join ()
 {
-   return lw_thread_join ((lw_thread) this);
+	return lw_thread_join ((lw_thread) this);
 }
 
 void * _thread::tag ()
 {
-   return lw_thread_tag ((lw_thread) this);
+	return lw_thread_tag ((lw_thread) this);
 }
 
 void _thread::tag (void * tag)
 {
-   lw_thread_set_tag ((lw_thread) this, tag);
+	lw_thread_set_tag ((lw_thread) this, tag);
 }
 

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,66 +31,66 @@
 
 udp lacewing::udp_new (lacewing::pump pump)
 {
-   return (udp) lw_udp_new ((lw_pump) pump);
+	return (udp) lw_udp_new ((lw_pump) pump);
 }
 
 void lacewing::udp_delete (lacewing::udp udp)
 {
-   lw_udp_delete ((lw_udp) udp);
+	lw_udp_delete ((lw_udp) udp);
 }
 
 void _udp::host (long port)
 {
-   lw_udp_host ((lw_udp) this, port);
+	lw_udp_host ((lw_udp) this, port);
 }
 
 void _udp::host (lacewing::filter filter)
 {
-   lw_udp_host_filter ((lw_udp) this, (lw_filter) filter);
+	lw_udp_host_filter ((lw_udp) this, (lw_filter) filter);
 }
 
 void _udp::host (lacewing::address address)
 {
-   lw_udp_host_addr ((lw_udp) this, (lw_addr) address);
+	lw_udp_host_addr ((lw_udp) this, (lw_addr) address);
 }
 
 bool _udp::hosting ()
 {
-   return lw_udp_hosting ((lw_udp) this);
+	return lw_udp_hosting ((lw_udp) this);
 }
 
 void _udp::unhost ()
 {
-   lw_udp_unhost ((lw_udp) this);
+	lw_udp_unhost ((lw_udp) this);
 }
 
 long _udp::port ()
 {
-   return lw_udp_port ((lw_udp) this);
+	return lw_udp_port ((lw_udp) this);
 }
 
 void _udp::send (lacewing::address address, const char * data, size_t size)
 {
-   lw_udp_send ((lw_udp) this, (lw_addr) address, data, size);
+	lw_udp_send ((lw_udp) this, (lw_addr) address, data, size);
 }
 
 void _udp::on_data (_udp::hook_data hook)
 {
-   lw_udp_on_data ((lw_udp) this, (lw_udp_hook_data) hook);
+	lw_udp_on_data ((lw_udp) this, (lw_udp_hook_data) hook);
 }
 
 void _udp::on_error (_udp::hook_error hook)
 {
-   lw_udp_on_error ((lw_udp) this, (lw_udp_hook_error) hook);
+	lw_udp_on_error ((lw_udp) this, (lw_udp_hook_error) hook);
 }
 
 void * _udp::tag ()
 {
-   return lw_udp_tag ((lw_udp) this);
+	return lw_udp_tag ((lw_udp) this);
 }
 
 void _udp::tag (void * tag)
 {
-   lw_udp_set_tag ((lw_udp) this, tag);
+	lw_udp_set_tag ((lw_udp) this, tag);
 }
 

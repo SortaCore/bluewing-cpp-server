@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -36,56 +36,66 @@
 /// 		  available ID numbers used first, etc. </summary>
 class IDPool
 {
-    
+	
 protected:
 
-    std::set<unsigned short> usedIDs;   // A sorted list of all released IDs.
-    unsigned short nextID;				// The next ID to use, not within usedIDs.
+	std::set<unsigned short> releasedIDs;	// A sorted list of all released IDs.
+	unsigned short nextID;				// The next ID to use, not within releasedIDs.
 	int borrowedCount;					// The number of IDs currently in use.
+	lacewing::readwritelock lock;
 
 public:
 
-    /// <summary> Creates an ID pool. First ID returned is 0. </summary>
-    IDPool()
-    {
-        nextID        = 0;
-        borrowedCount = 0;
-    }
+	/// <summary> Creates an ID pool. First ID returned is 0. </summary>
+	IDPool()
+	{
+		nextID		= 0;
+		borrowedCount = 0;
+	}
 
-    /// <summary> Gets the next ID available from the pool. </summary>
-    /// <returns> New ID to use. </returns>
-    unsigned short borrow()
-    {
+	/// <summary> Gets the next ID available from the pool. </summary>
+	/// <returns> New ID to use. </returns>
+	unsigned short borrow()
+	{
+		lacewing::writelock writeLock = lock.createWriteLock();
+
 		++borrowedCount;
 		lw_trace("Borrowed Client ID. %i IDs borrowed so far.", borrowedCount);
 
 		// More than can be stored in an ID list are in use. JIC.
-		if (borrowedCount > 0xFFFF)
+		if (borrowedCount > 0xFFFE)
 			throw std::exception("Exceeded limit of ID pool. Please contact the developer.");
 
-		if (!usedIDs.empty())
+		if (!releasedIDs.empty())
 		{
-			unsigned short s = *usedIDs.cbegin(); // .front() not in std::set
-			usedIDs.erase(usedIDs.cbegin());
+			unsigned short s = *releasedIDs.cbegin(); // .front() not in std::set
+			releasedIDs.erase(releasedIDs.cbegin());
 			return s;
 		}
 
 		return nextID ++;
-    }
+	}
 
-    /// <summary> Returns the given identifier. </summary>
-    /// <param name="ID"> The identifier to return. </param>
-    void returnID(unsigned short ID)
-    {
+	/// <summary> Returns the given identifier. </summary>
+	/// <param name="ID"> The identifier to return. </param>
+	void returnID(unsigned short ID)
+	{
+		lacewing::writelock writeLock = lock.createWriteLock();
 		// No IDs in use at all: empty list
-        if ((-- borrowedCount) == 0)
-        {
-			usedIDs.clear();
-            nextID = 0;
-        }
-        else // Add ID back for re-using
-			usedIDs.emplace(ID);
-    }
+		if ((-- borrowedCount) == 0)
+		{
+			releasedIDs.clear();
+			nextID = 0;
+		}
+		else
+		{
+			// Was the last one, just roll back the next ID to this one
+			if (nextID == ID + 1)
+				--nextID;
+			else // Add ID back for re-using
+				releasedIDs.emplace(ID);
+		}
+	}
 };
 
 #endif

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -34,22 +34,22 @@
 
 struct _lw_fdstream
 {
-   struct _lw_stream stream;
+	struct _lw_stream stream;
 
-   lw_pump_watch watch;
+	lw_pump_watch watch;
 
-   int fd;
+	int fd;
 
-   char flags;
+	char flags;
 
-   size_t size;
-   size_t reading_size;
+	size_t size;
+	size_t reading_size;
 };
 
-#define lwp_fdstream_flag_nagle       1
-#define lwp_fdstream_flag_is_socket   2
-#define lwp_fdstream_flag_autoclose   4
-#define lwp_fdstream_flag_reading     8
+#define lwp_fdstream_flag_nagle		1
+#define lwp_fdstream_flag_is_socket	2
+#define lwp_fdstream_flag_autoclose	4
+#define lwp_fdstream_flag_reading	 8
 
 void lwp_fdstream_init (lw_fdstream, lw_pump);
 

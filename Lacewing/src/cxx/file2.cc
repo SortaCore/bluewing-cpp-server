@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,26 +31,26 @@
 
 file lacewing::file_new (lacewing::pump pump)
 {
-   return (file) lw_file_new ((lw_pump) pump);
+	return (file) lw_file_new ((lw_pump) pump);
 }
 
 file lacewing::file_new (lacewing::pump pump, const char * filename, const char * mode)
 {
-   return (file) lw_file_new_open ((lw_pump) pump, filename, mode);
+	return (file) lw_file_new_open ((lw_pump) pump, filename, mode);
 }
 
 bool _file::open (const char * filename, const char * mode)
 {
-   return lw_file_open ((lw_file) this, filename, mode);
+	return lw_file_open ((lw_file) this, filename, mode);
 }
 
 bool _file::open_temp ()
 {
-   return lw_file_open_temp ((lw_file) this);
+	return lw_file_open_temp ((lw_file) this);
 }
 
 const char * _file::name ()
 {
-   return lw_file_name ((lw_file) this);
+	return lw_file_name ((lw_file) this);
 }
 

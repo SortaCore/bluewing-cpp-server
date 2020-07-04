@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,31 +32,31 @@
 
 static lw_bool def_is_transparent (lw_stream ctx)
 {
-   return lw_true;
+	return lw_true;
 }
 
 const static lw_streamdef def_pipe =
 {
-   0, /* sink_data */
-   0, /* sink_stream */
-   0, /* retry */
-   def_is_transparent,
-   0, /* close */
-   0, /* bytes_left */
-   0, /* read */
-   0  /* cleanup */
+	0, /* sink_data */
+	0, /* sink_stream */
+	0, /* retry */
+	def_is_transparent,
+	0, /* close */
+	0, /* bytes_left */
+	0, /* read */
+	0  /* cleanup */
 };
 
 void lwp_pipe_init (lw_stream ctx, lw_pump pump)
 {
-   lwp_stream_init (ctx, &def_pipe, pump);
+	lwp_stream_init (ctx, &def_pipe, pump);
 }
 
 lw_stream lw_pipe_new (lw_pump pump)
 {
-   lw_stream pipe = (lw_stream) malloc (sizeof (*pipe));
-   lwp_pipe_init (pipe, pump);
+	lw_stream pipe = (lw_stream) malloc (sizeof (*pipe));
+	lwp_pipe_init (pipe, pump);
 
-   return pipe;
+	return pipe;
 }
 

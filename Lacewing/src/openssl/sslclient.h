@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -35,7 +35,7 @@ typedef struct _lwp_sslclient * lwp_sslclient;
 typedef void (* lwp_sslclient_on_handshook) (lwp_sslclient, void * tag);
 
 lwp_sslclient lwp_sslclient_new (SSL_CTX * server_context, lw_stream socket,
-                                 lwp_sslclient_on_handshook, void * tag);
+								 lwp_sslclient_on_handshook, void * tag);
 
 void lwp_sslclient_delete (lwp_sslclient);
 

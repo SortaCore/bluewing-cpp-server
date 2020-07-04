@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -42,62 +42,62 @@
 #include <sched.h>
 
 #ifdef ANDROID
-   #include <time64.h>
-   #include <android/log.h>
+	#include <time64.h>
+	#include <android/log.h>
 #endif
 
 #ifdef HAVE_SYS_TIMERFD_H
-   #include <sys/timerfd.h>
-   
-   #ifndef USE_KQUEUE
-      #define _lacewing_use_timerfd
-   #endif
+	#include <sys/timerfd.h>
+	
+	#ifndef USE_KQUEUE
+	  #define _lacewing_use_timerfd
+	#endif
 #endif
 
 #ifdef HAVE_SYS_SENDFILE_H
-   #include <sys/sendfile.h>
+	#include <sys/sendfile.h>
 #endif
 
 #ifdef HAVE_NETDB_H
-   #include <netdb.h>
+	#include <netdb.h>
 #endif
 
 #ifndef __APPLE__
-   #ifdef TCP_CORK
-      #define lw_cork TCP_CORK
-   #else
-      #ifdef TCP_NOPUSH
-         #define lw_cork TCP_NOPUSH 
-      #endif
-   #endif
+	#ifdef TCP_CORK
+	  #define lw_cork TCP_CORK
+	#else
+	  #ifdef TCP_NOPUSH
+		 #define lw_cork TCP_NOPUSH 
+	  #endif
+	#endif
 #endif
 
 #if defined(USE_EPOLL)
-   #include <sys/epoll.h>
+	#include <sys/epoll.h>
 
-   #ifndef EPOLLRDHUP
-      #define EPOLLRDHUP 0x2000
-   #endif
+	#ifndef EPOLLRDHUP
+	  #define EPOLLRDHUP 0x2000
+	#endif
 #elif defined(USE_KQUEUE)
-   #include <sys/event.h>
+	#include <sys/event.h>
 #endif
 
 #include <string.h>
 #include <limits.h>
 
 #ifdef HAVE_SYS_PRCTL_H
-   #include <sys/prctl.h>
+	#include <sys/prctl.h>
 #endif
 
 #ifdef ENABLE_SSL
-   #include <openssl/ssl.h>
-   #include <openssl/md5.h>
-   #include <openssl/sha.h>
-   #include <openssl/err.h>
+	#include <openssl/ssl.h>
+	#include <openssl/md5.h>
+	#include <openssl/sha.h>
+	#include <openssl/err.h>
 #endif
 
 #ifdef OPENSSL_NPN_NEGOTIATED
-   #define _lacewing_npn
+	#define _lacewing_npn
 #endif
 
 #define lwp_last_error errno

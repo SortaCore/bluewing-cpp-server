@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,18 +32,18 @@
 
 typedef struct _lwp_nvhash
 {
-   char * key;
-   char * value;
+	char * key;
+	char * value;
 
-   UT_hash_handle hh;
+	UT_hash_handle hh;
 
 } * lwp_nvhash;
 
 void lwp_nvhash_set (lwp_nvhash *, const char * key, const char * value,
-                     lw_bool copy);
+					 lw_bool copy);
 
 void lwp_nvhash_set_ex (lwp_nvhash *, size_t key_len, const char * key,
-                       size_t value_len, const char * value, lw_bool copy);
+						size_t value_len, const char * value, lw_bool copy);
 
 const char * lwp_nvhash_get (lwp_nvhash *, const char * key, const char * def);
 

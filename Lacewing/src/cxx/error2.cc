@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,61 +31,61 @@
 
 error lacewing::error_new ()
 {
-   return (error) lw_error_new ();
+	return (error) lw_error_new ();
 }
 
 void lacewing::error_delete (lacewing::error error)
 {
-   lw_error_delete ((lw_error) error);
+	lw_error_delete ((lw_error) error);
 }
-    
+	
 void _error::add (const char * format, ...)
 {
-   va_list args;
-   va_start (args, format);
+	va_list args;
+	va_start (args, format);
 
-   lw_error_addv ((lw_error) this, format, args);
+	lw_error_addv ((lw_error) this, format, args);
 
-   va_end (args);
+	va_end (args);
 }
 
 void _error::add (int code)
 {
-   lw_error_add ((lw_error) this, code);
+	lw_error_add ((lw_error) this, code);
 }
 
 void _error::add (const char * format, va_list args)
 {
-   lw_error_addv ((lw_error) this, format, args);
+	lw_error_addv ((lw_error) this, format, args);
 }
 
 size_t _error::size ()
 {
-   return lw_error_size ((lw_error) this);
+	return lw_error_size ((lw_error) this);
 }
 
 const char * _error::tostring ()
 {
-   return lw_error_tostring ((lw_error) this);
+	return lw_error_tostring ((lw_error) this);
 }
 
 _error::operator const char * ()
 {
-   return tostring ();
+	return tostring ();
 }
 
 error _error::clone ()
 {
-   return (error) lw_error_clone ((lw_error) this);
+	return (error) lw_error_clone ((lw_error) this);
 }
 
 void * _error::tag ()
 {
-   return lw_error_tag ((lw_error) this);
+	return lw_error_tag ((lw_error) this);
 }
 
 void _error::tag (void * tag)
 {
-   lw_error_set_tag ((lw_error) this, tag);
+	lw_error_set_tag ((lw_error) this, tag);
 }
 

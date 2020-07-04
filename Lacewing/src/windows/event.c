@@ -7,11 +7,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -30,79 +30,79 @@
 
 struct _lw_event
 {
-   WSAEVENT event;
+	WSAEVENT event;
 
-   void * tag;
+	void * tag;
 };
 
 lw_event lw_event_new ()
 {
-   lwp_init ();
+	lwp_init ();
 
-   lw_event ctx = (lw_event) calloc (sizeof (*ctx), 1);
+	lw_event ctx = (lw_event) calloc (sizeof (*ctx), 1);
 
-   if (!ctx)
-      return 0;
+	if (!ctx)
+	  return 0;
 
-   ctx->event = WSACreateEvent ();
+	ctx->event = WSACreateEvent ();
 
-   return ctx;
+	return ctx;
 }
 
 void lw_event_delete (lw_event ctx)
 {
-   if (!ctx)
-      return;
+	if (!ctx)
+	  return;
 
-   WSACloseEvent (ctx->event);
-   lwp_deinit();
+	WSACloseEvent (ctx->event);
+	lwp_deinit();
 
-   free (ctx);
+	free (ctx);
 }
 
 lw_bool lw_event_signalled (lw_event ctx)
 {
-   return WSAWaitForMultipleEvents
-   (
-      1,
-      &ctx->event,
-      lw_true,
-      0,
-      lw_false
+	return WSAWaitForMultipleEvents
+	(
+	  1,
+	  &ctx->event,
+	  lw_true,
+	  0,
+	  lw_false
 
-   ) == WAIT_OBJECT_0;
+	) == WAIT_OBJECT_0;
 }
 
 void lw_event_signal (lw_event ctx)
 {
-   WSASetEvent (ctx->event);
+	WSASetEvent (ctx->event);
 }
 
 void lw_event_unsignal (lw_event ctx)
 {
-   WSAResetEvent (ctx->event);
+	WSAResetEvent (ctx->event);
 }
 
 lw_bool lw_event_wait (lw_event ctx, long timeout)
 {
-   return WSAWaitForMultipleEvents
-   (
-      1,
-      &ctx->event,
-      lw_true,
-      timeout == -1 ? INFINITE : timeout,
-      lw_false
+	return WSAWaitForMultipleEvents
+	(
+	  1,
+	  &ctx->event,
+	  lw_true,
+	  timeout == -1 ? INFINITE : timeout,
+	  lw_false
 
-   ) == WAIT_OBJECT_0;
+	) == WAIT_OBJECT_0;
 }
 
 void lw_event_set_tag (lw_event ctx, void * tag)
 {
-   ctx->tag = tag;
+	ctx->tag = tag;
 }
 
 void * lw_event_tag (lw_event ctx)
 {
-   return ctx->tag;
+	return ctx->tag;
 }
 

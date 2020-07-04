@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -28,27 +28,27 @@
  */
 
 #ifndef IPV6_V6ONLY
-   #define IPV6_V6ONLY 27
+	#define IPV6_V6ONLY 27
 #endif
 
 #ifndef CERT_STORE_READONLY_FLAG
-   #define CERT_STORE_READONLY_FLAG         0x00008000
+	#define CERT_STORE_READONLY_FLAG		 0x00008000
 #endif
 
 #ifndef CERT_STORE_OPEN_EXISTING_FLAG
-   #define CERT_STORE_OPEN_EXISTING_FLAG     0x00004000
+	#define CERT_STORE_OPEN_EXISTING_FLAG	 0x00004000
 #endif
 
 #ifndef AI_V4MAPPED
-   #define AI_V4MAPPED 0x00000800
+	#define AI_V4MAPPED 0x00000800
 #endif
 
 #ifndef AI_ADDRCONFIG
-   #define AI_ADDRCONFIG 0x00000400
+	#define AI_ADDRCONFIG 0x00000400
 #endif
 
 typedef INT (WSAAPI * fn_getaddrinfo)
-    (PCSTR, PCSTR, const struct addrinfo *, struct addrinfo **);
+	(PCSTR, PCSTR, const struct addrinfo *, struct addrinfo **);
 
 fn_getaddrinfo compat_getaddrinfo ();
 

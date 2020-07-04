@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,73 +32,73 @@
 
 const int ideal_pending_receive_count = 16;
 
-#define overlapped_type_send     1
+#define overlapped_type_send	 1
 #define overlapped_type_receive  2
 
 typedef struct _udp_overlapped
 {
-   OVERLAPPED overlapped;
+	OVERLAPPED overlapped;
 
-   char type;
+	char type;
 
-   void * tag;
+	void * tag;
 
 } * udp_overlapped;
 
 typedef struct _udp_receive_info
 {
-   char buffer [lwp_default_buffer_size];
-   WSABUF winsock_buffer;
+	char buffer [lwp_default_buffer_size];
+	WSABUF winsock_buffer;
 
-   struct sockaddr_storage from;
-   int from_length;
+	struct sockaddr_storage from;
+	int from_length;
 
 } * udp_receive_info;
 
 udp_receive_info udp_receive_info_new ()
 {
-   udp_receive_info info = (udp_receive_info) malloc (sizeof (*info));
+	udp_receive_info info = (udp_receive_info) malloc (sizeof (*info));
 
-   info->winsock_buffer.buf = info->buffer;
-   info->winsock_buffer.len = sizeof (info->buffer);
+	info->winsock_buffer.buf = info->buffer;
+	info->winsock_buffer.len = sizeof (info->buffer);
 
-   info->from_length = sizeof (info->from);
+	info->from_length = sizeof (info->from);
 
-   return info;
+	return info;
 }
 
 struct _lw_udp
 {
-   lw_pump pump;
-   lw_pump_watch pump_watch;
+	lw_pump pump;
+	lw_pump_watch pump_watch;
 
-   lw_udp_hook_data on_data;
-   lw_udp_hook_error on_error;
+	lw_udp_hook_data on_data;
+	lw_udp_hook_error on_error;
 
-   lw_filter filter;
+	lw_filter filter;
 
-   long port;
+	long port;
 
-   SOCKET socket;
+	SOCKET socket;
 
-   list(udp_overlapped, pending_receives);
+	list(udp_overlapped, pending_receives);
 
-   long receives_posted;
+	long receives_posted;
 
-   void * tag;
+	void * tag;
 };
 
 static void post_receives (lw_udp ctx)
 {
-   while (ctx->receives_posted < ideal_pending_receive_count)
-   {
-      udp_receive_info receive_info = udp_receive_info_new ();
+	while (ctx->receives_posted < ideal_pending_receive_count)
+	{
+	  udp_receive_info receive_info = udp_receive_info_new ();
 
-      if (!receive_info)
-         break;
+	  if (!receive_info)
+		 break;
 
-      udp_overlapped overlapped =
-         (udp_overlapped) calloc (sizeof (*overlapped), 1);
+	  udp_overlapped overlapped =
+		 (udp_overlapped) calloc (sizeof (*overlapped), 1);
 
 	  if (!overlapped)
 	  {
@@ -106,22 +106,22 @@ static void post_receives (lw_udp ctx)
 		  break;
 	  }
 
-      overlapped->type = overlapped_type_receive;
-      overlapped->tag = receive_info;
+	  overlapped->type = overlapped_type_receive;
+	  overlapped->tag = receive_info;
 
-      DWORD flags = 0;
+	  DWORD flags = 0;
 
-      if (WSARecvFrom (ctx->socket,
-                       &receive_info->winsock_buffer,
-                       1,
-                       0,
-                       &flags,
-                       (struct sockaddr *) &receive_info->from,
-                       &receive_info->from_length,
-                       &overlapped->overlapped,
-                       0) == -1)
-      {
-         int error = WSAGetLastError();
+	  if (WSARecvFrom (ctx->socket,
+						&receive_info->winsock_buffer,
+						1,
+						0,
+						&flags,
+						(struct sockaddr *) &receive_info->from,
+						&receive_info->from_length,
+						&overlapped->overlapped,
+						0) == -1)
+	  {
+		 int error = WSAGetLastError();
 
 		 if (error != WSA_IO_PENDING)
 		 {
@@ -129,37 +129,37 @@ static void post_receives (lw_udp ctx)
 			 free(overlapped);
 			 break;
 		 }
-      }
+	  }
 
 	  list_push(ctx->pending_receives, overlapped);
-      ++ ctx->receives_posted;
-   }
+	  ++ ctx->receives_posted;
+	}
 }
 
 static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
-                                   unsigned long bytes_transferred, int error)
+									unsigned long bytes_transferred, int error)
 {
-   lw_udp ctx = (lw_udp) tag;
+	lw_udp ctx = (lw_udp) tag;
 
-   udp_overlapped overlapped = (udp_overlapped) _overlapped;
+	udp_overlapped overlapped = (udp_overlapped) _overlapped;
 
-   switch (overlapped->type)
-   {
-      case overlapped_type_send:
-      {
-         break;
-      }
+	switch (overlapped->type)
+	{
+	  case overlapped_type_send:
+	  {
+		 break;
+	  }
 
-      case overlapped_type_receive:
-      {
-         udp_receive_info info = (udp_receive_info) overlapped->tag;
+	  case overlapped_type_receive:
+	  {
+		 udp_receive_info info = (udp_receive_info) overlapped->tag;
 
-         info->buffer [bytes_transferred] = 0;
+		 info->buffer [bytes_transferred] = 0;
 
-         struct _lw_addr addr = {0};
-         lwp_addr_set_sockaddr (&addr, (struct sockaddr *) &info->from);
+		 struct _lw_addr addr = {0};
+		 lwp_addr_set_sockaddr (&addr, (struct sockaddr *) &info->from);
 
-         lw_addr filter_addr = lw_filter_remote (ctx->filter);
+		 lw_addr filter_addr = lw_filter_remote (ctx->filter);
 
 		 if (filter_addr && !lw_addr_equal(&addr, filter_addr))
 		 {
@@ -168,207 +168,213 @@ static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
 			 break;
 		 }
 
-         if (ctx->on_data)
-            ctx->on_data (ctx, &addr, info->buffer, bytes_transferred);
+		 if (ctx->on_data)
+			ctx->on_data (ctx, &addr, info->buffer, bytes_transferred);
 
 		 lwp_addr_cleanup(&addr);
-         free (info);
+		 free (info);
 
 		 list_remove(ctx->pending_receives, overlapped);
-         -- ctx->receives_posted;
-         post_receives (ctx);
-         break;
-      }
-   };
+		 -- ctx->receives_posted;
+		 post_receives (ctx);
+		 break;
+	  }
+	};
 
-   free (overlapped);
+	free (overlapped);
 }
 
 void lw_udp_host (lw_udp ctx, long port)
 {
-   lw_filter filter = lw_filter_new ();
-   lw_filter_set_local_port (filter, port);
+	lw_filter filter = lw_filter_new ();
+	lw_filter_set_local_port (filter, port);
 
-   lw_udp_host_filter (ctx, filter);
+	lw_udp_host_filter (ctx, filter);
 
-   lw_filter_delete (filter);
+	lw_filter_delete (filter);
 }
 
 void lw_udp_host_addr (lw_udp ctx, lw_addr addr)
 {
-   lw_filter filter = lw_filter_new ();
-   lw_filter_set_remote (filter, addr);
+	lw_filter filter = lw_filter_new ();
+	lw_filter_set_remote (filter, addr);
 
-   lw_filter_set_ipv6 (filter, lw_addr_ipv6 (addr));
+	lw_filter_set_ipv6 (filter, lw_addr_ipv6 (addr));
 
-   lw_udp_host_filter (ctx, filter);
+	lw_udp_host_filter (ctx, filter);
 
-   lw_filter_delete (filter);
+	lw_filter_delete (filter);
 }
 
 void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 {
-   lw_udp_unhost (ctx);
+	if (ctx->socket != INVALID_SOCKET)
+		lw_udp_unhost(ctx);
 
-   lw_error error = lw_error_new ();
+	lw_error error = lw_error_new ();
 
-   if ((ctx->socket = lwp_create_server_socket
-            (filter, SOCK_DGRAM, IPPROTO_UDP, error)) == -1)
-   {
-      if (ctx->on_error)
-         ctx->on_error (ctx, error);
+	if ((ctx->socket = lwp_create_server_socket
+			(filter, SOCK_DGRAM, IPPROTO_UDP, error)) == -1)
+	{
+	  if (ctx->on_error)
+		 ctx->on_error (ctx, error);
 
-      return;
-   }
+	  return;
+	}
 
-   lw_error_delete (error);
-   error = NULL;
+	lw_error_delete (error);
+	error = NULL;
 
-   ctx->filter = lw_filter_clone (filter);
+	ctx->filter = lw_filter_clone (filter);
 
-   ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, ctx, udp_socket_completion);
+	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, ctx, udp_socket_completion);
 
-   ctx->port = lwp_socket_port (ctx->socket);
+	ctx->port = lwp_socket_port (ctx->socket);
 
-   post_receives (ctx);
+	post_receives (ctx);
 }
 
 lw_bool lw_udp_hosting (lw_udp ctx)
 {
-   return ctx->socket != INVALID_SOCKET;
+	return ctx->socket != INVALID_SOCKET;
 }
 
 void lw_udp_unhost (lw_udp ctx)
 {
-   lwp_close_socket (ctx->socket);
-   ctx->socket = INVALID_SOCKET;
+	lwp_close_socket (ctx->socket);
+	ctx->socket = INVALID_SOCKET;
 
-   lw_pump_remove (ctx->pump, ctx->pump_watch);
-   ctx->pump_watch = 0;
+	lw_pump_remove (ctx->pump, ctx->pump_watch);
+	ctx->pump_watch = 0;
 
-   lw_filter_delete (ctx->filter);
-   ctx->filter = 0;
+	lw_filter_delete (ctx->filter);
+	ctx->filter = 0;
 
-   // Frees memory from postreceives()
-   if (ctx->receives_posted > 0)
-   {
-	   list_each(ctx->pending_receives, overlapped)
-	   {
-		   // Free the udp_receive_info_new
-		   if (overlapped->tag && overlapped->type == overlapped_type_receive)
-		      free((udp_receive_info)overlapped->tag);
+	// Frees memory from postreceives()
+	if (ctx->receives_posted > 0)
+	{
+		list_each(ctx->pending_receives, overlapped)
+		{
+			// Free the udp_receive_info_new
+			if (overlapped->tag && overlapped->type == overlapped_type_receive)
+			  free((udp_receive_info)overlapped->tag);
 
-		   free(overlapped);
-	   }
-	   ctx->receives_posted = 0;
-   }
+			free(overlapped);
+		}
+		ctx->receives_posted = 0;
+	}
 
-   list_clear(ctx->pending_receives);
+	list_clear(ctx->pending_receives);
 }
 
 long lw_udp_port (lw_udp ctx)
 {
-   return ctx->port;
+	return ctx->port;
 }
 
 lw_udp lw_udp_new (lw_pump pump)
 {
-   lw_udp ctx = (lw_udp) calloc (sizeof (*ctx), 1);
+	lw_udp ctx = (lw_udp) calloc (sizeof (*ctx), 1);
 
-   if (!ctx)
-      return 0;
+	if (!ctx)
+	  return 0;
 
-   lwp_init ();  
+	lwp_init ();  
 
-   ctx->pump = pump;
-   ctx->socket = INVALID_SOCKET;
+	ctx->pump = pump;
+	ctx->socket = INVALID_SOCKET;
 
-   return ctx;
+	return ctx;
 }
 
 void lw_udp_delete (lw_udp ctx)
 {
-   if (!ctx)
-      return;
+	if (!ctx)
+	  return;
 
-   lw_udp_unhost (ctx);
-   lw_pump_remove(ctx->pump, ctx->pump_watch);
-   ctx->pump_watch = 0;
+	if (ctx->socket != INVALID_SOCKET)
+		lw_udp_unhost (ctx);
 
-   memset(ctx, 0, sizeof(_lw_udp));
+	if (ctx->pump_watch)
+	{
+		lw_pump_remove(ctx->pump, ctx->pump_watch);
+		ctx->pump_watch = 0;
+	}
 
-   lwp_deinit();
+	memset(ctx, 0, sizeof(_lw_udp));
 
-   free (ctx);
+	lwp_deinit();
+
+	free (ctx);
 }
 
 void lw_udp_send (lw_udp ctx, lw_addr addr, const char * buffer, size_t size)
 {
-   if ((!lw_addr_ready (addr)) || !addr->info)
-   {
-      lw_error error = lw_error_new ();
+	if ((!lw_addr_ready (addr)) || !addr->info)
+	{
+	  lw_error error = lw_error_new ();
 
-      lw_error_addf (error, "The address object passed to write() wasn't ready");
-      lw_error_addf (error, "Error sending datagram");
+	  lw_error_addf (error, "The address object passed to write() wasn't ready");
+	  lw_error_addf (error, "Error sending datagram");
 
-      if (ctx->on_error)
-         ctx->on_error (ctx, error);
+	  if (ctx->on_error)
+		 ctx->on_error (ctx, error);
 
-      lw_error_delete (error);
+	  lw_error_delete (error);
 
-      return;
-   }
+	  return;
+	}
 
-   if (size == -1)
-      size = strlen (buffer);
+	if (size == -1)
+	  size = strlen (buffer);
 
-   WSABUF winsock_buf = { size, (CHAR *) buffer };
+	WSABUF winsock_buf = { size, (CHAR *) buffer };
 
-   udp_overlapped overlapped = (udp_overlapped) calloc (sizeof (*overlapped), 1);
+	udp_overlapped overlapped = (udp_overlapped) calloc (sizeof (*overlapped), 1);
 
-   if (!overlapped)
-   {
-      /* TODO: error */
+	if (!overlapped)
+	{
+	  /* TODO: error */
 
-      return;
-   }
-    
-   overlapped->type = overlapped_type_send;
-   overlapped->tag = 0;
+	  return;
+	}
+	
+	overlapped->type = overlapped_type_send;
+	overlapped->tag = 0;
 
-   if (!addr->info)
-      return;
+	if (!addr->info)
+	  return;
 
-   if (WSASendTo (ctx->socket, &winsock_buf, 1, 0, 0, addr->info->ai_addr,
-                  addr->info->ai_addrlen, (OVERLAPPED *) overlapped, 0) == -1)
-   {
-      int code = WSAGetLastError();
+	if (WSASendTo (ctx->socket, &winsock_buf, 1, 0, 0, addr->info->ai_addr,
+				  addr->info->ai_addrlen, (OVERLAPPED *) overlapped, 0) == -1)
+	{
+	  int code = WSAGetLastError();
 
-      if (code != WSA_IO_PENDING)
-      {
-         lw_error error = lw_error_new ();
+	  if (code != WSA_IO_PENDING)
+	  {
+		 lw_error error = lw_error_new ();
 
-         lw_error_add (error, WSAGetLastError ());
-         lw_error_addf (error, "Error sending datagram");
+		 lw_error_add (error, WSAGetLastError ());
+		 lw_error_addf (error, "Error sending datagram");
 
-         if (ctx->on_error)
-            ctx->on_error (ctx, error);
+		 if (ctx->on_error)
+			ctx->on_error (ctx, error);
 
-         lw_error_delete (error);
+		 lw_error_delete (error);
 
-         return;
-      }
-   }
+		 return;
+	  }
+	}
 }
 
 void lw_udp_set_tag (lw_udp ctx, void * tag)
 {
-   ctx->tag = tag;
+	ctx->tag = tag;
 }
 
 void * lw_udp_tag (lw_udp ctx)
 {
-   return ctx->tag;
+	return ctx->tag;
 }
 
 lwp_def_hook (udp, error)

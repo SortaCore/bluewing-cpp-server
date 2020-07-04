@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,51 +31,51 @@
 
 client lacewing::client_new (lacewing::pump pump)
 {
-   return (client) lw_client_new ((lw_pump) pump);
+	return (client) lw_client_new ((lw_pump) pump);
 }
 
 void _client::connect (const char * host, long port)
 {
-   lw_client_connect ((lw_client) this, host, port);
+	lw_client_connect ((lw_client) this, host, port);
 }
 
 void _client::connect (address addr)
 {
-   lw_client_connect_addr ((lw_client) this, (lw_addr) addr);
+	lw_client_connect_addr ((lw_client) this, (lw_addr) addr);
 }
 
 bool _client::connected ()
 {
-   return lw_client_connected ((lw_client) this);
+	return lw_client_connected ((lw_client) this);
 }
 
 bool _client::connecting ()
 {
-   return lw_client_connecting ((lw_client) this);
+	return lw_client_connecting ((lw_client) this);
 }
 
 address _client::server_address ()
 {
-   return (address) lw_client_server_addr ((lw_client) this);
+	return (address) lw_client_server_addr ((lw_client) this);
 }
 
 void _client::on_connect (_client::hook_connect hook)
 {
-   lw_client_on_connect ((lw_client) this, (lw_client_hook_connect) hook);
+	lw_client_on_connect ((lw_client) this, (lw_client_hook_connect) hook);
 }
 
 void _client::on_disconnect (_client::hook_disconnect hook)
 {
-   lw_client_on_disconnect ((lw_client) this, (lw_client_hook_disconnect) hook);
+	lw_client_on_disconnect ((lw_client) this, (lw_client_hook_disconnect) hook);
 }
 
 void _client::on_data (_client::hook_data hook)
 {
-   lw_client_on_data ((lw_client) this, (lw_client_hook_data) hook);
+	lw_client_on_data ((lw_client) this, (lw_client_hook_data) hook);
 }
 
 void _client::on_error (_client::hook_error hook)
 {
-   lw_client_on_error ((lw_client) this, (lw_client_hook_error) hook);
+	lw_client_on_error ((lw_client) this, (lw_client_hook_error) hook);
 }
 

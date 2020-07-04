@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,44 +32,44 @@
 
 struct lwp_refcount
 {
-   unsigned short refcount;           
-   void (* on_dealloc) (void *);
+	unsigned short refcount;			
+	void (* on_dealloc) (void *);
 };
 
 static inline lw_bool _lwp_retain (struct lwp_refcount * refcount)
 {
-   ++ refcount->refcount;
+	++ refcount->refcount;
 
-   return lw_false;
+	return lw_false;
 }
 
 static inline lw_bool _lwp_release (struct lwp_refcount * refcount)
 {
-   if ((-- refcount->refcount) == 0)
-   {
-      if (refcount->on_dealloc)
-         refcount->on_dealloc ((void *) refcount);
-      else
-         free (refcount);
+	if ((-- refcount->refcount) == 0)
+	{
+	  if (refcount->on_dealloc)
+		 refcount->on_dealloc ((void *) refcount);
+	  else
+		 free (refcount);
 
-      return lw_true;
-   }
+	  return lw_true;
+	}
 
-   return lw_false;
+	return lw_false;
 }
 
-#define lwp_refcounted                                                        \
-   struct lwp_refcount refcount;                                              \
+#define lwp_refcounted														\
+	struct lwp_refcount refcount;											  \
 
-#define lwp_retain(x, name)                                                   \
-   _lwp_retain ((struct lwp_refcount *) (x))                                 \
+#define lwp_retain(x, name)													\
+	_lwp_retain ((struct lwp_refcount *) (x))								 \
 
-#define lwp_release(x, name)                                                  \
-   _lwp_release ((struct lwp_refcount *) (x))                                 \
+#define lwp_release(x, name)												  \
+	_lwp_release ((struct lwp_refcount *) (x))								 \
 
-#define lwp_set_dealloc_proc(x, proc) do {                                    \
+#define lwp_set_dealloc_proc(x, proc) do {									\
   *(void **) &(((struct lwp_refcount *) (x))->on_dealloc) = (void *) (proc);  \
-} while (0);                                                                  \
+} while (0);																  \
 
 #define lwp_set_retain_proc(x, proc)
 #define lwp_set_release_proc(x, proc)

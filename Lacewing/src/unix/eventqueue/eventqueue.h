@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -29,38 +29,38 @@
 
 #if defined(USE_EPOLL)
 
-   #include <sys/epoll.h>
+	#include <sys/epoll.h>
 
-   #ifndef EPOLLRDHUP
-      #define EPOLLRDHUP 0x2000
-   #endif
+	#ifndef EPOLLRDHUP
+	  #define EPOLLRDHUP 0x2000
+	#endif
 
-   /* epoll: lwp_eventqueue is an epoll fd, _event is an epoll_event
-    */
-   typedef int lwp_eventqueue;
-   typedef struct epoll_event lwp_eventqueue_event;
+	/* epoll: lwp_eventqueue is an epoll fd, _event is an epoll_event
+	*/
+	typedef int lwp_eventqueue;
+	typedef struct epoll_event lwp_eventqueue_event;
 
 #elif defined(USE_KQUEUE)
 
-   #include <sys/event.h>
+	#include <sys/event.h>
 
-   /* kqueue: lwp_eventqueue is a kqueue fd, _event is a kevent
-    */
-   typedef int lwp_eventqueue;
-   typedef struct kevent lwp_eventqueue_event;
+	/* kqueue: lwp_eventqueue is a kqueue fd, _event is a kevent
+	*/
+	typedef int lwp_eventqueue;
+	typedef struct kevent lwp_eventqueue_event;
 
 #else
 
-   /* select or other custom eventqueue implementation
-    */
-   typedef struct _lwp_eventqueue * lwp_eventqueue;
+	/* select or other custom eventqueue implementation
+	*/
+	typedef struct _lwp_eventqueue * lwp_eventqueue;
 
-   typedef struct _lwp_eventqueue_event
-   {
-      lw_i8 flags;
-      void * tag;
+	typedef struct _lwp_eventqueue_event
+	{
+	  lw_i8 flags;
+	  void * tag;
 
-   } lwp_eventqueue_event;
+	} lwp_eventqueue_event;
 
 #endif
 
@@ -71,28 +71,28 @@ void lwp_eventqueue_delete (lwp_eventqueue);
 /* add: add a file descriptor to the eventqueue
  */
 void lwp_eventqueue_add (lwp_eventqueue,
-                         int fd,
-                         lw_bool read,
-                         lw_bool write,
-                         lw_bool edge_triggered,
-                         void * tag);
+						 int fd,
+						 lw_bool read,
+						 lw_bool write,
+						 lw_bool edge_triggered,
+						 void * tag);
 
 
 /* update: update an existing watched file descriptor
  */
 void lwp_eventqueue_update (lwp_eventqueue,
-                            int fd,
-                            lw_bool was_reading, lw_bool read,
-                            lw_bool was_writing, lw_bool write,
-                            lw_bool was_edge_triggered, lw_bool edge_triggered,
-                            void * old_tag, void * new_tag);
+							int fd,
+							lw_bool was_reading, lw_bool read,
+							lw_bool was_writing, lw_bool write,
+							lw_bool was_edge_triggered, lw_bool edge_triggered,
+							void * old_tag, void * new_tag);
 
 /* drain: drain pending events from the queue
  */
 int lwp_eventqueue_drain (lwp_eventqueue,
-                          lw_bool block,
-                          int max_events,
-                          lwp_eventqueue_event * events);
+						  lw_bool block,
+						  int max_events,
+						  lwp_eventqueue_event * events);
 
 lw_bool lwp_eventqueue_event_read_ready (lwp_eventqueue_event);
 lw_bool lwp_eventqueue_event_write_ready (lwp_eventqueue_event);

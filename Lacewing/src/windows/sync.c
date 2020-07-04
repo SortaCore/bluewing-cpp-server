@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,38 +31,38 @@
 
 struct _lw_sync
 {
-   CRITICAL_SECTION critical_section;
+	CRITICAL_SECTION critical_section;
 };
 
 lw_sync lw_sync_new ()
 {
-   lw_sync ctx = (lw_sync) malloc (sizeof (*ctx));
+	lw_sync ctx = (lw_sync) malloc (sizeof (*ctx));
 
-   if (!ctx)
-      return 0;
+	if (!ctx)
+	  return 0;
 
-   InitializeCriticalSection (&ctx->critical_section);
+	InitializeCriticalSection (&ctx->critical_section);
 
-   return ctx;
+	return ctx;
 }
 
 void lw_sync_delete (lw_sync ctx)
 {
-   if (!ctx)
-      return;
+	if (!ctx)
+	  return;
 
-   DeleteCriticalSection (&ctx->critical_section);
+	DeleteCriticalSection (&ctx->critical_section);
 
-   free (ctx);
+	free (ctx);
 }
 
 void lw_sync_lock (lw_sync ctx)
 {
-   EnterCriticalSection (&ctx->critical_section);
+	EnterCriticalSection (&ctx->critical_section);
 }
 
 void lw_sync_release (lw_sync ctx)
 {
-   LeaveCriticalSection (&ctx->critical_section);
+	LeaveCriticalSection (&ctx->critical_section);
 }
 

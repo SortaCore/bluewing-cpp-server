@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -29,24 +29,24 @@
 
 struct _lw_addr
 {
-   lw_thread resolver_thread;
+	lw_thread resolver_thread;
 
-   char * hostname, * hostname_to_free;
-   char service [64]; /* port or service name */
+	char * hostname, * hostname_to_free;
+	char service [64]; /* port or service name */
 
-   int hints;
+	int hints;
 
-   struct addrinfo * info_list, * info, * info_to_free;
+	struct addrinfo * info_list, * info, * info_to_free;
 
-   lw_error error;
+	lw_error error;
 
-   char buffer [64]; /* for to_string */
+	char buffer [64]; /* for to_string */
 
-   void * tag;
+	void * tag;
 };
 
 void lwp_addr_init (lw_addr ctx, const char * hostname,
-                    const char * service, long hints);
+					const char * service, long hints);
 
 void lwp_addr_cleanup (lw_addr ctx);
 

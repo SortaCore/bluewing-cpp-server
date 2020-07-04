@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,82 +31,82 @@
 
 void lacewing::pump_delete (lacewing::pump pump)
 {
-   lw_pump_delete ((lw_pump) pump);
+	lw_pump_delete ((lw_pump) pump);
 }
 
 void _pump::add_user ()
 {
-   lw_pump_add_user ((lw_pump) this);
+	lw_pump_add_user ((lw_pump) this);
 }
 
 void _pump::remove_user ()
 {
-   lw_pump_remove_user ((lw_pump) this);
+	lw_pump_remove_user ((lw_pump) this);
 }
 
 bool _pump::in_use ()
 {
-   return lw_pump_in_use ((lw_pump) this);
+	return lw_pump_in_use ((lw_pump) this);
 }
 
 #ifdef _WIN32
 
  lw_pump_watch _pump::add (HANDLE handle, void * tag,
-                           lw_pump_callback callback)
+							lw_pump_callback callback)
  {
-    return lw_pump_add ((lw_pump) this, handle, tag, callback);
+	return lw_pump_add ((lw_pump) this, handle, tag, callback);
  }
 
  void _pump::update_callbacks (lw_pump_watch watch, void * tag,
-                               lw_pump_callback callback)
+								lw_pump_callback callback)
  {
-    lw_pump_update_callbacks ((lw_pump) this, watch, tag, callback);
+	lw_pump_update_callbacks ((lw_pump) this, watch, tag, callback);
  }
 
 #else
 
  lw_pump_watch _pump::add (int fd, void * tag,
-                           lw_pump_callback on_read_ready,
-                           lw_pump_callback on_write_ready,
-                           bool edge_triggered)
+							lw_pump_callback on_read_ready,
+							lw_pump_callback on_write_ready,
+							bool edge_triggered)
  {
-    return (lw_pump_watch) lw_pump_add
-       ((lw_pump) this, fd, tag, on_read_ready, on_write_ready, edge_triggered);
+	return (lw_pump_watch) lw_pump_add
+		((lw_pump) this, fd, tag, on_read_ready, on_write_ready, edge_triggered);
  }
 
  void _pump::update_callbacks (lw_pump_watch watch, void * tag,
-                               lw_pump_callback on_read_ready,
-                               lw_pump_callback on_write_ready,
-                               bool edge_triggered)
+								lw_pump_callback on_read_ready,
+								lw_pump_callback on_write_ready,
+								bool edge_triggered)
  {
-    lw_pump_update_callbacks ((lw_pump) this, watch, tag, on_read_ready,
-                              on_write_ready, edge_triggered);
+	lw_pump_update_callbacks ((lw_pump) this, watch, tag, on_read_ready,
+							  on_write_ready, edge_triggered);
  }
 
 #endif
  
 void _pump::remove (lw_pump_watch watch)
 {
-   lw_pump_remove ((lw_pump) this, watch);
+	lw_pump_remove ((lw_pump) this, watch);
 }
 
 void _pump::post (void * func, void * param)
 {
-   lw_pump_post ((lw_pump) this, func, param);
+	lw_pump_post ((lw_pump) this, func, param);
 }
 
 void _pump::post_remove (lw_pump_watch watch)
 {
-   lw_pump_post_remove ((lw_pump) this, watch);
+	lw_pump_post_remove ((lw_pump) this, watch);
 }
 
 void * _pump::tag ()
 {
-   return lw_pump_tag ((lw_pump) this);
+	return lw_pump_tag ((lw_pump) this);
 }
 
 void _pump::tag (void * tag)
 {
-   lw_pump_set_tag ((lw_pump) this, tag);
+	lw_pump_set_tag ((lw_pump) this, tag);
 }
 

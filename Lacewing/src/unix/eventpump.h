@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -34,42 +34,42 @@
 
 struct _lw_pump_watch
 {
-   lw_pump_callback on_read_ready, on_write_ready;
-   lw_bool edge_triggered;
+	lw_pump_callback on_read_ready, on_write_ready;
+	lw_bool edge_triggered;
 
-   int fd;
-   void * tag;
+	int fd;
+	void * tag;
 };
 
 struct _lw_eventpump
 {  
-   struct _lw_pump pump;
+	struct _lw_pump pump;
 
-   lwp_eventqueue queue;
+	lwp_eventqueue queue;
 
-   lw_sync sync_signals;
+	lw_sync sync_signals;
 
-   int signalpipe_read, signalpipe_write;
-   list (void *, signalparams);
+	int signalpipe_read, signalpipe_write;
+	list (void *, signalparams);
 
-   #ifndef _lacewing_no_threads
+	#ifndef _lacewing_no_threads
 
-      /* for start_sleepy_ticking
-       */
-      struct
-      {
-         lw_thread thread;
-   
-         int num_events;
-         lwp_eventqueue_event events [max_events];
-   
-         lw_event resume_event;
-   
-      } watcher;
+	  /* for start_sleepy_ticking
+		*/
+	  struct
+	  {
+		 lw_thread thread;
+	
+		 int num_events;
+		 lwp_eventqueue_event events [max_events];
+	
+		 lw_event resume_event;
+	
+	  } watcher;
 
-      void (lw_callback * on_tick_needed) (lw_eventpump);
+	  void (lw_callback * on_tick_needed) (lw_eventpump);
 
-   #endif
+	#endif
 };
 
 const lw_pumpdef def_eventpump;

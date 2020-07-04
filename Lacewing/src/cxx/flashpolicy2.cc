@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,44 +32,44 @@
 
 flashpolicy lacewing::flashpolicy_new (lacewing::pump pump)
 {
-   return (flashpolicy) lw_flashpolicy_new ((lw_pump) pump);
+	return (flashpolicy) lw_flashpolicy_new ((lw_pump) pump);
 }
 
 void lacewing::flashpolicy_delete (lacewing::flashpolicy flashpolicy)
 {
-   lw_flashpolicy_delete ((lw_flashpolicy) flashpolicy);
+	lw_flashpolicy_delete ((lw_flashpolicy) flashpolicy);
 }
 
 void _flashpolicy::host (const char * filename)
 {
-   lw_flashpolicy_host ((lw_flashpolicy) this, filename);
+	lw_flashpolicy_host ((lw_flashpolicy) this, filename);
 }
 
 void _flashpolicy::host (const char * filename, lacewing::filter filter)
 {
-   lw_flashpolicy_host_filter ((lw_flashpolicy) this,
-                               filename,
-                               (lw_filter) filter);
+	lw_flashpolicy_host_filter ((lw_flashpolicy) this,
+								filename,
+								(lw_filter) filter);
 }
 
 void _flashpolicy::unhost ()
 {
-   lw_flashpolicy_unhost ((lw_flashpolicy) this);
+	lw_flashpolicy_unhost ((lw_flashpolicy) this);
 }
 
 bool _flashpolicy::hosting ()
 {
-   return lw_flashpolicy_hosting ((lw_flashpolicy) this);
+	return lw_flashpolicy_hosting ((lw_flashpolicy) this);
 }
 
 void * _flashpolicy::tag ()
 {
-   return lw_flashpolicy_tag ((lw_flashpolicy) this);
+	return lw_flashpolicy_tag ((lw_flashpolicy) this);
 }
 
 void _flashpolicy::tag (void * tag)
 {
-   lw_flashpolicy_set_tag ((lw_flashpolicy) this, tag);
+	lw_flashpolicy_set_tag ((lw_flashpolicy) this, tag);
 }
 
 void _flashpolicy::on_error(_flashpolicy::hook_error func)

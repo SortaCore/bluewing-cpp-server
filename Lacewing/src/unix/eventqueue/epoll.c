@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -32,77 +32,77 @@
 
 int lwp_eventqueue_new ()
 {
-   return epoll_create (32);
+	return epoll_create (32);
 }
 
 void lwp_eventqueue_delete (lwp_eventqueue queue)
 {
-   close (queue);
+	close (queue);
 }
 
 void lwp_eventqueue_add (lwp_eventqueue queue,
-                         int fd,
-                         lw_bool read,
-                         lw_bool write,
-                         lw_bool edge_triggered,
-                         void * tag)
+						 int fd,
+						 lw_bool read,
+						 lw_bool write,
+						 lw_bool edge_triggered,
+						 void * tag)
 {
-   struct epoll_event event = {};
+	struct epoll_event event = {};
 
-   event.data.ptr = tag;
+	event.data.ptr = tag;
 
-   event.events = (read ? EPOLLIN : 0) |
-                  (write ? EPOLLOUT : 0) |
-                  (edge_triggered ? EPOLLET : 0);
+	event.events = (read ? EPOLLIN : 0) |
+				  (write ? EPOLLOUT : 0) |
+				  (edge_triggered ? EPOLLET : 0);
 
-   epoll_ctl (queue, EPOLL_CTL_ADD, fd, &event);
+	epoll_ctl (queue, EPOLL_CTL_ADD, fd, &event);
 }
 
 void lwp_eventqueue_update (lwp_eventqueue queue,
-                            int fd,
-                            lw_bool was_reading, lw_bool read,
-                            lw_bool was_writing, lw_bool write,
-                            lw_bool was_edge_triggered, lw_bool edge_triggered,
-                            void * old_tag, void * tag)
+							int fd,
+							lw_bool was_reading, lw_bool read,
+							lw_bool was_writing, lw_bool write,
+							lw_bool was_edge_triggered, lw_bool edge_triggered,
+							void * old_tag, void * tag)
 {
-   struct epoll_event event = {};
+	struct epoll_event event = {};
 
-   event.data.ptr = tag;
+	event.data.ptr = tag;
 
-   if (read || write)
-   {
-      event.events = (read ? EPOLLIN : 0) |
-                     (write ? EPOLLOUT : 0) |
-                     (edge_triggered ? EPOLLET : 0);
+	if (read || write)
+	{
+	  event.events = (read ? EPOLLIN : 0) |
+					 (write ? EPOLLOUT : 0) |
+					 (edge_triggered ? EPOLLET : 0);
 
-      epoll_ctl (queue, EPOLL_CTL_MOD, fd, &event);
-   }
-   else
-   {
-      epoll_ctl (queue, EPOLL_CTL_DEL, fd, &event);
-   }
+	  epoll_ctl (queue, EPOLL_CTL_MOD, fd, &event);
+	}
+	else
+	{
+	  epoll_ctl (queue, EPOLL_CTL_DEL, fd, &event);
+	}
 }
 
 int lwp_eventqueue_drain (lwp_eventqueue queue,
-                          lw_bool block,
-                          int max_events,
-                          lwp_eventqueue_event * events)
+						  lw_bool block,
+						  int max_events,
+						  lwp_eventqueue_event * events)
 {
-   return epoll_wait (queue, events, max_events, block ? -1 : 0);
+	return epoll_wait (queue, events, max_events, block ? -1 : 0);
 }
 
 lw_bool lwp_eventqueue_event_read_ready (lwp_eventqueue_event event)
 {
-   return event.events & (EPOLLIN | EPOLLHUP | EPOLLRDHUP);
+	return event.events & (EPOLLIN | EPOLLHUP | EPOLLRDHUP);
 }
 
 lw_bool lwp_eventqueue_event_write_ready (lwp_eventqueue_event event)
 {
-   return event.events & EPOLLOUT;
+	return event.events & EPOLLOUT;
 }
 
 void * lwp_eventqueue_event_tag (lwp_eventqueue_event event)
 {
-   return event.data.ptr;
+	return event.data.ptr;
 }
 

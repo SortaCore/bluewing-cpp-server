@@ -28,3 +28,38 @@ void lw_addr_prettystring(const char * input, const char * output, size_t output
 		}
 	}
 }
+
+/// <summary> Compares if two strings match, returns true if so. Case sensitive. Does a size check. </summary>
+bool lw_sv_cmp(std::string_view first, std::string_view second)
+{
+	if (first.size() != second.size())
+		return false;
+
+	return !strncmp(first.data(), second.data(), first.size());
+}
+
+/// <summary> Compares if two strings match, returns true if so. Case sensitive. Does a size check. </summary>
+bool lw_sv_icmp(std::string_view first, std::string_view second)
+{
+	if (first.size() != second.size())
+		return false;
+
+#ifdef _WIN32
+	return !_strnicmp(first.data(), second.data(), first.size());
+#else
+	return !strncasecmp(first.data(), second.data(), first.size());
+#endif
+}
+
+#include <sstream>
+void LacewingFatalErrorMsgBox2(char * func, char * file, int line)
+{
+	std::stringstream err;
+	err << "Lacewing fatal error detected.\nFile: " << file << "\nFunction: " << func << "\nLine: " << line;
+#ifndef STRIFY
+#define sub_STRIFY(x) #x
+#define STRIFY(x) sub_STRIFY(x)
+#endif
+#define PROJECT_NAME "Bluewing C++ Server"
+	MessageBoxA(NULL, err.str().c_str(), PROJECT_NAME " Msg Box Death", MB_ICONERROR);
+}

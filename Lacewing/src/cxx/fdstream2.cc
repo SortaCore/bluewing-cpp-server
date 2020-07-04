@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,32 +31,32 @@
 
 fdstream lacewing::fdstream_new (lacewing::pump pump)
 {
-   return (fdstream) lw_fdstream_new ((lw_pump) pump);
+	return (fdstream) lw_fdstream_new ((lw_pump) pump);
 }
 
 void _fdstream::set_fd (lw_fd fd, lw_pump_watch watch, bool auto_close, bool is_socket)
 {
-   lw_fdstream_set_fd ((lw_fdstream) this, fd, watch, auto_close, is_socket);
+	lw_fdstream_set_fd ((lw_fdstream) this, fd, watch, auto_close, is_socket);
 }
 
 bool _fdstream::valid ()
 {
-   return lw_fdstream_valid ((lw_fdstream) this);
+	return lw_fdstream_valid ((lw_fdstream) this);
 }
 
 void _fdstream::cork ()
 {
-   lw_fdstream_cork ((lw_fdstream) this);
+	lw_fdstream_cork ((lw_fdstream) this);
 }
 
 void _fdstream::uncork ()
 {
-   lw_fdstream_uncork ((lw_fdstream) this);
+	lw_fdstream_uncork ((lw_fdstream) this);
 }
 
 void _fdstream::nagle (bool enabled)
 {
-   lw_fdstream_nagle ((lw_fdstream) this, enabled);
+	lw_fdstream_nagle ((lw_fdstream) this, enabled);
 }
 
 

@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -34,22 +34,22 @@
 
 typedef struct _lwp_ssl
 {
-   DWORD status;
-   lw_bool handshake_complete;
+	DWORD status;
+	lw_bool handshake_complete;
 
-   lw_bool got_context;
-   CtxtHandle context;
+	lw_bool got_context;
+	CtxtHandle context;
 
-   SecPkgContext_StreamSizes sizes;
+	SecPkgContext_StreamSizes sizes;
 
-   char * header, * trailer;
+	char * header, * trailer;
 
-   size_t (* proc_handshake_data) (struct _lwp_ssl *,
-                                   const char * buffer,
-                                   size_t size);
+	size_t (* proc_handshake_data) (struct _lwp_ssl *,
+									const char * buffer,
+									size_t size);
 
-   struct _lw_stream upstream;
-   struct _lw_stream downstream;
+	struct _lw_stream upstream;
+	struct _lw_stream downstream;
 
 } * lwp_ssl;
 

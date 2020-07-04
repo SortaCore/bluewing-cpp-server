@@ -8,11 +8,11 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -31,59 +31,59 @@
 
 static void * MSVCRT (const char * fn)
 {
-   static HINSTANCE DLL = 0;
-   
-   if (!DLL)
-       DLL = LoadLibraryA ("msvcrt.dll");
+	static HINSTANCE DLL = 0;
+	
+	if (!DLL)
+		DLL = LoadLibraryA ("msvcrt.dll");
 
-   return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
+	return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
 }
 
 static void * WS2_32 (const char * fn)
 {
-   static HINSTANCE DLL = 0;
-   
-   if (!DLL)
-       DLL = LoadLibraryA ("ws2_32.dll");
+	static HINSTANCE DLL = 0;
+	
+	if (!DLL)
+		DLL = LoadLibraryA ("ws2_32.dll");
 
-   return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
+	return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
 }
 
 static void * KERNEL32 (const char * fn)
 {
-   static HINSTANCE DLL = 0;
-   
-   if (!DLL)
-       DLL = LoadLibraryA ("kernel32.dll");
+	static HINSTANCE DLL = 0;
+	
+	if (!DLL)
+		DLL = LoadLibraryA ("kernel32.dll");
 
-   return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
+	return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
 }
 
 fn_getaddrinfo compat_getaddrinfo ()
 {
-   static fn_getaddrinfo fn = 0;
+	static fn_getaddrinfo fn = 0;
 
-   return fn ? fn : (fn = (fn_getaddrinfo) WS2_32 ("getaddrinfo"));
+	return fn ? fn : (fn = (fn_getaddrinfo) WS2_32 ("getaddrinfo"));
 }
 
 fn_freeaddrinfo compat_freeaddrinfo ()
 {
-   static fn_freeaddrinfo fn = 0;
+	static fn_freeaddrinfo fn = 0;
 
-   return fn ? fn : (fn = (fn_freeaddrinfo) WS2_32 ("freeaddrinfo"));
+	return fn ? fn : (fn = (fn_freeaddrinfo) WS2_32 ("freeaddrinfo"));
 }
 
 fn_mkgmtime64 compat_mkgmtime64 ()
 {
-   static fn_mkgmtime64 fn = 0;
+	static fn_mkgmtime64 fn = 0;
 
-   return fn ? fn : (fn = (fn_mkgmtime64) MSVCRT ("_mkgmtime64"));
+	return fn ? fn : (fn = (fn_mkgmtime64) MSVCRT ("_mkgmtime64"));
 }
 
 fn_GetFileSizeEx compat_GetFileSizeEx ()
 {
-   static fn_GetFileSizeEx fn = 0;
+	static fn_GetFileSizeEx fn = 0;
 
-   return fn ? fn : (fn = (fn_GetFileSizeEx) KERNEL32 ("GetFileSizeEx"));
+	return fn ? fn : (fn = (fn_GetFileSizeEx) KERNEL32 ("GetFileSizeEx"));
 }
 
