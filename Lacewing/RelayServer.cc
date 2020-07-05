@@ -165,9 +165,7 @@ struct relayserverinternal
 				builderPingTCP.send(client->socket, false);
 			}
 			if (msElapsedUDP >= udpKeepAliveMS)
-			{
 				builderPingUDP.send(server.udp, client->udpaddress, false);
-			}
 		}
 
 		builderPingTCP.framereset();
@@ -192,45 +190,26 @@ struct relayserverinternal
 				client->_readonly = true;
 
 				auto error = lacewing::error_new();
-				error->add("Disconnecting client ID %i due to ping timeout.", client->_id);
+				error->add("Disconnecting client ID %i due to ping timeout", client->_id);
 				handlererror(this->server, error);
 				lacewing::error_delete(error);
 
 				// If a client is ignoring messages, which happens in some ping failures,
 				// we can't do a nice clean close(false) like clientsocket->disconnect() does.
-				// We have to be mean, because we can't wait for write messages to clear.
+				// We have to be mean, because we can't wait for pending write messages to finish,
+				// as they never will.
 				//
-				// A socket will fail to close if you run two local clients, join them to same channel,
-				// then use Close Windows in taskbar, so they both close simultaneously.
+				// As a test scenario, a socket will fail to close if you run two local clients, join them
+				// to the same channel, then use Close Windows in taskbar, so they both close simultaneously.
 				// The reason for that is that the first to leave channel causes a write of "peer disconnect"
 				// (or "channel leave" in case of autoclose + first client is master)
-				// and the write of that message causes the closure of the second client to not be processed,
+				// and the pending write of that message causes the closure of the second client to never finish,
 				// due to the slower close(lw_false) waiting for writes to clear but they never can.
 				//
 				// Note that a socket timeout does not occur if there is pending write data, and there is no
 				// decent "has other side closed connection". Since ping timeout may occur for malicious clients,
 				// a decent way might not be good for us anyway.
 				client->socket->close(lw_true);
-				//client->socket->close(lw_false);
-
-				// This close() will call all the usual disconnect handlers.
-
-
-				// clientsocket->socket->close(lw_true);
-				//	this->close_client(clientsocket);
-
-			//	lacewing::server_client s = clientsocket->socket;
-			//	clientsocket->disconnect();
-#if 0
-				clientsocket->socket->close(true);
-
-				// Num refs is 1; delete it
-				if (*(unsigned short *)s == 1)
-				{
-					lw_trace("Running stream_delete for stream %p in ping disconnect hack", s);
-					lw_stream_delete((lw_stream)s);
-				}
-#endif
 			}
 		}
 	}
@@ -319,7 +298,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 						realSender->id, realSender->address);
 					realSender->socket->close();
 				}
-				error->add("Dropping message.");
+				error->add("Dropping message");
 				handlerudperror(udp, error);
 				error_delete(error);
 #endif
@@ -501,7 +480,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 	for (const auto& c : todrop)
 	{
 		try {
-			error->add("Dropping client ID %i due to shared IP.", c->id);
+			error->add("Dropping client ID %i due to shared IP", c->id);
 			c->socket->close();
 		}
 		catch (...)
@@ -524,7 +503,7 @@ bool relayserverinternal::tcpmessagehandler (void * tag, lw_ui8 type, const char
 	if (clientIt == server.clients.cend())
 	{
 		lacewing::error error = lacewing::error_new();
-		error->add("Dropped TCP message, shared client ptr not found.");
+		error->add("Dropped TCP message, shared client ptr not found");
 		server.handlererror(server.server, error);
 		lacewing::error_delete(error);
 		return false;
@@ -561,7 +540,7 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 	if (_id == receivingClient->_id)
 	{
 		lacewing::error error = error_new();
-		error->add("Client ID %i attempted to send peer message to ID %i, e.g. themselves. Message dropped.");
+		error->add("Client ID %i attempted to send peer message to ID %i, e.g. themselves. Message dropped");
 		serverinternal.handlererror(server, error);
 		error_delete(error);
 		return;
@@ -2276,7 +2255,7 @@ void relayserver::connect_response(
 	if (client->connectRequestApproved)
 	{
 		lacewing::error error = lacewing::error_new();
-		error->add("connect_response closing early, already approved connection for client ID %i.", client->_id, 1);
+		error->add("connect_response closing early, already approved connection for client ID %i", client->_id, 1);
 		serverI.handlererror(*this, error);
 		lacewing::error_delete(error);
 		return;
@@ -2347,7 +2326,7 @@ static void validateorreplacestringview(std::string_view toValidate,
 
 	// Don't let the server get away with it!
 	lacewing::error error = lacewing::error_new();
-	error->add("Error in %s response: Embedded null chars not allowed in param %s.", functionName.data(), paramName.data());
+	error->add("Error in %s response: Embedded null chars not allowed in param %s", functionName.data(), paramName.data());
 	serverI.handlererror(serverI.server, error);
 	lacewing::error_delete(error);
 	writeTo = replaceWith;
@@ -2383,7 +2362,7 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		denyReason = "Channel has been closed. Try again in a few seconds.";
 
 		lacewing::error error = lacewing::error_new();
-		error->add("Join channel attempt on closed channel was refused.");
+		error->add("Join channel attempt on closed channel was refused");
 		serverinternal.handlererror(*this, error);
 		lacewing::error_delete(error);
 	}
@@ -2593,7 +2572,7 @@ void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
 		}
 
 		auto error = lacewing::error_new();
-		error->add("Cannot assign the name you altered the Set Name request to.");
+		error->add("Cannot assign the name you altered the Set Name request to");
 		serverinternal.handlererror(*this, error);
 		return;
 	}

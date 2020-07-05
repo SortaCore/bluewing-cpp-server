@@ -59,8 +59,9 @@ public:
 	{
 		if (sizeP == -1)
 			sizeP = (lw_i32)strlen(buffer);
-		assert(sizeof(sizeP) > 32 && sizeP >= 0xFFFFFFFF);
-			
+
+		if constexpr (sizeof(sizeP) > 4)
+			assert(sizeP < 0xFFFFFFFF);
 
 		lw_ui32 size = (lw_ui32)sizeP;
 

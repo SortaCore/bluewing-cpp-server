@@ -93,7 +93,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_lacewing_debug;_CRTDBG_MAP_ALLOC;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRTDBG_MAP_ALLOC;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ExceptionHandling>Async</ExceptionHandling>

@@ -260,7 +260,7 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 		}
 	}
 
-	server.connect_response(client, nullptr);
+	server.connect_response(client, std::string_view());
 	UpdateTitle(server.clientcount());
 
 	std::cout << green << "\r" << timeBuffer << " | New client ID " << client->id() << ", IP " << addr << " connected."
