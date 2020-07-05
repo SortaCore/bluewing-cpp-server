@@ -10,7 +10,7 @@
 #include "ConsoleColors.h"
 #include "Lacewing\Lacewing.h"
 
-// declare thou
+// Declarations - Lacewing handlers
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 void OnTimerTick(lacewing::timer timer);
@@ -24,13 +24,13 @@ void OnPeerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::rela
 	std::shared_ptr<lacewing::relayserver::channel> viachannel, std::shared_ptr<lacewing::relayserver::client> receiverclient,
 	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant);
 
-
+// Declarations - functions
 void GenerateFlashPolicy(int port);
 void Shutdown();
-void UpdateTitle(int clientCount);
+void UpdateTitle(size_t clientCount);
 BOOL WINAPI CloseHandler(DWORD ctrlType);
 
-// global vars (duh)
+// Global variables
 lacewing::eventpump globalpump;
 lacewing::timer globalmsgrecvcounttimer;
 lacewing::relayserver * globalserver;
@@ -124,7 +124,7 @@ int main()
 	#endif
 		globalserver->setwelcomemessage(message);
 	}
-	
+
 	// Initialise hooks
 	globalserver->onconnect(OnConnectRequest);
 	globalserver->ondisconnect(OnDisconnect);
@@ -154,9 +154,9 @@ int main()
 #endif
 
 	// Host the thing
-	std::cout << green << "Host started. Port " << port << ", build " << globalserver->buildnum << ". " << 
+	std::cout << green << "Host started. Port " << port << ", build " << globalserver->buildnum << ". " <<
 		(flashpolicypath.empty() ? "Flash not hosting" : "Flash policy hosting on TCP port 843") << ".\r\n" << yellow;
-	
+
 	globalserver->host(port);
 
 	if (!flashpolicypath.empty())
@@ -181,17 +181,7 @@ int main()
 #endif
 
 	if (error)
-	{
 		std::cout << red << "\r\n" << timeBuffer << " | Error occurred in pump: " << error->tostring() << "\r\n";
-
-#ifdef _DEBUG
-		// Clear input for getchar()
-		std::cin.clear();
-		std::cin.ignore();
-		std::cin.ignore();
-		getchar(); // wait for user keypress
-#endif
-	}
 
 	// Cleanup time
 	lacewing::timer_delete(globalmsgrecvcounttimer);
@@ -201,37 +191,31 @@ int main()
 	if (!flashpolicypath.empty())
 		DeleteFileA(flashpolicypath.c_str());
 
-	// [Phi] I did track down some nasty leaks earlier but confirmed no problem now
-#ifdef _CRTDBG_MAP_ALLOC
-	std::cout << green << timeBuffer << " | Program completed. Press any key to dump memory.\r\n";
-	// Clear input for getchar()
-	std::cin.clear();
-	std::cin.ignore();
-	std::cin.ignore();
-
-	globalmsgrecvcounttimer = nullptr;
-	globalserver = nullptr;
-	globalpump = nullptr;
-	_CrtDumpMemoryLeaks();
+	// Lacewing uses a sync inside lw_trace, which is singleton and never freed.
+	// lw_trace() is a no-op if _lacewing_debug isn't defined.
+	// To let garbage collector not see it as a leak:
+#if defined(_CRTDBG_MAP_ALLOC) && defined(_lacewing_debug)
+	extern lw_sync lw_trace_sync;
+	lw_sync_delete(lw_trace_sync);
 #endif
 
 	std::cout << green << timeBuffer << " | Program completed. Press any key to exit.\r\n";
 	// Clear input for getchar()
 	std::cin.clear();
 	std::cin.ignore();
-	std::cin.ignore(); 
+	std::cin.ignore();
 
 	getchar(); // wait for user keypress
 
 	return 0;
 }
 
-void UpdateTitle(int clientCount)
+void UpdateTitle(size_t clientCount)
 {
 	size_t channelCount = globalserver->channelcount();
 	char name[128];
-	sprintf_s(name, sizeof(name), "Bluewing C++ Server - %u client%s connected in %u channel%s",
-		clientCount, clientCount == 1 ? "" : "s", 
+	sprintf_s(name, sizeof(name), "Bluewing C++ Server - %zu client%s connected in %zu channel%s",
+		clientCount, clientCount == 1 ? "" : "s",
 		channelCount, channelCount == 1 ? "" : "s");
 	SetConsoleTitleA(name);
 }
@@ -279,7 +263,7 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 	server.connect_response(client, nullptr);
 	UpdateTitle(server.clientcount());
 
-	std::cout << green << "\r" << timeBuffer << " | New client ID " << client->id() << ", IP " << addr << " connected." 
+	std::cout << green << "\r" << timeBuffer << " | New client ID " << client->id() << ", IP " << addr << " connected."
 		<< std::string(45, ' ') << "\r\n" << yellow;
 	clientdata.push_back(std::make_unique<clientstats>(client));
 }
@@ -315,7 +299,7 @@ void OnTimerTick(lacewing::timer timer)
 	else
 		strcpy_s(timeBuffer, sizeof(timeBuffer), "XX:XX:XX");
 
-	std::cout << timeBuffer << " | Last sec received " << numMessagesIn << " messages (" << bytesIn << " bytes), forwarded " 
+	std::cout << timeBuffer << " | Last sec received " << numMessagesIn << " messages (" << bytesIn << " bytes), forwarded "
 		<< numMessagesOut << " (" << bytesOut << " bytes)." << std::string(15, ' ') << "\r";
 	numMessagesOut = numMessagesIn = 0U;
 	bytesIn = bytesOut = 0U;
@@ -361,8 +345,11 @@ void Shutdown()
 	if (shutdowned)
 		return;
 	shutdowned = true;
-	
+
+	clientdata.clear();
 	globalmsgrecvcounttimer->stop();
+	globalserver->unhost();
+	globalserver->flash->unhost();
 	globalpump->post_eventloop_exit(); // end main loop
 }
 void OnError(lacewing::relayserver &server, lacewing::error error)
@@ -401,7 +388,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	std::string name = senderclient->name();
 	name = !name.empty() ? name : "[unset]";
 
-	std::cout << white << "\r" << timeBuffer << " | Message from client ID " << senderclient->id() << ", name " << name 
+	std::cout << white << "\r" << timeBuffer << " | Message from client ID " << senderclient->id() << ", name " << name
 		<< ":" << std::string(35, ' ') << "\r\n"
 		<< data << "\r\n" << yellow;
 }
@@ -519,7 +506,7 @@ void GenerateFlashPolicy(int port)
 
 	std::string policyStr = flashPolicy.str();
 
-	if (!WriteFile(forWriting, policyStr.c_str(), policyStr.size(), NULL, NULL))
+	if (!WriteFile(forWriting, policyStr.c_str(), (DWORD)policyStr.size(), NULL, NULL))
 	{
 		std::cout << "Flash policy couldn't be created. Writing to file " << filename << " failed.\r\n";
 		CloseHandle(forWriting);
