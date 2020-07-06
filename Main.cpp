@@ -59,13 +59,13 @@ static std::vector<BanEntry> banIPList;
 // Upload limit for ENTIRE SERVER, TCP + UDP, in bytes
 // UDP messages received above this limit will be discarded
 // TCP messages received above this limit are still delivered. See TCP_CLIENT_UPLOAD_CAP.
-#define TOTAL_UPLOAD_CAP 300000
+// #define TOTAL_UPLOAD_CAP 500000
 
 // TCP upload limit for single clients, per second, in bytes.
 // TCP messages received above this limit will send the client an error message
 // and disconnect them.
 // UDP upload limit is not defined.
-#define TCP_CLIENT_UPLOAD_CAP 3000
+// #define TCP_CLIENT_UPLOAD_CAP 3000
 
 // Set this to 0 for the app to ask the user what port it is, on bootup;
 // or to another number to use that by default
@@ -139,7 +139,7 @@ int main()
 
 	// Check port settings
 	int port = FIXEDPORT;
-	if (port == 0)
+	if constexpr (FIXEDPORT == 0)
 	{
 		std::cout << "Enter port number to begin (default 6121):";
 
@@ -241,7 +241,7 @@ struct clientstats
 	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0)
 		, bytesIn(0), numMessagesIn(0), exceeded(false), wastedServerMessages(0) {}
 #else
-	clientstats(lacewing::relayserver::client * _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
+	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
 		wastedServerMessages(0) {}
 #endif
 };
