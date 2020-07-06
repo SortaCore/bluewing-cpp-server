@@ -35,6 +35,7 @@ lacewing::eventpump globalpump;
 lacewing::timer globalmsgrecvcounttimer;
 lacewing::relayserver * globalserver;
 std::string flashpolicypath;
+bool deleteFlashPolicyAtEndOfApp;
 static char timeBuffer[10];
 
 // In case of idiocy
@@ -153,9 +154,14 @@ int main()
 	GenerateFlashPolicy(port);
 #endif
 
+	// Update the current time in case host() errors, or try to connect before first tick
+	OnTimerTick(globalmsgrecvcounttimer);
+
+
 	// Host the thing
 	std::cout << green << "Host started. Port " << port << ", build " << globalserver->buildnum << ". " <<
-		(flashpolicypath.empty() ? "Flash not hosting" : "Flash policy hosting on TCP port 843") << ".\r\n" << yellow;
+		(flashpolicypath.empty() ? "Flash not hosting" : "Flash policy hosting on TCP port 843") << "." <<
+		std::string(flashpolicypath.empty() ? 30 : 5, ' ') << "\r\n" << yellow;
 
 	globalserver->host(port);
 
@@ -188,7 +194,7 @@ int main()
 	delete globalserver;
 	lacewing::pump_delete(globalpump);
 
-	if (!flashpolicypath.empty())
+	if (!flashpolicypath.empty() && deleteFlashPolicyAtEndOfApp)
 		DeleteFileA(flashpolicypath.c_str());
 
 	// Lacewing uses a sync inside lw_trace, which is singleton and never freed.
@@ -469,14 +475,6 @@ void OnChannelMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 
 void GenerateFlashPolicy(int port)
 {
-	std::stringstream flashPolicy;
-	flashPolicy << "<?xml version=\"1.0\"?>\r\n"
-		"<!DOCTYPE cross-domain-policy SYSTEM \"/xml/dtds/cross-domain-policy.dtd\">\r\n"
-		"<cross-domain-policy>\r\n"
-		"\t<site-control permitted-cross-domain-policies=\"master-only\"/>\r\n"
-		"\t<allow-access-from domain=\"*\" to-ports=\"843," << port << ",583\" secure=\"false\" />\r\n"
-		"</cross-domain-policy>";
-
 	char filenameBuf[1024];
 	// Get full path of EXE, including EXE filename + ext
 	size_t bytes = GetModuleFileNameA(NULL, filenameBuf, sizeof(filenameBuf));
@@ -497,6 +495,15 @@ void GenerateFlashPolicy(int port)
 	}
 
 	filename = filename.substr(0U, lastSlash + 1U) + "FlashPlayerPolicy.xml";
+
+	// File already exists; just use it
+	DWORD policyAttr = GetFileAttributesA(filename.c_str()); 
+	if (policyAttr != INVALID_FILE_ATTRIBUTES && !(policyAttr & FILE_ATTRIBUTE_DIRECTORY))
+	{
+		flashpolicypath = filename;
+		return;
+	}
+
 	HANDLE forWriting = CreateFileA(filename.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	if (forWriting == NULL || forWriting == INVALID_HANDLE_VALUE)
 	{
@@ -504,8 +511,16 @@ void GenerateFlashPolicy(int port)
 		return;
 	}
 
-	std::string policyStr = flashPolicy.str();
+	deleteFlashPolicyAtEndOfApp = true;
 
+	std::stringstream flashPolicy;
+	flashPolicy << "<?xml version=\"1.0\"?>\r\n"
+		"<!DOCTYPE cross-domain-policy SYSTEM \"/xml/dtds/cross-domain-policy.dtd\">\r\n"
+		"<cross-domain-policy>\r\n"
+		"\t<site-control permitted-cross-domain-policies=\"master-only\"/>\r\n"
+		"\t<allow-access-from domain=\"*\" to-ports=\"843," << port << ",583\" secure=\"false\" />\r\n"
+		"</cross-domain-policy>";
+	const std::string policyStr = flashPolicy.str();
 	if (!WriteFile(forWriting, policyStr.c_str(), (DWORD)policyStr.size(), NULL, NULL))
 	{
 		std::cout << "Flash policy couldn't be created. Writing to file " << filename << " failed.\r\n";
