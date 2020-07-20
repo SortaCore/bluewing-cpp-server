@@ -1985,6 +1985,7 @@ struct relayserver
 		::std::chrono::high_resolution_clock::time_point connectTime;
 		::std::chrono::steady_clock::time_point lasttcpmessagetime;
 		::std::chrono::steady_clock::time_point lastudpmessagetime; // UDP problem where unused connections are dropped by router, so must keep these separate
+		::std::chrono::steady_clock::time_point lastnonpingmessagetime; // For clients that go idle
 		framereader reader;
         std::vector<std::shared_ptr<channel>> channels;
 		std::string _name, _prevname;

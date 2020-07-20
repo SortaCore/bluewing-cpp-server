@@ -71,6 +71,10 @@ struct relayserverinternal
 		// matter either way.
 		udpKeepAliveMS = 30000 - (pingMS * 3);
 
+		// Some buggy client versions don't close their connection on end of app, forcing the app to stay
+		// alive. We can't force them to close, but we can disconnect them.
+		maxInactivityMS = 10 * 60 * 1000;
+
 		channellistingenabled = true;
 	}
 	~relayserverinternal()
@@ -115,10 +119,12 @@ struct relayserverinternal
 	bool channellistingenabled;
 	long pingMS;
 	long udpKeepAliveMS;
+	long maxInactivityMS;
 
 	void pingtimertick()
 	{
 		std::vector<std::shared_ptr<relayserver::client>> todisconnect;
+		std::vector<std::shared_ptr<relayserver::client>> inactiveDisconnects;
 
 		framebuilder builderPingTCP(false), builderPingUDP(true);
 		builderPingTCP.addheader(11, 0);		/* ping */
@@ -133,6 +139,7 @@ struct relayserverinternal
 
 			long long msElapsedTCP = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - client->lasttcpmessagetime).count();
 			long long msElapsedUDP = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - client->lastudpmessagetime).count();
+			long long msElapsedNonPing = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - client->lastnonpingmessagetime).count();
 
 			// less than 5 seconds passed, skip the TCP ping
 			if (msElapsedTCP < pingMS)
@@ -142,6 +149,11 @@ struct relayserverinternal
 				// Also no UDP ping needed, skip both pings
 				if (msElapsedUDP < udpKeepAliveMS)
 					continue;
+			}
+			if (msElapsedNonPing > maxInactivityMS)
+			{
+				inactiveDisconnects.push_back(client);
+				continue;
 			}
 
 			// pongedOnTCP is true until client hasn't sent a message within PingMS period.
@@ -170,10 +182,11 @@ struct relayserverinternal
 
 		builderPingTCP.framereset();
 
-		if (todisconnect.empty())
+		if (todisconnect.empty() && inactiveDisconnects.empty())
 			return;
 
 		serverReadLock.lw_unlock();
+
 		for (auto& client : todisconnect)
 		{
 			if (client->_readonly)
@@ -210,6 +223,35 @@ struct relayserverinternal
 				// decent "has other side closed connection". Since ping timeout may occur for malicious clients,
 				// a decent way might not be good for us anyway.
 				client->socket->close(lw_true);
+			}
+		}
+
+		for (auto& client : inactiveDisconnects)
+		{
+			if (client->_readonly)
+				continue;
+
+			if (!serverReadLock.isEnabled())
+				serverReadLock.lw_relock();
+			if (std::find(clients.begin(), clients.end(), client) != clients.end())
+			{
+				serverReadLock.lw_unlock();
+				//auto clientWriteLock = clientsocket->lock.createWriteLock();
+				if (client->_readonly)
+					continue;
+
+				std::string impl = client->clientImplStr;
+				if (!impl.empty() && impl.back() == '.')
+					impl.erase(impl.cend());
+
+				auto error = lacewing::error_new();
+				error->add("Disconnecting client ID %i due to 10 min inactivity timeout; client impl \"%s\".", client->_id, impl.c_str());
+				handlererror(this->server, error);
+				lacewing::error_delete(error);
+
+				client->send(0, "You're being kicked for 10 minutes of inactivity.", 0);
+				// Close nicely
+				client->socket->close(lw_false);
 			}
 		}
 	}
@@ -1327,6 +1369,9 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 	else
 		client->lasttcpmessagetime = ::std::chrono::steady_clock::now();
 
+	if (messagetypeid != 9)
+		client->lastnonpingmessagetime = ::std::chrono::steady_clock::now();
+
 	std::stringstream errStr;
 	bool trustedClient = true;
 
@@ -1865,13 +1910,6 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			// auto cliWriteLock = cliReadLock.lw_upgrade();
 			client->_readonly = true;
 
-			// RAOK DEBUG INFO
-		#ifdef _DEBUG
-			std::stringstream err;
-			err << "client_messagehandler: Emergency drop line " << __LINE__ << ". Client ID " << client->_id << ", name " << client->name() << " has been marked as readonly.";
-			makestrstrerror(err);
-		#endif
-
 			cliReadLock.lw_unlock();
 			auto cliWriteLock = client->lock.createWriteLock();
 
@@ -1996,7 +2034,7 @@ relayserver::client::client(relayserverinternal &internal, lacewing::server_clie
 
 	// connectTime not started until handshake is done
 	// last message can be considered the connect time
-	lasttcpmessagetime = ::std::chrono::steady_clock::now();
+	lastnonpingmessagetime = lasttcpmessagetime = ::std::chrono::steady_clock::now();
 	lastudpmessagetime = ::std::chrono::steady_clock::time_point::time_point();
 }
 
@@ -2116,13 +2154,6 @@ std::shared_ptr<relayserver::client> relayserver::channel::channelmaster() const
 void relayserver::client::disconnect()
 {
 	_readonly = true;
-
-	// RAOK DEBUG INFO
-#ifdef _DEBUG
-	std::stringstream err;
-	err << "relayserver::client::disconnect: Emergency drop line " << __LINE__ << ". Client ID " << _id << ", name " << name() << " has been marked as readonly.";
-	server.makestrstrerror(err);
-#endif
 
 	lacewing::writelock wl = lock.createWriteLock();
 	if (socket && socket->valid())
