@@ -1847,7 +1847,7 @@ namespace lacewing {
 struct relayserverinternal;
 struct relayserver
 {
-	static const int buildnum = 19;
+	static const int buildnum = 20;
 
 	void * internaltag, * tag = nullptr;
 

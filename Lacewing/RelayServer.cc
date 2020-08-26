@@ -1715,7 +1715,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			cliReadLock.lw_unlock();
 
 			const lw_ui8 subchannel = reader.get <lw_ui8> ();
-			std::string_view message3 = reader.getremaining(false);
+			std::string_view message3 = reader.getremaining();
 
 			if (reader.failed)
 			{
@@ -1948,14 +1948,15 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 
 		if (!trustedClient)
 		{
-			// LW_ESCALATION_NOTE
-			// auto cliWriteLock = cliReadLock.lw_upgrade();
 			client->_readonly = true;
 
-			cliReadLock.lw_unlock();
+			// LW_ESCALATION_NOTE
+			// auto cliWriteLock = cliReadLock.lw_upgrade();
+			if (cliReadLock.isEnabled())
+				cliReadLock.lw_unlock();
 			auto cliWriteLock = client->lock.createWriteLock();
 
-			client->socket->close(); // TODO: Should be immediate?
+			client->socket->close(true); // immediate disconnect
 		}
 
 		// only return false if socket is emergency closing and
