@@ -1,7 +1,16 @@
+// If the user hasn't specified a target Windows version via _WIN32_WINNT, and is using an _xp toolset (indicated by _USING_V110_SDK71_),
+// then _WIN32_WINNT will be set to Windows XP (0x0501).
+#if !defined(_WIN32_WINNT) && defined(_USING_V110_SDK71_)
+	#define _WIN32_WINNT _WIN32_WINNT_WINXP
+	#define WINVER _WIN32_WINNT_WINXP
+#endif
+
+// For memory leak finding
 #ifdef _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
 #endif
+
 #include <iostream>
 #include <ctime>
 #include <sstream>
@@ -87,11 +96,15 @@ int ExitWithError(const char * msg, int error)
 
 int main()
 {
+	// Enable memory tracking (does nothing in Release)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+
+	// Handle closing nicely
 	SetConsoleCtrlHandler(CloseHandler, TRUE);
 
-	// for colouring
+	// For console text colouring
 	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
 #ifdef _lacewing_debug
 	FILE * f = NULL;
 	if (fopen_s(&f, "Bluewing Server error.log", "w"))
