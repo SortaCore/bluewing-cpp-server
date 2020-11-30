@@ -22,6 +22,9 @@
 // Declarations - Lacewing handlers
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
+void OnNameSet(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client, std::string_view requestedname);
+void OnChannelJoin(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client, std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool hidden, bool autoclose);
 void OnTimerTick(lacewing::timer timer);
 void OnError(lacewing::relayserver &server, lacewing::error error);
 void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
@@ -117,8 +120,8 @@ int main()
 	}
 #endif
 	// Block some IPs by default
-	//banIPList.push_back(BanEntry("75.128.140.10", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
-	//banIPList.push_back(BanEntry("127.0.0.1", 3, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
+	//banIPList.push_back(BanEntry("75.128.140.10", 4, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
+	//banIPList.push_back(BanEntry("127.0.0.1", 4, "IP banned. Contact Phi on Clickteam Discord.", (_time64(NULL) + 24LL * 60LL * 60LL)));
 
 	globalpump = lacewing::eventpump_new();
 	globalserver = new lacewing::relayserver(globalpump);
@@ -142,6 +145,8 @@ int main()
 	// Initialise hooks
 	globalserver->onconnect(OnConnectRequest);
 	globalserver->ondisconnect(OnDisconnect);
+	globalserver->onnameset(OnNameSet);
+	globalserver->onchannel_join(OnChannelJoin);
 	globalserver->onmessage_server(OnServerMessage);
 	globalserver->onmessage_channel(OnChannelMessage);
 	globalserver->onmessage_peer(OnPeerMessage);
@@ -273,7 +278,7 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 		{
 			banEntry->resetAt = _time64(NULL) + (banEntry->disconnects++ << 2) * 60LL * 60LL;
 
-			std::cout << green << "\r" << timeBuffer << " | Blocked client from IP " << addr << " was dropped."
+			std::cout << green << "\r" << timeBuffer << " | Blocked connection attempt from IP " << addr << "."
 				<< std::string(45, ' ') << "\r\n" << yellow;
 			return server.connect_response(client, banEntry->reason.c_str());
 		}
@@ -306,6 +311,42 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 
 	if (a != clientdata.cend())
 		clientdata.erase(a);
+	if (!client->istrusted())
+	{
+		auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry & b) { return b.ip == addr; });
+		if (banEntry == banIPList.end())
+		{
+			std::cout << yellow << "\r" << timeBuffer << " | Due to malformed protocol usage, created a IP ban entry." << std::string(25, ' ');
+			banIPList.push_back(BanEntry(addr, 1, "Broken Lacewing protocol", (_time64(NULL) + 30LL * 60LL)));
+		}
+		else
+		{
+			std::cout << yellow << "\r" << timeBuffer << " | Due to malformed protocol usage, increased their ban likelihood." << std::string(25, ' ');
+			banEntry->disconnects++;
+		}
+	}
+}
+
+bool IsAllowedChars(std::string_view name) {
+	// ASCII, from space to tilde. Excludes newlines, tabs, and control characters.
+	return std::all_of(name.cbegin(), name.cend(),
+		[](const char & c) { return ((unsigned)c) >= 0x20 && ((unsigned)c) <= 0x7E; });
+}
+void OnNameSet(lacewing::relayserver & server, std::shared_ptr<lacewing::relayserver::client> client, std::string_view requestedname)
+{
+	if (!IsAllowedChars(requestedname))
+		server.nameset_response(client, requestedname, "Requested name contains invalid characters. This is not a Unicode server.");
+	else
+		server.nameset_response(client, requestedname, std::string_view());
+}
+
+void OnChannelJoin(lacewing::relayserver & server, std::shared_ptr<lacewing::relayserver::client> client, std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool hidden, bool autoclose)
+{
+	if (!IsAllowedChars(channel->name()))
+		server.joinchannel_response(channel, client, "Requested channel name contains invalid characters. This is not a Unicode server.");
+	else
+		server.joinchannel_response(channel, client, std::string_view());
 }
 
 void OnTimerTick(lacewing::timer timer)
@@ -510,7 +551,7 @@ void GenerateFlashPolicy(int port)
 	filename = filename.substr(0U, lastSlash + 1U) + "FlashPlayerPolicy.xml";
 
 	// File already exists; just use it
-	DWORD policyAttr = GetFileAttributesA(filename.c_str()); 
+	DWORD policyAttr = GetFileAttributesA(filename.c_str());
 	if (policyAttr != INVALID_FILE_ATTRIBUTES && !(policyAttr & FILE_ATTRIBUTE_DIRECTORY))
 	{
 		flashpolicypath = filename;
