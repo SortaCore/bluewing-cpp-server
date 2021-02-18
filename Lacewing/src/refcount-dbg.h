@@ -34,7 +34,7 @@
 
 struct lwp_refcount
 {
-	unsigned short refcount;			
+	unsigned short refcount;
 	void (* on_dealloc) (void *);
 
 	char name [64];
@@ -46,25 +46,23 @@ struct lwp_refcount
 lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name);
 lw_bool _lwp_release (struct lwp_refcount * refcount, const char * name);
 
-#define lwp_refcounted														\
-struct lwp_refcount refcount;											  \
+#define lwp_refcounted															\
+struct lwp_refcount refcount;													\
 
-#define lwp_retain(x, name)													\
-	_lwp_retain ((struct lwp_refcount *) (x), name)							\
+#define lwp_retain(x, name) \
+	_lwp_retain ((struct lwp_refcount *) (x), name)
 
-#define lwp_release(x, name)												  \
-	_lwp_release ((struct lwp_refcount *) (x), name)							\
+#define lwp_release(x, name) \
+	_lwp_release ((struct lwp_refcount *) (x), name)
 
-#define lwp_set_dealloc_proc(x, proc)										 \
-	*(void **)&(((struct lwp_refcount *) (x))->on_dealloc) = (void *)(proc);  \
+#define lwp_set_dealloc_proc(x, proc) \
+	*(void **)&(((struct lwp_refcount *) (x))->on_dealloc) = (void *)(proc);
 
-#define lwp_set_refcount_name(x, n)											\
-	strcpy (((struct lwp_refcount *) (x))->name, (n));						 \
+#define lwp_set_refcount_name(x, n) \
+	strcpy (((struct lwp_refcount *) (x))->name, (n));
 
-#define lwp_enable_refcount_logging(x, name)								  \
-	lwp_set_refcount_name (x, name);											\
-	((struct lwp_refcount *) (x))->enable_logging = lw_true;					\
+#define lwp_enable_refcount_logging(x, name) \
+	lwp_set_refcount_name (x, name);		 \
+	((struct lwp_refcount *) (x))->enable_logging = lw_true;
 
 #endif
-	
-

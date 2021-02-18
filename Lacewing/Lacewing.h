@@ -386,9 +386,9 @@ typedef lw_i8 lw_bool;
 
 	lw_import			lw_stream	 lw_stream_new		 (const lw_streamdef *, lw_pump);
 	lw_import  const lw_streamdef *  lw_stream_get_def	 (lw_stream);
-	lw_import	  void *			 lw_stream_tail		 (lw_stream);
-	lw_import  lw_stream			 lw_stream_from_tail (void *);
-	lw_import		void			 lw_stream_data		 (lw_stream, const char * buffer, size_t size);
+	lw_import				 void *  lw_stream_tail		 (lw_stream);
+	lw_import			  lw_stream  lw_stream_from_tail (void *);
+	lw_import				   void  lw_stream_data		 (lw_stream, const char * buffer, size_t size);
 
 	/* FDStream */
 
@@ -409,7 +409,7 @@ typedef lw_i8 lw_bool;
 		(lw_file, const char * filename, const char * mode);
 
 	lw_import		 lw_bool  lw_file_open_temp		(lw_file);
-	lw_import   const char *  lw_file_name		 	(lw_file);
+	lw_import   const char *  lw_file_name			(lw_file);
 
 	/* Pipe */
 
@@ -466,7 +466,7 @@ typedef lw_i8 lw_bool;
 	 * applicable. To delete a lw_client, use lw_stream_delete.
 	 */
 
-	lw_import		 lw_client  lw_client_new					(lw_pump);
+	lw_import	   lw_client  lw_client_new					(lw_pump);
 	lw_import			void  lw_client_connect				(lw_client, const char * host, long port);
 	lw_import			void  lw_client_connect_addr		(lw_client, lw_addr);
 	lw_import			void  lw_client_connect_secure		(lw_client, const char * host, long port);
@@ -765,14 +765,14 @@ struct _pump
 	#else
 
 		lw_import lw_pump_watch add (int fd, void * tag,
-									lw_pump_callback on_read_ready,
-									lw_pump_callback on_write_ready = 0,
-									bool edge_triggered = true);
+									 lw_pump_callback on_read_ready,
+									 lw_pump_callback on_write_ready = 0,
+									 bool edge_triggered = true);
 
 		lw_import void update_callbacks (lw_pump_watch, void * tag,
-										lw_pump_callback on_read_ready,
-										lw_pump_callback on_write_ready = 0,
-										bool edge_triggered = true);
+										 lw_pump_callback on_read_ready,
+										 lw_pump_callback on_write_ready = 0,
+										 bool edge_triggered = true);
 
 	#endif
 
@@ -924,10 +924,10 @@ struct _stream
 	lw_import void write_file (const char * filename);
 
 	lw_import void add_filter_upstream
-	 (stream, bool delete_with_stream = false, bool close_together = false);
+		(stream, bool delete_with_stream = false, bool close_together = false);
 
 	lw_import void add_filter_downstream
-	 (stream, bool delete_with_stream = false, bool close_together = false);
+		(stream, bool delete_with_stream = false, bool close_together = false);
 
 	lw_import bool close (bool immediate = false);
 
@@ -1136,7 +1136,7 @@ struct _server
 	typedef void (lw_callback * hook_disconnect) (server, server_client);
 
 	typedef void (lw_callback * hook_data)
-		(server, server_client, const char * buffer, size_t size);
+	  (server, server_client, const char * buffer, size_t size);
 
 	typedef void (lw_callback * hook_error) (server, error);
 
@@ -1234,7 +1234,7 @@ struct _webserver
 
 	lw_import bool load_sys_cert
 		(const char * store_name, const char * common_name,
-		const char * location = "CurrentUser");
+		 const char * location = "CurrentUser");
 
 	lw_import bool cert_loaded ();
 
@@ -1263,14 +1263,14 @@ struct _webserver
 	typedef void (lw_callback * hook_upload_post)
 		(webserver, webserver_request, webserver_upload uploads[], size_t num_uploads);
 
-	lw_import void on_get				(hook_get);
-	lw_import void on_upload_start	 (hook_upload_start);
-	lw_import void on_upload_chunk	 (hook_upload_chunk);
-	lw_import void on_upload_done		(hook_upload_done);
-	lw_import void on_upload_post		(hook_upload_post);
-	lw_import void on_post			 (hook_post);
-	lw_import void on_head			 (hook_head);
-	lw_import void on_disconnect		(hook_disconnect);
+	lw_import void on_get			(hook_get);
+	lw_import void on_upload_start	(hook_upload_start);
+	lw_import void on_upload_chunk	(hook_upload_chunk);
+	lw_import void on_upload_done	(hook_upload_done);
+	lw_import void on_upload_post	(hook_upload_post);
+	lw_import void on_post			(hook_post);
+	lw_import void on_head			(hook_head);
+	lw_import void on_disconnect	(hook_disconnect);
 	lw_import void on_error			(hook_error);
 
 	lw_import void tag (void *);
@@ -1584,8 +1584,8 @@ protected:
 	readwritelock & lock;
 	std::shared_lock<decltype(readwritelock::lock)> locker;
 	bool locked = true;
-
 };
+
 struct writelock {
 	friend readwritelock;
 	friend readlock;
@@ -1920,12 +1920,12 @@ struct relayserver
 		std::atomic<bool> _readonly = false;
 		relayserverinternal &server;
 
-	      std::vector<std::shared_ptr<relayserver::client>> clients;
+		std::vector<std::shared_ptr<relayserver::client>> clients;
 
 	      std::string _name;
-	      lw_ui16 _id = 0xFFFF;
-	      bool _hidden = true;
-	      bool _autoclose = false;
+		lw_ui16 _id = 0xFFFF;
+		bool _hidden = true;
+		bool _autoclose = false;
 		// TODO: should be weak_ptr?
 		std::shared_ptr<client> _channelmaster;
 
@@ -2013,20 +2013,30 @@ struct relayserver
 
 		bool pseudoUDP = true; // Is UDP not supported (e.g. Flash) so "faked" by receiver
 
-	    bool connectRequestApproved = false;
-	    bool gotfirstbyte = false;
-	    bool pongedOnTCP = true;
+		// Got opening null byte, indicating not a HTTP client.
+		bool gotfirstbyte = false;
+		// After TCP connect approval, Lacewing connect message request was received, and server has said OK to it
+		bool connectRequestApproved = false;
+		// Client has only ever used valid Lacewing messages; e.g. valid UTF-8, no missing elements in messages.
+		// Does not indicate all messages succeed. When false, client is kicked very shortly after.
 		bool trustedClient = true;
+		// Has a TCP ping request been sent by server, and was replied to.
+		// If false, next ping timer tick will consider a failed ping and kick the client, so it is true by default.
+		bool pongedOnTCP = true;
 
-	    lacewing::address udpaddress;
+		lacewing::address udpaddress;
+
+		lw_ui16 _id = 0xFFFF;
+
 		void PeerToPeer(relayserver &server, std::shared_ptr<relayserver::channel> viachannel, std::shared_ptr<relayserver::client> receivingclient,
-						bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message);
+			bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message);
 
-	    bool checkname(std::string_view name);
+		// Checks if name can be set to given name, by this client.
+		// Checks whether name is valid, and whether name is in use already.
+		bool checkname(std::string_view name);
 
-	    lw_ui16 _id = 0xFFFF;
-
-	    std::shared_ptr<relayserver::channel> readchannel(messagereader &reader);
+		// Reads channel from client's channel list; fails if not joined.
+		std::shared_ptr<relayserver::channel> readchannel(messagereader &reader);
 	};
 
 	size_t clientcount() const;

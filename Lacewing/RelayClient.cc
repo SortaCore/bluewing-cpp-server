@@ -68,12 +68,15 @@ namespace lacewing
 		relayclientinternal(relayclient &_client, pump _eventpump);
 		framereader reader;
 
-		static bool messagehandler(void * tag, unsigned char type, const char * message, size_t size);
-		bool		messagehandler(unsigned char type, const char * message, size_t size, bool blasted);
+		static bool messagehandler(void * tag, lw_ui8 type, const char * message, size_t size);
+		bool		messagehandler(lw_ui8 type, const char * message, size_t size, bool blasted);
 
 		static void udphellotick(lacewing::timer timer);
 		void		udphellotick();
 
+		/// <summary> searches for the first channel by id number. </summary>
+		/// <param name="id"> id to look up. </param>
+		/// <returns> null if it fails, else the matching channel. </returns>
 		std::shared_ptr<relayclient::channel> findchannelbyid(lw_ui16 id);
 
 		// message: used by lacewing internal (e.g. automatic ping response)
@@ -156,11 +159,11 @@ namespace lacewing
 	/// <summary> searches for the first channel by id number. </summary>
 	/// <param name="id"> id to look up. </param>
 	/// <returns> null if it fails, else the matching channel. </returns>
-	std::shared_ptr<relayclient::channel> relayclientinternal::findchannelbyid(unsigned short id)
+	std::shared_ptr<relayclient::channel> relayclientinternal::findchannelbyid(lw_ui16 id)
 	{
 		lacewing::readlock rl = this->client.lock.createReadLock();
 		auto i = std::find_if(channels.cbegin(), channels.cend(),
-			[&](const std::shared_ptr<const relayclient::channel> &c) { return c->id() == id; });
+			[id](const std::shared_ptr<const relayclient::channel> &c) { return c->id() == id; });
 		return i == channels.cend() ? nullptr : *i;
 	}
 
@@ -261,7 +264,6 @@ namespace lacewing
 	relayclient::~relayclient()
 	{
 		lacewing::writelock wl = this->lock.createWriteLock();
-		OutputDebugStringA("~relayclient()\n");
 		delete ((relayclientinternal *)internaltag);
 		internaltag = nullptr;
 	}
@@ -332,7 +334,7 @@ namespace lacewing
 		framebuilder &message = internal.messageMF;
 
 		message.addheader(0, 0);  /* request */
-		message.add <unsigned char>(4);  /* channellist */
+		message.add <lw_ui8>(4);  /* channellist */
 
 		message.send(internal.socket);
 	}
@@ -391,7 +393,7 @@ namespace lacewing
 
 		lacewing::writelock wl = lock.createWriteLock();
 
-		framebuilder	&message = internal.messageMF;
+		framebuilder & message = internal.messageMF;
 		message.addheader (0, 0);  /* request */
 		message.add <lw_ui8>(2);  /* joinchannel */
 		message.add <lw_ui8>((hidden ? 1 : 0) | (autoclose ? 2 : 0));
@@ -585,7 +587,7 @@ namespace lacewing
 		return ((relayclientinternal *)internaltag)->welcomemessage;
 	}
 
-	bool relayclientinternal::messagehandler(unsigned char type, const char * message, size_t size, bool blasted)
+	bool relayclientinternal::messagehandler(lw_ui8 type, const char * message, size_t size, bool blasted)
 	{
 		lw_ui8 messagetypeid = (type >> 4);
 		lw_ui8 variant = (type << 4);
@@ -1067,7 +1069,6 @@ namespace lacewing
 				return true;
 			}
 
-
 			if (!peer)
 			{
 				/* new peer */
@@ -1235,7 +1236,7 @@ namespace lacewing
 		clear();
 	}
 
-	bool relayclientinternal::messagehandler(void * tag, unsigned char type, const char * message, size_t size)
+	bool relayclientinternal::messagehandler(void * tag, lw_ui8 type, const char * message, size_t size)
 	{
 		return ((relayclientinternal *)tag)->messagehandler(type, message, size, false);
 	}

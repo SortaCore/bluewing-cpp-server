@@ -28,33 +28,33 @@ struct relayserverinternal
 	relayserver &server;
 	timer pingtimer;
 
-	relayserver::handler_connect          handlerconnect;
-	relayserver::handler_disconnect       handlerdisconnect;
-	relayserver::handler_error            handlererror;
+	relayserver::handler_connect		  handlerconnect;
+	relayserver::handler_disconnect		  handlerdisconnect;
+	relayserver::handler_error			  handlererror;
 	relayserver::handler_message_server   handlermessage_server;
 	relayserver::handler_message_channel  handlermessage_channel;
-	relayserver::handler_message_peer     handlermessage_peer;
-	relayserver::handler_channel_join     handlerchannel_join;
-	relayserver::handler_channel_leave    handlerchannel_leave;
-	relayserver::handler_nameset          handlernameset;
+	relayserver::handler_message_peer	  handlermessage_peer;
+	relayserver::handler_channel_join	  handlerchannel_join;
+	relayserver::handler_channel_leave	  handlerchannel_leave;
+	relayserver::handler_nameset		  handlernameset;
 
 	relayserverinternal(relayserver &_server, pump pump)
 		: server(_server), pingtimer(lacewing::timer_new(pump))
 	{
-		handlerconnect          = 0;
-		handlerdisconnect       = 0;
-		handlererror            = 0;
-		handlermessage_server    = 0;
-		handlermessage_channel   = 0;
-		handlermessage_peer      = 0;
-		handlerchannel_join      = 0;
-		handlerchannel_leave     = 0;
-		handlernameset          = 0;
+		handlerconnect			= 0;
+		handlerdisconnect		= 0;
+		handlererror			= 0;
+		handlermessage_server	= 0;
+		handlermessage_channel	= 0;
+		handlermessage_peer		= 0;
+		handlerchannel_join		= 0;
+		handlerchannel_leave	= 0;
+		handlernameset			= 0;
 
 		numTotalClientsPerIP = 5;
 		numPendingConnectsPerIP = 2;
 
-		welcomemessage = "";
+		welcomemessage = std::string();
 
 		pingtimer->tag(this);
 		pingtimer->on_tick(serverpingtimertick);
@@ -129,7 +129,7 @@ struct relayserverinternal
 	///			  2) If the client has not sent a UDP message within udpKeepAliveMS milliseconds, send a ping request.
 	///			  -> UDP ping response is not checked for by this function; one-way UDP activity is enough to keep the
 	///				 UDP psuedo-connection alive in routers.
-	///			     Note using default timing, three UDP messages will be sent before routers are likely to close connection.
+	///				 Note that using default timings, three UDP messages will be sent before routers are likely to close connection.
 	///			  3) If the client has only replied to pings, and not sent any channel, peer, or server messages besides,
 	///				 within a period of maxInactivityMS, then the client will be messaged and disconnected, and the server notified
 	///				 via error handler.
@@ -317,8 +317,9 @@ struct relayserverinternal
 	// Don't ask
 	static bool tcpmessagehandler(void * tag, lw_ui8 type, const char * message, size_t size);
 	// Used to be inside client, but we need the shared ptr
-	bool client_messagehandler(std::shared_ptr<relayserver::client> client, unsigned char type, std::string_view message, bool blasted);
+	bool client_messagehandler(std::shared_ptr<relayserver::client> client, lw_ui8 type, std::string_view message, bool blasted);
 };
+
 void handlerudperror(lacewing::udp udp, lacewing::error error);
 
 void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing::address address, std::string_view data)
@@ -386,11 +387,11 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 			{
 				// A client ID is set to only have "fake UDP" but used real UDP.
 				// Pseudo setting is wrong, which means server didn't init client properly, not good.
-				error error = error_new();
+				lacewing::error error = lacewing::error_new();
 				error->add("Client ID %i is set to pseudo-UDP, but received a real UDP packet"
 					" on matching address. Correcting pseudo-UDP; please check your config.", id);
 				lacewing::handlerudperror(udp, error);
-				error_delete(error);
+				lacewing::error_delete(error);
 				clientsocket->pseudoUDP = false;
 			}
 
@@ -409,22 +410,22 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 	if (unreachable)
 	{
 		auto sock = [=]() {
-			SOCKET             sockRaw = INVALID_SOCKET;
-			struct sockaddr_in dest,
-				from;
-			int				bread,
-				fromlen = sizeof(from),
-				timeout = 1000,
-				ret;
-			char            * icmp_data = NULL,
-				* recvbuf = NULL;
-			unsigned int	addr = 0;
-			USHORT          seq_no = 0;
-			struct hostent  * hp = NULL;
-			IpOptionHeader  ipopt;
+			SOCKET				sockRaw = INVALID_SOCKET;
+			struct sockaddr_in  dest,
+								from;
+			int					bread,
+								fromlen = sizeof(from),
+								timeout = 1000,
+								ret;
+			char			  * icmp_data = NULL,
+							  * recvbuf = NULL;
+			unsigned int		addr = 0;
+			unsigned short		seq_no = 0;
+			struct hostent	  * hp = NULL;
+			IpOptionHeader		ipopt;
 
-#define ICMP_DEST_UNREACH       3
-#define ICMP_PORT_UNREACH       3
+#define ICMP_DEST_UNREACH	   3
+#define ICMP_PORT_UNREACH	   3
 
 			//! ICMP packet structure.
 			struct icmp
@@ -487,7 +488,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 			while (1)
 			{
 				static int nCount = 0;
-				int        bwrote;
+				int		bwrote;
 
 				if (nCount++ == 4)
 					break;
@@ -619,7 +620,7 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 		lacewing::error error = error_new();
 		error->add("Client ID %i attempted to send peer message to ID %i, e.g. themselves. Message dropped");
 		serverinternal.handlererror(server, error);
-		error_delete(error);
+		lacewing::error_delete(error);
 		return;
 	}
 
@@ -692,7 +693,7 @@ const char * relayserver::client::getimplementation() const
 
 std::shared_ptr<relayserver::client> relayserver::channel::readpeer(messagereader &reader)
 {
-	int peerid = reader.get <unsigned short> ();
+	lw_ui16 peerid = reader.get <lw_ui16> ();
 
 	if (reader.failed)
 		return nullptr;
@@ -965,8 +966,8 @@ void relayserver::host(lacewing::filter &_filter)
 	if (!filter->local_port())
 		filter->local_port(6121);
 
-	socket->host (filter);
-	udp->host    (filter);
+	socket->host(filter);
+	udp->host(filter);
 
 	lacewing::filter_delete(filter);
 
@@ -1227,9 +1228,9 @@ void relayserverinternal::channel_removeclient(std::shared_ptr<relayserver::chan
 
 			// Tell client they were ok to leave
 
-			builder.addheader(0, 0);    /* response */
-			builder.add <lw_ui8>(3);    /* leavechannel */
-			builder.add <lw_ui8>(1);    /* success */
+			builder.addheader(0, 0);			 /* response */
+			builder.add <lw_ui8>(3);			 /* leavechannel */
+			builder.add <lw_ui8>(1);			 /* success */
 			builder.add <lw_ui16>(channel->_id); /* channel ID */
 
 			builder.send(client->socket);
@@ -1287,6 +1288,8 @@ void relayserverinternal::channel_removeclient(std::shared_ptr<relayserver::chan
 
 bool relayserver::client::checkname(std::string_view name)
 {
+	// Size check may be skipped if server is meant to change the name
+
 	// LW_ESCALATION_NOTE
 	// auto cliReadLock = lock.createReadLock();
 	auto cliWriteLock = lock.createWriteLock();
@@ -1356,9 +1359,8 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 {
 	auto cliReadLock = client->lock.createReadLock();
 
-	lw_ui8 messagetypeid  = (type >> 4);
-	lw_ui8 variant        = (type << 4);
-
+	lw_ui8 messagetypeid = (type >> 4);
+	lw_ui8 variant		 = (type << 4);
 	variant >>= 4;
 	const char * message = messageP.data();
 	size_t size = messageP.size();
@@ -1728,7 +1730,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			{
 				handlermessage_server(server, client, blasted, subchannel, message3, variant);
 
-				// Server messages, we'll assume it is activity.
+				// Since there is a server message handler, we'll assume it is activity.
 				client->lastchannelorpeermessagetime = ::std::chrono::steady_clock::now();
 			}
 
@@ -1865,7 +1867,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			client->pseudoUDP = false;
 
 			builder.addheader (10, 0); /* udpwelcome */
-			builder.send      (server.udp, client->udpaddress);
+			builder.send	  (server.udp, client->udpaddress);
 
 			break;
 		}
@@ -1926,7 +1928,6 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 		}
 
 		default:
-
 			errStr << "Unrecognised message type ID " << messagetypeid;
 			trustedClient = false;
 			reader.failed = true;
@@ -1972,7 +1973,7 @@ void relayserver::client::send(lw_ui8 subchannel, std::string_view message, lw_u
 	framebuilder builder(true);
 
 	builder.addheader (1, variant); /* binaryservermessage */
-	builder.add (subchannel);
+	builder.add<lw_ui8> (subchannel);
 	builder.add (message);
 
 	auto clientWriteLock = lock.createWriteLock();
@@ -1985,7 +1986,7 @@ void relayserver::client::blast(lw_ui8 subchannel, std::string_view message, lw_
 	framebuilder builder(false);
 
 	builder.addheader(1, variant, true); /* binaryservermessage */
-	builder.add (subchannel);
+	builder.add<lw_ui8>(subchannel);
 	builder.add (message);
 
 	auto serverWriteLock = server.server.lock.createWriteLock();
@@ -2020,8 +2021,8 @@ void relayserver::channel::blast(lw_ui8 subchannel, std::string_view message, lw
 	framebuilder builder(false);
 
 	builder.addheader (4, variant, true); /* binaryserverchannelmessage */
-	builder.add (subchannel);
-	builder.add (this->_id);
+	builder.add<lw_ui8>(subchannel);
+	builder.add<lw_ui16>(this->_id);
 	builder.add (message);
 
 	auto channelReadLock = lock.createReadLock();
@@ -2041,8 +2042,7 @@ void relayserver::channel::blast(lw_ui8 subchannel, std::string_view message, lw
 void relayserver::channel::close()
 {
 	auto serverReadLock = server.server.lock.createReadLock();
-	auto ch = std::find_if(server.channels.begin(),
-		server.channels.end(),
+	auto ch = std::find_if(server.channels.begin(), server.channels.end(),
 		[=](const auto &p) { return p.get() == this; });
 
 	// Assume channel is already closed, as it's not on server channel list.
@@ -2297,6 +2297,8 @@ relayserver::client::~client() noexcept(false)
 	socket = nullptr;
 }
 
+// Creates channel and adds to server list, accepts no master for the channel.
+// Expects you have already checked channel with that name does not exist.
 std::shared_ptr<relayserver::channel> relayserver::createchannel(std::string_view channelName, std::shared_ptr<relayserver::client> master, bool hidden, bool autoclose)
 {
 	auto& serverinternal = *(lacewing::relayserverinternal *)internaltag;
@@ -2422,11 +2424,11 @@ static void validateorreplacestringview(std::string_view toValidate,
 /// <summary> Approves or sends a deny response to channel join request. Pass null for deny reason if approving.
 /// 		  Even if you're denying, you still MUST call this event, or you will have a memory leak.
 /// 		  For new channels, this will add them to server's channel list if approved, or delete them. </summary>
-/// <param name="channel">			    [in] The channel. Name is as originally requested. </param>
+/// <param name="channel">				[in] The channel. Name is as originally requested. </param>
 /// <param name="passedNewChannelName"> Name of the passed channel. If null, original request name is approved.
 /// 									If non-null, must be 1-255 chars, or the channel join is denied entirely. </param>
-/// <param name="client">			    [in] The client joining/creating the channel. </param>
-/// <param name="denyReason">		    The deny reason. If null, the channel is approved (if new channel name is legal).
+/// <param name="client">				[in] The client joining/creating the channel. </param>
+/// <param name="denyReason">			The deny reason. If null, the channel is approved (if new channel name is legal).
 /// 									If non-null, channel join deny is sent, and channel is cleaned up as needed. </param>
 void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> channel,
 	std::shared_ptr<relayserver::client> client, std::string_view denyReason)
@@ -2522,9 +2524,9 @@ void relayserver::leavechannel_response(std::shared_ptr<relayserver::channel> ch
 
 		framebuilder builder(true);
 
-		builder.addheader(0, 0);         /* response */
-		builder.add <lw_ui8>(3);  /* leavechannel */
-		builder.add <lw_ui8>(0);  /* failed */
+		builder.addheader(0, 0);			 /* response */
+		builder.add <lw_ui8>(3);			 /* leavechannel */
+		builder.add <lw_ui8>(0);			 /* failed */
 		builder.add <lw_ui16>(channel->_id); /* channel ID */
 
 		// Blank reason replaced with "it was unspecified" message
@@ -2586,7 +2588,6 @@ void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
 	}
 	else
 	{
-
 		if (newClientName.size() > 255U)
 		{
 			sprintf_s(newDenyReason, "New client name \"%.10s...\" (%u chars) is too long. Name must be 255 chars maximum.", newClientName.data(), (std::uint32_t)newClientName.size());
@@ -2761,9 +2762,9 @@ void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<re
 }
 
 
-#define autohandlerfunctions(pub, intern, handlername)              \
+#define autohandlerfunctions(pub, intern, handlername)			  \
 	void pub::on##handlername(pub::handler_##handlername handler)   \
-		{   ((intern *) internaltag)->handler##handlername = handler;      \
+		{   ((intern *) internaltag)->handler##handlername = handler;	  \
 		}
 autohandlerfunctions(relayserver, relayserverinternal, connect)
 autohandlerfunctions(relayserver, relayserverinternal, disconnect)

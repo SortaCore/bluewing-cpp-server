@@ -36,7 +36,7 @@ class messagereader
 protected:
 
 	const char * buffer;
-	
+
 	size_t size;
 
 	std::vector<char *> tofree;
@@ -134,32 +134,6 @@ public:
 		offset += size;
 	}
 
-	/* inline short Network16Bit ()
-	{
-		return ntohs (Get <short> ());
-	}
-	
-	inline int Network24Bit ()
-	{
-		if (!Check (3))
-			return 0;
-		
-		return Read24Bit (Buffer + Offset);
-	}
-
-	inline int Network32Bit ()
-	{
-		return ntohl (Get <int> ());
-	}
-	
-	inline int NetworkX31Bit ()
-	{
-		int value = Get <int> ();
-	
-		*(char *) &value &= 0x7F;
-		
-		return ntohl (value);
-	}*/
 };
 
 #endif
