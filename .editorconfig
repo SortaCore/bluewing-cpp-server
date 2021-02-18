@@ -1,6 +1,7 @@
 root = true
+# Don't forget to update the gitattributes if you're changing line ending treatment
 
-[*.{c,cc,cpp,h,hh,hpp}]
+[*.{c,cc,cpp,h,hh,hpp,txt,props}]
 end_of_line = lf
 insert_final_newline = true
 charset = utf-8
@@ -15,3 +16,19 @@ charset = utf-8
 indent_style = tab
 indent_size = 4
 trim_trailing_whitespace = false
+
+[*.{json}]
+end_of_line = lf
+insert_final_newline = true
+charset = latin1
+indent_style = tab
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{rc,htm,html}]
+end_of_line = crlf
+insert_final_newline = true
+charset = latin1
+indent_style = tab
+indent_size = 4
+trim_trailing_whitespace = true
