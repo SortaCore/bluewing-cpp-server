@@ -16,13 +16,13 @@ using namespace std::string_view_literals;
 // Upload limit for ENTIRE SERVER, TCP + UDP, in bytes
 // UDP messages received above this limit will be discarded
 // TCP messages received above this limit are still delivered. See TCP_CLIENT_UPLOAD_CAP.
-#define TOTAL_UPLOAD_CAP 500000
+// #define TOTAL_UPLOAD_CAP 500000
 
 // TCP upload limit for single clients, per second, in bytes.
 // TCP messages received above this limit will send the client an error message
 // and disconnect them.
 // UDP upload limit is not defined.
-#define TCP_CLIENT_UPLOAD_CAP 3000
+// #define TCP_CLIENT_UPLOAD_CAP 3000
 
 // Set this to 0 for the app to ask the user what port it is, on bootup;
 // or to another number to use that by default
