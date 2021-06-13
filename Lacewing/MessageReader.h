@@ -63,7 +63,7 @@ public:
 		tofree.clear();
 	}
 
-	inline bool check(size_t size)
+	inline bool check(const size_t size)
 	{
 		if (failed)
 			return false;
@@ -109,32 +109,33 @@ public:
 		return buffer + offset;
 	}
 
-	inline std::string_view getremaining(bool allowempty = true)
+	std::string_view getremaining(const lw_ui32 minimumlength = 0U, const bool nullTerminator = false, const bool stripNull = false, const lw_ui32 maximumlength = 0xffffffff)
 	{
 		if (failed)
-			return this->buffer;
+			return std::string_view();
+
+		assert(!nullTerminator || minimumlength > 0);
+		assert(maximumlength >= minimumlength);
 
 		std::string_view remaining(this->buffer + offset, bytesleft());
 		offset += remaining.size();
 
-		if (!allowempty && (remaining.empty() || !remaining.front()))
+		// Message must be in size limits
+		if (remaining.size() > maximumlength || remaining.size() < minimumlength)
 			failed = true;
+		// Null terminator required, and not present
+		else if (nullTerminator && (remaining.empty() || remaining.back() != '\0'))
+			failed = true;
+		if (!failed && stripNull)
+		{
+			if (!remaining.empty() && remaining.back() == '\0')
+				remaining.remove_suffix(1);
+			if (!remaining.empty() && remaining.back() == '\0')
+				failed = true;
+		}
 
 		return remaining;
 	}
-
-	inline void getremaining(const char * &buffer, size_t &size, unsigned int minimumlength = 0U, unsigned int maximumlength = 0xffffffff)
-	{
-		buffer = this->buffer + offset;
-		size	= this->size - offset;
-
-		if (size > maximumlength || size < minimumlength)
-			failed = true;
-
-		offset += size;
-	}
-
 };
 
 #endif
-

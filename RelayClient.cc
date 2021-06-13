@@ -187,18 +187,20 @@ namespace lacewing
 	{
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
 
-		auto cliWriteLock = internal.client.lock.createWriteLock();
+		// offsetof(lw_stream, flags) == 20
+
+		// if dead or closing, it's an immediate disconnect
+		//bool handlerNeedsRunning = (((lw_ui8 *)socket)[20] & (8 | 4 /*lwp_stream_flag_dead | lwp_stream_flag_closing */)) != 0;
+
 		internal.udphellotimer->stop();
 
 		internal.connected = false;
 
 		internal.disconnect_mark_all_as_readonly();
 
-		cliWriteLock.lw_unlock();
 		if (internal.handler_disconnect)// && handlerNeedsRunning)
 			internal.handler_disconnect(internal.client);
 
-		cliWriteLock.lw_relock();
 		internal.clear();
 
 		// Lacewing self-deletes streams on socket close - while client variable is valid here,

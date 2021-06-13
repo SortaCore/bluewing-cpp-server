@@ -47,7 +47,7 @@ lw_file lw_file_new (lw_pump pump)
 	*ctx->name = 0;
 
 	lwp_fdstream_init ((lw_fdstream) ctx, pump);
-	
+
 	return ctx;
 }
 
@@ -99,7 +99,7 @@ lw_bool lw_file_open (lw_file ctx, const char * filename, const char * mode)
 	  ++ mode;
 
 	if (*mode == '+')
-	{	
+	{
 	  dwDesiredAccess = GENERIC_READ | GENERIC_WRITE;
 	  ++ mode;
 	}
@@ -115,15 +115,24 @@ lw_bool lw_file_open (lw_file ctx, const char * filename, const char * mode)
 	  dwCreationDisposition = CREATE_NEW;
 	}
 
-	/* TODO: should be converting to UTF-16 and using *W functions? */
-
-	HANDLE fd = CreateFileA (filename,
-							dwDesiredAccess,
-							dwShareMode,
-							0,
-							dwCreationDisposition,
-							FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-							0);
+	HANDLE fd = INVALID_HANDLE_VALUE;
+	const void * filename2 = filename;
+#if defined(_WIN32) && defined(_UNICODE)
+	filename2 = lw_char_to_wchar(filename);
+	if (filename != NULL)
+	{
+#endif
+		fd = CreateFile ((LPCTSTR)filename,
+						 dwDesiredAccess,
+						 dwShareMode,
+						 0,
+						 dwCreationDisposition,
+						 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+						 0);
+#if defined(_WIN32) && defined(_UNICODE)
+		free((void *)filename2);
+	}
+#endif
 
 	if (fd == INVALID_HANDLE_VALUE)
 	  return lw_false;

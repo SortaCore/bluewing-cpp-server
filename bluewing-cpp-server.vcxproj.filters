@@ -34,11 +34,14 @@
     <Filter Include="Header Files\Lacewing\src\windows">
       <UniqueIdentifier>{62f4f2e8-f164-4959-9417-881b87c8e319}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Lacewing\src\deps">
+      <UniqueIdentifier>{5be8bdd4-8cf1-4b4a-936d-d9ba6557d559}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\deps">
+      <UniqueIdentifier>{366eb6b9-2279-444a-a847-24ba467d30f6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Lacewing\RelayServer.cc">
       <Filter>Source Files\Lacewing</Filter>
     </ClCompile>
@@ -189,6 +192,18 @@
     <ClCompile Include="Lacewing\ReadWriteLock.cc">
       <Filter>Source Files\Lacewing</Filter>
     </ClCompile>
+    <ClCompile Include="Lacewing\CodePointAllowList.cpp">
+      <Filter>Source Files\Lacewing</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\deps\utf8proc.c">
+      <Filter>Source Files\Lacewing\src\deps</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\deps\utf8proc_data.c">
+      <Filter>Source Files\Lacewing\src\deps</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowsMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConsoleColors.h">
@@ -259,6 +274,9 @@
     </ClInclude>
     <ClInclude Include="Lacewing\FrameReader.h">
       <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\utf8proc.h">
+      <Filter>Header Files\Lacewing\src\deps</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

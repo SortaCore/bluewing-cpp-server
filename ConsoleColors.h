@@ -1,52 +1,62 @@
 #pragma once
 #include <iostream>
+
+#ifdef _WIN32
 #include <windows.h>
-
 static HANDLE hStdout;
-inline std::ostream& blue(std::ostream &s)
+#endif
+
+template<class _Elem, class _Traits>
+inline std::basic_ostream<_Elem, _Traits> & blue(std::basic_ostream<_Elem, _Traits> &s)
 {
-	SetConsoleTextAttribute(hStdout, FOREGROUND_BLUE
-		| FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+#ifdef _WIN32
+	SetConsoleTextAttribute(hStdout, FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+#else
+	s << "\033[94m";
+#endif
 	return s;
 }
 
-inline std::ostream& red(std::ostream &s)
+template<class _Elem, class _Traits>
+inline std::basic_ostream<_Elem, _Traits> & red(std::basic_ostream<_Elem, _Traits> & s)
 {
-	SetConsoleTextAttribute(hStdout,
-		FOREGROUND_RED | FOREGROUND_INTENSITY);
+#ifdef _WIN32
+	SetConsoleTextAttribute(hStdout, FOREGROUND_RED | FOREGROUND_INTENSITY);
+#else
+	s << "\033[91m";
+#endif
 	return s;
 }
 
-inline std::ostream& green(std::ostream &s)
+template<class _Elem, class _Traits>
+inline std::basic_ostream<_Elem, _Traits> & green(std::basic_ostream<_Elem, _Traits> & s)
 {
-	SetConsoleTextAttribute(hStdout,
-		FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+#ifdef _WIN32
+	SetConsoleTextAttribute(hStdout, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+#else
+	s << "\033[92m";
+#endif
 	return s;
 }
 
-inline std::ostream& yellow(std::ostream &s)
+template<class _Elem, class _Traits>
+inline std::basic_ostream<_Elem, _Traits> & yellow(std::basic_ostream<_Elem, _Traits> & s)
 {
-	SetConsoleTextAttribute(hStdout,
-		FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY);
+#ifdef _WIN32
+	SetConsoleTextAttribute(hStdout, FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY);
+#else
+	s << "\033[93m";
+#endif
 	return s;
 }
-
-inline std::ostream& white(std::ostream &s)
-{
-	SetConsoleTextAttribute(hStdout,
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-	return s;
-}
-
-struct color {
-	color(WORD attribute) :m_color(attribute) {};
-	WORD m_color;
-};
 
 template <class _Elem, class _Traits>
-std::basic_ostream<_Elem, _Traits>&
-operator<<(std::basic_ostream<_Elem, _Traits>& i, color& c)
+inline std::basic_ostream<_Elem, _Traits> & white(std::basic_ostream<_Elem, _Traits> & s)
 {
-	SetConsoleTextAttribute(hStdout, c.m_color);
-	return i;
+#ifdef _WIN32
+	SetConsoleTextAttribute(hStdout, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+#else
+	s << "\033[37m";
+#endif
+	return s;
 }

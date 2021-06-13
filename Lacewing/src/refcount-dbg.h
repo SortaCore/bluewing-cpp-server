@@ -46,8 +46,8 @@ struct lwp_refcount
 lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name);
 lw_bool _lwp_release (struct lwp_refcount * refcount, const char * name);
 
-#define lwp_refcounted															\
-struct lwp_refcount refcount;													\
+#define lwp_refcounted \
+struct lwp_refcount refcount;
 
 #define lwp_retain(x, name) \
 	_lwp_retain ((struct lwp_refcount *) (x), name)
