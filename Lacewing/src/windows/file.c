@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -118,7 +118,7 @@ lw_bool lw_file_open (lw_file ctx, const char * filename, const char * mode)
 	HANDLE fd = INVALID_HANDLE_VALUE;
 	const void * filename2 = filename;
 #if defined(_WIN32) && defined(_UNICODE)
-	filename2 = lw_char_to_wchar(filename);
+	filename2 = lw_char_to_wchar(filename, -1);
 	if (filename != NULL)
 	{
 #endif

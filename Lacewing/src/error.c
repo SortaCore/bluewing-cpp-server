@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.  All rights reserved.
  *
@@ -59,6 +59,7 @@ void lw_error_addv (lw_error ctx, const char * format, va_list args)
 
 	char * buffer = (char *) malloc (sizeof (ctx->buffer) + 1);
 
+	assert(buffer != NULL && format != NULL);
 	vsnprintf (buffer, sizeof (ctx->buffer), format, args);
 	lwp_error_add (ctx, buffer);
 

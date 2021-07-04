@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.  All rights reserved.
  *
@@ -38,10 +38,10 @@ struct _lw_event
 
 lw_event lw_event_new ()
 {
-	lw_event ctx = malloc (sizeof (*ctx));
+	lw_event ctx = (lw_event) malloc (sizeof (*ctx));
 
 	int p [2];
-	pipe (p);
+	::pipe (p);
 
 	ctx->pipe_r = p [0];
 	ctx->pipe_w = p [1];

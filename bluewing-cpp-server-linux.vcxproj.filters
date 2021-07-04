@@ -1,0 +1,294 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Lacewing\src\unix\client.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\event.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\eventpump.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\fdstream.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\file.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\server.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\sync.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\thread.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\timer.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\udp.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\eventqueue\epoll.c">
+      <Filter>Source Files\Lacewing\src\unix\eventqueue</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\CodePointAllowList.cpp">
+      <Filter>Source Files\Lacewing</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\PhiAddress.cc">
+      <Filter>Source Files\Lacewing</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\ReadWriteLock.cc">
+      <Filter>Source Files\Lacewing</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\RelayServer.cc">
+      <Filter>Source Files\Lacewing</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\address.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\error.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\filter.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\flashpolicy.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\global.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\heapbuffer.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\list.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\nvhash.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\pipe.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\pump.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\refcount-dbg.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\stream.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\streamgraph.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\util.c">
+      <Filter>Source Files\Lacewing\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\address2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\client2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\error2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\event2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\eventpump2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\fdstream2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\file2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\filter2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\flashpolicy2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\pipe2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\pump2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\server2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\stream2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\sync2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\thread2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\timer2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\cxx\udp2.cc">
+      <Filter>Source Files\Lacewing\src\cxx</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\deps\utf8proc.c">
+      <Filter>Source Files\Lacewing\src\deps</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\deps\utf8proc_data.c">
+      <Filter>Source Files\Lacewing\src\deps</Filter>
+    </ClCompile>
+    <ClCompile Include="POSIXMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\unix\global2.c">
+      <Filter>Source Files\Lacewing\src\unix</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{6b7f3dd4-0ac4-43c5-b1df-9ef762478d9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing">
+      <UniqueIdentifier>{45d68fe1-29a2-4595-8a08-898cce59dbd0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src">
+      <UniqueIdentifier>{71ba31b0-12b9-4dda-855a-030f833b61c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\deps">
+      <UniqueIdentifier>{4edbc167-289d-4e66-b4a6-2acee0ac278e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{436bf31e-0942-4a19-9f32-42a54942d912}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing">
+      <UniqueIdentifier>{982dbb35-885f-48ae-911f-b82b765cad35}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\src">
+      <UniqueIdentifier>{e2748dbf-97e2-4e5f-b6f5-3d9b3301d16f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\src\unix">
+      <UniqueIdentifier>{404c474c-ee3e-4d9b-a194-ec548e7a5d3c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\src\unix\eventqueue">
+      <UniqueIdentifier>{5a8c290c-685a-4ee8-9d9c-c11be3451c29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\src\cxx">
+      <UniqueIdentifier>{197c916d-40d7-482f-8ee9-79242d8b7a89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\src\deps">
+      <UniqueIdentifier>{f00c82ab-3cbc-44d5-b81a-bcb32aa4ec1d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\unix">
+      <UniqueIdentifier>{fe34474d-8482-4b5b-995e-3b2725129576}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\unix\eventqueue">
+      <UniqueIdentifier>{385abb9a-7b1f-4d40-b648-aeb462ca7633}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\include">
+      <UniqueIdentifier>{0dbd5d21-cc72-4194-a71e-50282b079038}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\deps\uthash">
+      <UniqueIdentifier>{c6baa449-9ca3-4e95-a526-0a38f47c6951}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConsoleColors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\FrameBuilder.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\FrameReader.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\IDPool.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\Lacewing.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\MessageBuilder.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\MessageReader.h">
+      <Filter>Header Files\Lacewing</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\utf8proc.h">
+      <Filter>Header Files\Lacewing\src\deps</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\address.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\common.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\flashpolicy.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\heapbuffer.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\heapbuffer-cxx.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\list.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\nvhash.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\pump.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\refcount.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\refcount-dbg.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\stream.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\streamgraph.h">
+      <Filter>Header Files\Lacewing\src</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\unix\common.h">
+      <Filter>Header Files\Lacewing\src\unix</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\unix\eventpump.h">
+      <Filter>Header Files\Lacewing\src\unix</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\unix\fdstream.h">
+      <Filter>Header Files\Lacewing\src\unix</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\unix\eventqueue\eventqueue.h">
+      <Filter>Header Files\Lacewing\src\unix\eventqueue</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\unix\unix config.h">
+      <Filter>Header Files\Lacewing\src\unix</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\include\lacewing.h">
+      <Filter>Source Files\Lacewing\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\uthash\utarray.h">
+      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\uthash\uthash.h">
+      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\uthash\utlist.h">
+      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\deps\uthash\utstring.h">
+      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

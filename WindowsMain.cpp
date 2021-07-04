@@ -141,7 +141,7 @@ struct clientstats
 static std::vector<std::unique_ptr<clientstats>> clientdata;
 std::wstring UTF8ToWide(const std::string_view str)
 {
-	wchar_t * wide = lw_char_to_wchar(str.data());
+	wchar_t * wide = lw_char_to_wchar(str.data(), (int)str.size());
 	if (!wide)
 		return std::wstring();
 	const std::wstring wideStr = wide;

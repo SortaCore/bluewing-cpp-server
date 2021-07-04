@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.  All rights reserved.
  *
@@ -60,12 +60,12 @@ struct _lw_server
 	void * tag;
 
 	#ifdef ENABLE_SSL
-	  SSL_CTX * ssl_context;
-	  char ssl_passphrase [128];
+		SSL_CTX * ssl_context;
+		char ssl_passphrase [128];
 
-	  #ifdef _lacewing_npn
-		 unsigned char npn [128];
-	  #endif
+		#ifdef _lacewing_npn
+			unsigned char npn [128];
+		#endif
 	#endif
 
 	list (lw_server_client, clients);
@@ -80,7 +80,7 @@ struct _lw_server_client
 	lw_bool on_connect_called;
 
 	#ifdef ENABLE_SSL
-	  lwp_sslclient ssl;
+		lwp_sslclient ssl;
 	#endif
 
 	lw_addr address;
@@ -93,10 +93,10 @@ struct _lw_server_client
 
 static lw_server_client lwp_server_client_new (lw_server ctx, lw_pump pump, int fd)
 {
-	lw_server_client client = calloc (sizeof (*client), 1);
+	lw_server_client client = (lw_server_client)calloc (sizeof (*client), 1);
 
 	if (!client)
-	  return 0;
+		return 0;
 
 	client->server = ctx;
 
@@ -114,15 +114,15 @@ static lw_server_client lwp_server_client_new (lw_server ctx, lw_pump pump, int 
 
 	#ifdef ENABLE_SSL
 
-	  if (ctx->ssl_context)
-	  {
-		 client->ssl = lwp_sslclient_new (ctx->ssl_context, (lw_stream) client,
-										  on_ssl_handshook, client);
-	  }
+		if (ctx->ssl_context)
+		{
+			client->ssl = lwp_sslclient_new (ctx->ssl_context, (lw_stream) client,
+											on_ssl_handshook, client);
+		}
 
 	#endif
 
-	lw_fdstream_set_fd (&client->fdstream, fd, 0, lw_true);
+	lw_fdstream_set_fd (&client->fdstream, fd, 0, lw_true, lw_true);
 
 	return client;
 }
@@ -164,17 +164,17 @@ lw_server lw_server_new (lw_pump pump)
 {
 	lwp_init ();
 
-	lw_server ctx = calloc (sizeof (*ctx), 1);
+	lw_server ctx = (lw_server)calloc (sizeof (*ctx), 1);
 
 	if (!ctx)
-	  return 0;
+		return 0;
 
 	ctx->pump = pump;
 
 	#ifdef _lacewing_npn
-	  lwp_trace ("NPN is available\n");
+		lwp_trace ("NPN is available\n");
 	#else
-	  lwp_trace ("NPN is NOT available\n");
+		lwp_trace ("NPN is NOT available\n");
 	#endif
 
 	ctx->socket = -1;
@@ -204,7 +204,7 @@ void * lw_server_tag (lw_server ctx)
 
 static void listen_socket_read_ready (void * tag)
 {
-	lw_server ctx = tag;
+	lw_server ctx = (lw_server)tag;
 
 	struct sockaddr_storage address;
 	socklen_t address_length = sizeof (address);
@@ -368,21 +368,17 @@ lw_bool lw_server_cert_loaded (lw_server ctx)
 	#endif
 }
 
+#ifdef ENABLE_SSL
 static int ssl_password_callback (char * buffer, int size, int rwflag, void * tag)
 {
-	#ifdef ENABLE_SSL
+	lw_server ctx = tag;
 
-	  lw_server ctx = tag;
+	/* TODO : check length */
 
-	  /* TODO : check length */
-
-	  strcpy (buffer, ctx->ssl_passphrase);
-	  return strlen (ctx->ssl_passphrase);
-
-	#else
-	  return lw_false;
-	#endif
+	strcpy (buffer, ctx->ssl_passphrase);
+	return strlen (ctx->ssl_passphrase);
 }
+#endif
 
 #ifdef _lacewing_npn
 
@@ -556,7 +552,7 @@ lw_server_client lw_server_client_first (lw_server ctx)
 
 void on_client_data (lw_stream stream, void * tag, const char * buffer, size_t size)
 {
-	lw_server_client client = tag;
+	lw_server_client client = (lw_server_client)tag;
 	lw_server server = client->server;
 
 	#ifdef ENABLE_SSL
@@ -570,7 +566,7 @@ void on_client_data (lw_stream stream, void * tag, const char * buffer, size_t s
 
 void on_client_close (lw_stream stream, void * tag)
 {
-	lw_server_client client = tag;
+	lw_server_client client = (lw_server_client)tag;
 
 	lw_server ctx = client->server;
 

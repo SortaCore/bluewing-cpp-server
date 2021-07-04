@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -43,7 +43,7 @@ enum
 
 lw_eventpump lw_eventpump_new ()
 {
-	lw_eventpump ctx = calloc (sizeof (*ctx), 1);
+	lw_eventpump ctx = (lw_eventpump)calloc (sizeof (*ctx), 1);
 
 	if (!ctx)
 	  return NULL;
@@ -58,10 +58,10 @@ lw_eventpump lw_eventpump_new ()
 	ctx->sync_signals = lw_sync_new ();
 
 	int signalpipe [2];
-	pipe (signalpipe);
+	::pipe (signalpipe);
 
-	ctx->signalpipe_read	= signalpipe [0];
-	ctx->signalpipe_write  = signalpipe [1];
+	ctx->signalpipe_read  = signalpipe [0];
+	ctx->signalpipe_write = signalpipe [1];
 
 	fcntl (ctx->signalpipe_read, F_SETFL,
 		 fcntl (ctx->signalpipe_read, F_GETFL, 0) | O_NONBLOCK);
@@ -101,7 +101,7 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 	lw_bool read_ready = lwp_eventqueue_event_read_ready (event),
 			write_ready = lwp_eventqueue_event_write_ready (event);
 
-	lw_pump_watch watch = lwp_eventqueue_event_tag (event);
+	lw_pump_watch watch = (lw_pump_watch)lwp_eventqueue_event_tag (event);
 
 	/* fudge: nothing kqueue specific belongs in this file, but since the
 	* kqueue code doesn't actually look at the events it's the only place
@@ -109,23 +109,23 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 	*/
 	#ifdef USE_KQUEUE
 
-	  if (event.filter == EVFILT_TIMER)
-	  {
-		 lw_timer_force_tick ((lw_timer) event.udata);
-		 return lw_true;
-	  }
+		if (event.filter == EVFILT_TIMER)
+		{
+			lw_timer_force_tick ((lw_timer) event.udata);
+			return lw_true;
+		}
 
 	#endif
 
-	if (watch)
+	if (watch && watch->tag)
 	{
-	  if (read_ready && watch->on_read_ready)
-		 watch->on_read_ready (watch->tag);
+		if (read_ready && watch->on_read_ready)
+			watch->on_read_ready (watch->tag);
 
-	  if (write_ready && watch->on_write_ready)
-		 watch->on_write_ready (watch->tag);
+		if (write_ready && watch->on_write_ready)
+			watch->on_write_ready (watch->tag);
 
-	  return lw_true;
+		return lw_true;
 	}
 
 	/* A null tag means it must be the signal pipe */
@@ -136,42 +136,56 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 
 	if (read (ctx->signalpipe_read, &signal, sizeof (signal)) == -1)
 	{
-	  lw_sync_release (ctx->sync_signals);
-	  return lw_true;
+		// In theory, a null tag means signal pipe message was added. If signalparams is 0, that means
+		// either the signal and its params was already handled, or that it wasn't a signal pipe message
+		// and the tag is null by error.
+		if (list_length(ctx->signalparams) == 0)
+		{
+			lw_trace("WARNING: read() of signal pump is -1, and signalparams is 0; was the watch %p or watch->tag %p incorrect?",
+				watch, watch ? watch->tag : NULL);
+		}
+
+		lw_sync_release (ctx->sync_signals);
+		return lw_true;
 	}
+
+	lw_trace("eventpump process_event: signal is %d.", (int)signal);
 
 	switch (signal)
 	{
-	  case sig_exit_eventloop:
-	  {
-		 lw_sync_release (ctx->sync_signals);
-		 return lw_false;
-	  }
+		case sig_exit_eventloop:
+		{
+			lw_trace("eventpump process_event: signal is eventloop.");
+			lw_sync_release (ctx->sync_signals);
+			return lw_false;
+		}
 
-	  case sig_remove:
-	  {
-		 lw_pump_watch to_remove = list_front (ctx->signalparams);
-		 list_pop_front (ctx->signalparams);
+		case sig_remove:
+		{
+			lw_trace("eventpump process_event: signal is remove.");
+			lw_pump_watch to_remove = (lw_pump_watch)list_front (ctx->signalparams);
+			list_pop_front (ctx->signalparams);
 
-		 free (to_remove);
+			free (to_remove);
 
-		 lw_pump_remove_user ((lw_pump) ctx);
+			lw_pump_remove_user ((lw_pump) ctx);
 
-		 break;
-	  }
+			break;
+		}
 
-	  case sig_post:
-	  {
-		 void * func = list_front (ctx->signalparams);
-		 list_pop_front (ctx->signalparams);
+		case sig_post:
+		{
+			lw_trace("eventpump process_event: signal is post.");
+			void * func = list_front (ctx->signalparams);
+			list_pop_front (ctx->signalparams);
 
-		 void * param = list_front (ctx->signalparams);
-		 list_pop_front (ctx->signalparams);
+			void * param = list_front (ctx->signalparams);
+			list_pop_front (ctx->signalparams);
 
-		 ((void * (*) (void *)) func) (param);
+			((void * (*) (void *)) func) (param);
 
-		 break;
-	  }
+			break;
+		}
 	};
 
 	lw_sync_release (ctx->sync_signals);
@@ -185,18 +199,18 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 
 	#ifdef ENABLE_THREADS
 
-	  if (ctx->watcher.num_events > 0)
-	  {
-		 /* sleepy ticking: the watcher thread already grabbed some events we
-		  * need to process.
-		  */
-		 for (int i = 0; i < ctx->watcher.num_events; ++ i)
-			process_event (ctx, ctx->watcher.events [i]);
+		if (ctx->watcher.num_events > 0)
+		{
+			/* sleepy ticking: the watcher thread already grabbed some events we
+			* need to process.
+			*/
+			for (int i = 0; i < ctx->watcher.num_events; ++ i)
+				process_event (ctx, ctx->watcher.events [i]);
 
-		 ctx->watcher.num_events = 0;
+			ctx->watcher.num_events = 0;
 
-		 need_watcher_resume = lw_true;
-	  }
+			need_watcher_resume = lw_true;
+		}
 
 	#endif
 
@@ -205,11 +219,11 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 	int count = lwp_eventqueue_drain (ctx->queue, lw_false, max_events, events);
 
 	for (int i = 0; i < count; ++ i)
-	  process_event (ctx, events [i]);
+		process_event (ctx, events [i]);
 
 	#ifdef ENABLE_THREADS
-	  if (need_watcher_resume)
-		 lw_event_signal (ctx->watcher.resume_event);
+		if (need_watcher_resume)
+			lw_event_signal (ctx->watcher.resume_event);
 	#endif
 
 	return 0;
@@ -261,10 +275,10 @@ lw_error lw_eventpump_start_sleepy_ticking
 	(lw_eventpump ctx, void (lw_callback * on_tick_needed) (lw_eventpump))
 {
 	#ifdef ENABLE_THREADS
-	  ctx->on_tick_needed = on_tick_needed;
-	  lw_thread_start (ctx->watcher.thread, ctx);
+		ctx->on_tick_needed = on_tick_needed;
+		lw_thread_start (ctx->watcher.thread, ctx);
 	#else
-	  /* TODO error */
+		/* TODO error */
 	#endif
 
 	return 0;
@@ -317,18 +331,20 @@ static lw_pump_watch def_add (lw_pump pump, int fd, void * tag,
 	lw_eventpump ctx = (lw_eventpump) pump;
 
 	if ((!on_read_ready) && (!on_write_ready))
-	  return 0;
+		return 0;
 
-	lw_pump_watch watch = calloc (sizeof (*watch), 1);
+	lw_pump_watch watch = (lw_pump_watch)calloc (sizeof (*watch), 1);
 
 	if (!watch)
-	  return 0;
+		return 0;
 
 	watch->fd = fd;
 	watch->on_read_ready = on_read_ready;
 	watch->on_write_ready = on_write_ready;
 	watch->edge_triggered = edge_triggered;
 	watch->tag = tag;
+	lw_trace("def_add calling lwp_eventqueue_add: fd %d; watch %p, tag %p, on_read_ready set to %p, on_write_ready set to %p.", fd, (void *)watch, watch->tag,
+		(void *)on_read_ready, (void *)on_write_ready);
 
 	lwp_eventqueue_add (ctx->queue,
 						fd,
@@ -360,7 +376,7 @@ static void def_update_callbacks (lw_pump pump,
 							 watch->on_read_ready != NULL, on_read_ready != NULL,
 							 watch->on_write_ready != NULL, on_write_ready != NULL,
 							 watch->edge_triggered, edge_triggered,
-							 watch->tag, tag);
+							 watch, watch);
 	}
 
 	watch->on_read_ready = on_read_ready;
@@ -373,17 +389,20 @@ static void def_remove (lw_pump pump, lw_pump_watch watch)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
-	/* TODO : Should this remove the FD from the eventqueue immediately? */
+	/*
+		James note: Should this remove the FD from the eventqueue immediately?
+		LK response: no, "when you close the FD it is automatically removed from all epoll/select lists"
+	*/
 
 	watch->on_read_ready = NULL;
 	watch->on_write_ready = NULL;
 
 	lw_sync_lock (ctx->sync_signals);
 
-	  list_push (ctx->signalparams, watch);
+		list_push (ctx->signalparams, watch);
 
-	  char signal = sig_remove;
-	  write (ctx->signalpipe_write, &signal, sizeof (signal));
+		char signal = sig_remove;
+		write (ctx->signalpipe_write, &signal, sizeof (signal));
 
 	lw_sync_release (ctx->sync_signals);
 }
@@ -394,11 +413,11 @@ static void def_post (lw_pump pump, void * func, void * param)
 
 	lw_sync_lock (ctx->sync_signals);
 
-	  list_push (ctx->signalparams, func);
-	  list_push (ctx->signalparams, param);
+		list_push (ctx->signalparams, func);
+		list_push (ctx->signalparams, param);
 
-	  char signal = sig_post;
-	  write (ctx->signalpipe_write, &signal, sizeof (signal));
+		char signal = sig_post;
+		write (ctx->signalpipe_write, &signal, sizeof (signal));
 
 	lw_sync_release (ctx->sync_signals);
 }
@@ -406,9 +425,9 @@ static void def_post (lw_pump pump, void * func, void * param)
 const lw_pumpdef def_eventpump =
 {
 	.add				= def_add,
-	.remove			= def_remove,
-	.update_callbacks  = def_update_callbacks,
-	.post			  = def_post,
+	.remove				= def_remove,
+	.update_callbacks	= def_update_callbacks,
+	.post				= def_post,
 	.cleanup			= def_cleanup
 };
 

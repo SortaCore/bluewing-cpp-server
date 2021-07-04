@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.  All rights reserved.
  *
@@ -41,8 +41,13 @@
 #include <fcntl.h>
 #include <sched.h>
 
-#ifdef ANDROID
-	#include <time64.h>
+#ifdef __ANDROID__
+
+	#include "android config.h"
+
+	#ifndef __LP64__
+		#include <time64.h>
+	#endif
 	#include <android/log.h>
 #endif
 

@@ -240,6 +240,7 @@ namespace lacewing
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
 
 		error->add("socket error");
+		lw_trace("Error event: \"%s\".", error->tostring());
 
 		if (internal.handler_error)
 			internal.handler_error(internal.client, error);
@@ -654,13 +655,26 @@ namespace lacewing
 						break;
 
 					this->welcomemessage = welcomemessage;
-
+					lacewing::error error = nullptr;
 					// If midway during connection when Disconnect is called, returned address can be null.
 					lacewing::address srvAddress = socket->server_address();
 					if (!srvAddress)
+					{
+						error = error_new();
+						error->add("Server address not valid during connect response");
+						this->handler_error(client, error);
+						error_delete(error);
 						break;
+					}
+					error = srvAddress->resolve();
+					if (error)
+					{
+						error->add("Server address not resolved during connect response");
+						this->handler_error(client, error);
+						error_delete(error);
+						break;
+					}
 
-					srvAddress->resolve();
 					udp->host(srvAddress);
 					udphellotick();
 
@@ -1167,6 +1181,14 @@ namespace lacewing
 			if (!blasted)
 				break;
 
+			if (connected)
+			{
+				lw_trace("Swallowing extra UDPWelcome at message address %p, already connected.", message);
+				break;
+			}
+
+			lw_trace("UDPWelcome received for message address %p, now connected.", message);
+
 			udphellotimer->stop();
 			connected = true;
 
@@ -1198,9 +1220,9 @@ namespace lacewing
 			if (!build[0])
 			{
 				#ifdef _UNICODE
-					sprintf_s(build, sizeof(build), "Bluewing Windows Unicode b%i", relayclient::buildnum);
+					sprintf(build, "Bluewing Windows Unicode b%i", relayclient::buildnum);
 				#else
-					sprintf_s(build, sizeof(build), "Bluewing Windows ANSI b%i", relayclient::buildnum);
+					sprintf(build, "Bluewing Windows ANSI b%i", relayclient::buildnum);
 				#endif
 			}
 
@@ -1232,9 +1254,9 @@ namespace lacewing
 	}
 
 	relayclientinternal::relayclientinternal(relayclient &_client, pump _eventpump) :
-		client(_client), message(true), messageMF(true),
-		socket(nullptr), udp(udp_new(_eventpump)),
-		udphellotimer(timer_new(_eventpump))
+		client(_client), socket(nullptr), udp(udp_new(_eventpump)),
+		udphellotimer(timer_new(_eventpump)),
+		message(true), messageMF(true)
 	{
 		initsocket(_eventpump);
 
@@ -1292,8 +1314,7 @@ namespace lacewing
 	{
 		// udphellotick just sends UDPHello every 0.5s, and is managed by the relayclientinternal::udphellotimer var.
 		// It starts from the time the Connect Request Success message is sent.
-		if (!udp->hosting())
-			throw std::exception("udphellotick() called, but not hosting UDP.");
+		assert(udp->hosting() && "udphellotick() called, but not hosting UDP.");
 
 		message.addheader(7, 0, true, id); /* udphello */
 		message.send(udp, socket->server_address());
@@ -1332,14 +1353,9 @@ namespace lacewing
 	/// <returns> null if it fails, else the matching peer. </returns>
 	std::shared_ptr<relayclient::channel::peer> relayclient::channel::findpeerbyid(lw_ui16 id)
 	{
-		// findchannelbyid() is false, thus channel->findpeerbyid() is false too
-		if (this == nullptr)
-			return nullptr;
-
 		if (!lock.checkHoldsRead(false) && !lock.checkHoldsWrite(false))
-		{
-			MessageBoxA(NULL, "Readlock/writelock not held in findpeerbyid().", "Bluewing Client failure", MB_ICONERROR);
-		}
+			assert(false && "Readlock/writelock not held in findpeerbyid().");
+
 		auto i = std::find_if(peers.cbegin(), peers.cend(),
 			[&](const std::shared_ptr<relayclient::channel::peer> & p) { return p->_id == id; });
 		return (i == peers.cend() ? nullptr : *i);
@@ -1442,6 +1458,7 @@ namespace lacewing
 	}
 	std::string relayclient::channellisting::name() const
 	{
+		(void)this->tag; // Mark as used
 		lacewing::readlock rl = ((relayclientinternal *)this->internaltag)->client.lock.createReadLock();
 		return this->_name;
 	}

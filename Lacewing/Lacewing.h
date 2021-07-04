@@ -87,6 +87,7 @@
 	#ifndef lw_import
 		#define lw_import
 	#endif
+	#include <netinet/in6.h>
 #else
 
 	/* For the definition of HANDLE and OVERLAPPED (used by lw_pump) */
@@ -96,6 +97,7 @@
 	#endif
 
 	#define lw_callback __cdecl
+	#include <in6addr.h>
 
 #endif
 
@@ -107,7 +109,7 @@
 	#endif
 #endif
 
-#include <in6addr.h>
+
 #include <atomic>
 #include <vector>
 #include <memory>
@@ -125,7 +127,7 @@
 using namespace std::string_view_literals;
 
 #define LacewingFatalErrorMsgBox() LacewingFatalErrorMsgBox2(__FUNCTION__, __FILE__, __LINE__)
-void LacewingFatalErrorMsgBox2(char * func, char * file, int line);
+void LacewingFatalErrorMsgBox2(const char * const func, const char * const file, const int line);
 
 typedef lw_i8 lw_bool;
 
@@ -727,8 +729,8 @@ std::string_view lw_u8str_trim(std::string_view toTrim, bool abortOnTrimNeeded =
 
 #if defined(_WIN32) && defined(_UNICODE)
 // For Unicode support on Windows.
-// Returns null or a wide-converted version of the U8 string passed. Free it with free().
-extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str);
+// Returns null or a wide-converted version of the U8 string passed. Free it with free(). Pass size -1 for null-terminated strings.
+extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str, int size);
 #endif
 
 // to preserve namespace
@@ -1520,6 +1522,8 @@ lw_import void flashpolicy_delete (flashpolicy);
 // You should also run a check on _lw_addr used on stack. This is normally followed by lw_addr_set_sockaddr.
 // That's fine, but that function runs malloc on the _lw_addr, which leads to a memory leak when the stack
 // variable is freed. Run lw_addr_cleanup() on the stack address at the _lw_addr scope exits to compensate for it.
+//
+// lw_client is_connecting is now set to false properly if getaddrinfo fails.
 
 struct readlock;
 struct writelock;
@@ -1683,7 +1687,7 @@ struct relayclientinternal;
 struct relayclient
 {
 public:
-	const static int buildnum = 95;
+	const static int buildnum = 96;
 
 	void * internaltag = nullptr, *tag = nullptr;
 
@@ -1907,7 +1911,7 @@ struct codepointsallowlist {
 struct relayserverinternal;
 struct relayserver
 {
-	static const int buildnum = 26;
+	static const int buildnum = 27;
 
 	void * internaltag, * tag = nullptr;
 

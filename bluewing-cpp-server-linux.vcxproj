@@ -1,0 +1,291 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM">
+      <Configuration>Release</Configuration>
+      <Platform>ARM</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x86">
+      <Configuration>Debug</Configuration>
+      <Platform>x86</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x86">
+      <Configuration>Release</Configuration>
+      <Platform>x86</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{8775ea01-ac65-4974-b84e-58bb61a626e1}</ProjectGuid>
+    <Keyword>Linux</Keyword>
+    <RootNamespace>bluewing_cpp_server_linux</RootNamespace>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <ApplicationType>Linux</ApplicationType>
+    <ApplicationTypeRevision>1.0</ApplicationTypeRevision>
+    <TargetLinuxPlatform>Generic</TargetLinuxPlatform>
+    <LinuxProjectType>{D51BCBC9-82E9-4017-911E-C93873C4EA2B}</LinuxProjectType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
+    <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
+    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
+    <ClCompile Include="Lacewing\deps\utf8proc.c" />
+    <ClCompile Include="Lacewing\deps\utf8proc_data.c" />
+    <ClCompile Include="Lacewing\PhiAddress.cc" />
+    <ClCompile Include="Lacewing\ReadWriteLock.cc" />
+    <ClCompile Include="Lacewing\RelayServer.cc" />
+    <ClCompile Include="Lacewing\src\address.c" />
+    <ClCompile Include="Lacewing\src\cxx\address2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\client2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\error2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\event2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\eventpump2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\fdstream2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\file2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\filter2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\flashpolicy2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\pipe2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\pump2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\server2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\stream2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\sync2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\thread2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\timer2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\udp2.cc" />
+    <ClCompile Include="Lacewing\src\error.c" />
+    <ClCompile Include="Lacewing\src\filter.c" />
+    <ClCompile Include="Lacewing\src\flashpolicy.c" />
+    <ClCompile Include="Lacewing\src\global.c" />
+    <ClCompile Include="Lacewing\src\heapbuffer.c" />
+    <ClCompile Include="Lacewing\src\list.c" />
+    <ClCompile Include="Lacewing\src\nvhash.c" />
+    <ClCompile Include="Lacewing\src\pipe.c" />
+    <ClCompile Include="Lacewing\src\pump.c" />
+    <ClCompile Include="Lacewing\src\refcount-dbg.c" />
+    <ClCompile Include="Lacewing\src\stream.c" />
+    <ClCompile Include="Lacewing\src\streamgraph.c" />
+    <ClCompile Include="Lacewing\src\unix\client.c" />
+    <ClCompile Include="Lacewing\src\unix\event.c" />
+    <ClCompile Include="Lacewing\src\unix\eventpump.c" />
+    <ClCompile Include="Lacewing\src\unix\eventqueue\epoll.c" />
+    <ClCompile Include="Lacewing\src\unix\fdstream.c" />
+    <ClCompile Include="Lacewing\src\unix\file.c" />
+    <ClCompile Include="Lacewing\src\unix\global2.c" />
+    <ClCompile Include="Lacewing\src\unix\server.c" />
+    <ClCompile Include="Lacewing\src\unix\sync.c" />
+    <ClCompile Include="Lacewing\src\unix\thread.c" />
+    <ClCompile Include="Lacewing\src\unix\timer.c" />
+    <ClCompile Include="Lacewing\src\unix\udp.c" />
+    <ClCompile Include="Lacewing\src\util.c" />
+    <ClCompile Include="POSIXMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConsoleColors.h" />
+    <ClInclude Include="Lacewing\deps\utf8proc.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utarray.h" />
+    <ClInclude Include="Lacewing\deps\uthash\uthash.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utlist.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utstring.h" />
+    <ClInclude Include="Lacewing\FrameBuilder.h" />
+    <ClInclude Include="Lacewing\FrameReader.h" />
+    <ClInclude Include="Lacewing\IDPool.h" />
+    <ClInclude Include="Lacewing\include\lacewing.h" />
+    <ClInclude Include="Lacewing\Lacewing.h" />
+    <ClInclude Include="Lacewing\MessageBuilder.h" />
+    <ClInclude Include="Lacewing\MessageReader.h" />
+    <ClInclude Include="Lacewing\src\address.h" />
+    <ClInclude Include="Lacewing\src\common.h" />
+    <ClInclude Include="Lacewing\src\flashpolicy.h" />
+    <ClInclude Include="Lacewing\src\heapbuffer-cxx.h" />
+    <ClInclude Include="Lacewing\src\heapbuffer.h" />
+    <ClInclude Include="Lacewing\src\list.h" />
+    <ClInclude Include="Lacewing\src\nvhash.h" />
+    <ClInclude Include="Lacewing\src\pump.h" />
+    <ClInclude Include="Lacewing\src\refcount-dbg.h" />
+    <ClInclude Include="Lacewing\src\refcount.h" />
+    <ClInclude Include="Lacewing\src\stream.h" />
+    <ClInclude Include="Lacewing\src\streamgraph.h" />
+    <ClInclude Include="Lacewing\src\unix\common.h" />
+    <ClInclude Include="Lacewing\src\unix\eventpump.h" />
+    <ClInclude Include="Lacewing\src\unix\eventqueue\eventqueue.h" />
+    <ClInclude Include="Lacewing\src\unix\fdstream.h" />
+    <ClInclude Include="Lacewing\src\unix\unix config.h" />
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
+    <ClCompile>
+      <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CppLanguageStandard>c++17</CppLanguageStandard>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <vector>
 #include "ConsoleColors.h"
-#include "Lacewing\Lacewing.h"
+#include "Lacewing/Lacewing.h"
 #include <signal.h>
 
 using namespace std::string_view_literals;
@@ -219,7 +219,7 @@ int main()
 	lacewing::pump_delete(globalpump);
 
 	if (!flashpolicypath.empty() && deleteFlashPolicyAtEndOfApp)
-		DeleteFileA(flashpolicypath.c_str());
+		remove(flashpolicypath.c_str());
 
 	// Lacewing uses a sync inside lw_trace, which is singleton and never freed.
 	// lw_trace() is a no-op if _lacewing_debug isn't defined.

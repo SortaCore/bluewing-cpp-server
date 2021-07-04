@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -37,7 +37,7 @@ struct _lw_sync
 
 lw_sync lw_sync_new ()
 {
-	lw_sync ctx = malloc (sizeof (*ctx));
+	lw_sync ctx = (lw_sync)malloc (sizeof (*ctx));
 
 	if (!ctx)
 	  return 0;

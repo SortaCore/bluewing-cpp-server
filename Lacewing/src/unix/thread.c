@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.  All rights reserved.
  *
@@ -42,7 +42,7 @@ struct _lw_thread
 
 lw_thread lw_thread_new (const char * name, void * proc)
 {
-	lw_thread ctx = calloc (sizeof (*ctx), 1);
+	lw_thread ctx = (lw_thread)calloc (sizeof (*ctx), 1);
 
 	if (!ctx)
 	  return 0;

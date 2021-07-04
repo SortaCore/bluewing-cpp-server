@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.  All rights reserved.
  *
@@ -96,7 +96,7 @@ void lw_flashpolicy_host_filter (lw_flashpolicy ctx, const char * filename,
 
 #if defined(_WIN32) && defined(_UNICODE)
 	FILE * file = NULL;
-	__wchar_t * res = lw_char_to_wchar(filename);
+	__wchar_t * res = lw_char_to_wchar(filename, -1);
 	if (res != NULL)
 	{
 	  file = _wfopen(res, L"r");

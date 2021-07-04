@@ -1,4 +1,4 @@
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.  All rights reserved.
  *
@@ -196,7 +196,7 @@ lw_addr lw_addr_clone (lw_addr ctx)
 
 	memcpy (addr->service, ctx->service, sizeof (ctx->service));
 
-	addr->hostname = addr->hostname_to_free = _strdup(ctx->hostname);
+	addr->hostname = addr->hostname_to_free = strdup(ctx->hostname);
 
 	return addr;
 }
@@ -286,21 +286,21 @@ const char * lw_addr_tostring (lw_addr ctx)
 		}
 	};
 
-	return ctx->buffer ? ctx->buffer: "";
+	return *ctx->buffer ? ctx->buffer: "";
 }
 
 in6_addr lw_addr_toin6_addr (lw_addr ctx)
 {
-	static in6_addr empty = { 0 };
+	static in6_addr empty = { };
 	if ((!ctx->info) || (!ctx->info->ai_addr))
 		return empty;
 
 	if (((struct sockaddr_storage *) ctx->info->ai_addr)->ss_family == AF_INET6)
 		return ((struct sockaddr_in6 *) ctx->info->ai_addr)->sin6_addr;
 
-	in6_addr v4 = { 0 };
-	v4.u.Byte[10] = 0xff;
-	v4.u.Byte[11] = 0xff;
+	in6_addr v4 = { };
+	((lw_ui8 *)&v4)[10] = 0xff;
+	((lw_ui8 *)&v4)[11] = 0xff;
 	*(lw_ui32 *)(&(((char *)&v4)[12])) = *(lw_ui32 *)&((struct sockaddr_in *) ctx->info->ai_addr)->sin_addr;
 	return v4;
 }
@@ -330,8 +330,13 @@ void resolver (lw_addr ctx)
 	hints.ai_protocol  =  0;
 	hints.ai_flags	=  0;
 
+	// Android appears to not allow AI_V4MAPPED. https://stackoverflow.com/a/39675076
 	#ifdef AI_V4MAPPED
-		hints.ai_flags |= AI_V4MAPPED;
+		#ifdef __ANDROID__
+			//hints.ai_flags |= AI_V4MAPPED;
+		#else
+			hints.ai_flags |= AI_V4MAPPED;
+		#endif
 	#endif
 
 	#ifdef AI_ADDRCONFIG
@@ -385,7 +390,7 @@ void resolver (lw_addr ctx)
 
 lw_bool lw_addr_ready (lw_addr ctx)
 {
-	return !ctx->resolver_thread ||
+	return !ctx || !ctx->resolver_thread ||
 		!lw_thread_started (ctx->resolver_thread);
 }
 

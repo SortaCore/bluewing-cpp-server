@@ -30,7 +30,7 @@
 #include "../../common.h"
 #include "eventqueue.h"
 
-int lwp_eventqueue_new ()
+lwp_eventqueue lwp_eventqueue_new ()
 {
 	return epoll_create (32);
 }
@@ -48,12 +48,14 @@ void lwp_eventqueue_add (lwp_eventqueue queue,
 						 void * tag)
 {
 	struct epoll_event event = {};
+	memset(&event, 0, sizeof(epoll_event));
 
 	event.data.ptr = tag;
 
 	event.events = (read ? EPOLLIN : 0) |
 				  (write ? EPOLLOUT : 0) |
 				  (edge_triggered ? EPOLLET : 0);
+	lw_trace("lwp_eventqueue_add EPOLL_CTL_ADD: Queuing event with fd %d, read %d, write %d, edge %d, TAG %p.", fd, read ? 1 : 0, write ? 1 : 0, edge_triggered ? 1 : 0, tag);
 
 	epoll_ctl (queue, EPOLL_CTL_ADD, fd, &event);
 }
@@ -69,17 +71,19 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 
 	event.data.ptr = tag;
 
+	int res;
 	if (read || write)
 	{
-	  event.events = (read ? EPOLLIN : 0) |
-					 (write ? EPOLLOUT : 0) |
-					 (edge_triggered ? EPOLLET : 0);
-
-	  epoll_ctl (queue, EPOLL_CTL_MOD, fd, &event);
+		event.events = (read ? EPOLLIN : 0) |
+					   (write ? EPOLLOUT : 0) |
+					   (edge_triggered ? EPOLLET : 0);
+		res = epoll_ctl(queue, EPOLL_CTL_MOD, fd, &event);
+		assert(res != -1);
 	}
 	else
 	{
-	  epoll_ctl (queue, EPOLL_CTL_DEL, fd, &event);
+		res = epoll_ctl(queue, EPOLL_CTL_DEL, fd, &event);
+		assert(res != -1);
 	}
 }
 
@@ -93,12 +97,12 @@ int lwp_eventqueue_drain (lwp_eventqueue queue,
 
 lw_bool lwp_eventqueue_event_read_ready (lwp_eventqueue_event event)
 {
-	return event.events & (EPOLLIN | EPOLLHUP | EPOLLRDHUP);
+	return (event.events & (EPOLLIN | EPOLLHUP | EPOLLRDHUP)) != 0;
 }
 
 lw_bool lwp_eventqueue_event_write_ready (lwp_eventqueue_event event)
 {
-	return event.events & EPOLLOUT;
+	return (event.events & EPOLLOUT) != 0;
 }
 
 void * lwp_eventqueue_event_tag (lwp_eventqueue_event event)

@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -160,7 +160,7 @@ void lw_pump_post_remove (lw_pump ctx, lw_pump_watch watch)
 	data->pump = ctx;
 	data->watch = watch;
 
-	lw_pump_post (ctx, remove_proc, data);
+	lw_pump_post (ctx, (void *)remove_proc, data);
 }
 
 void * lw_pump_tag (lw_pump ctx)

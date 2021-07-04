@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -32,6 +32,7 @@
 
 struct _lw_udp
 {
+	lwp_refcounted;
 	lw_pump pump;
 
 	lw_udp_hook_data on_data;
@@ -41,12 +42,15 @@ struct _lw_udp
 
 	int fd;
 
+	long receives_posted;
+	int writes_posted;
+
 	void * tag;
 };
 
 static void read_ready (void * ptr)
 {
-	lw_udp ctx = ptr;
+	lw_udp ctx = (lw_udp)ptr;
 
 	struct sockaddr_storage from;
 	socklen_t from_size = sizeof (from);
@@ -59,21 +63,28 @@ static void read_ready (void * ptr)
 
 	for (;;)
 	{
-	  int bytes = recvfrom (ctx->fd, buffer, sizeof (buffer),
-							  0, (struct sockaddr *) &from, &from_size);
+		int bytes = recvfrom (ctx->fd, buffer, sizeof (buffer),
+								0, (struct sockaddr *) &from, &from_size);
 
-	  if (bytes == -1)
-		 break;
+		if (bytes == -1)
+			break;
 
-	  lwp_addr_set_sockaddr (&addr, (struct sockaddr *) &from);
+		lwp_addr_set_sockaddr (&addr, (struct sockaddr *) &from);
 
-	  if (filter_addr && !lw_addr_equal (&addr, filter_addr))
-		 break;
+		if (filter_addr && !lw_addr_equal(&addr, filter_addr))
+		{
+			free(addr.info->ai_addr);  // alloc'd by lwp_addr_set_sockaddr
+			addr.info->ai_addr = NULL;
+			break;
+		}
 
-	  buffer [bytes] = 0;
+		buffer [bytes] = 0;
 
-	  if (ctx->on_data)
-		 ctx->on_data (ctx, &addr, buffer, bytes);
+		if (ctx->on_data)
+			ctx->on_data (ctx, &addr, buffer, bytes);
+
+		free(addr.info->ai_addr); // alloc'd by lwp_addr_set_sockaddr
+		addr.info->ai_addr = NULL;
 	}
 }
 
@@ -143,7 +154,7 @@ void lw_udp_unhost (lw_udp ctx)
 
 lw_udp lw_udp_new (lw_pump pump)
 {
-	lw_udp ctx = calloc (sizeof (*ctx), 1);
+	lw_udp ctx = (lw_udp)calloc (sizeof (*ctx), 1);
 
 	if (!ctx)
 	  return 0;
@@ -171,7 +182,7 @@ void lw_udp_send (lw_udp ctx, lw_addr addr, const char * data, size_t size)
 	lwp_trace ("UDP send");
 	lw_dump (data, size);
 
-	if (!lw_addr_ready (addr))
+	if (!addr || !lw_addr_ready (addr))
 	{
 	  lw_error error = lw_error_new ();
 
@@ -189,8 +200,14 @@ void lw_udp_send (lw_udp ctx, lw_addr addr, const char * data, size_t size)
 	if (size == -1)
 	  size = strlen (data);
 
+	if constexpr (sizeof(size) > 4)
+		assert(size < 0xFFFFFFFF);
+
 	if (!addr->info)
 	  return;
+
+	++ctx->writes_posted;
+	lwp_retain(ctx, "udp write");
 
 	if (sendto (ctx->fd, data, size, 0, (struct sockaddr *) addr->info->ai_addr,
 				addr->info->ai_addrlen) == -1)

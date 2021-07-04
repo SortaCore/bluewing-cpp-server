@@ -1,5 +1,5 @@
 
-/* vim: set et ts=3 sw=3 ft=c:
+/* vim :set noet ts=4 sw=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.  All rights reserved.
  *
@@ -65,8 +65,8 @@ fn_GetFileSizeEx compat_GetFileSizeEx ();
 // For Unicode support on Windows.
 // Uses __wchar_t due to /Zc:wchar_t flag, which turns wchar_t into unsigned short.
 //
-// Returns null or a wide-converted version of the U8 string passed. Free it with free().
-extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str);
+// Returns null or a wide-converted version of the U8 string passed. Free it with free(). Pass size -1 for null-terminated strings.
+extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str, int size);
 #endif
 
 
