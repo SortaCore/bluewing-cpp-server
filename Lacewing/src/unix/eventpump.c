@@ -425,8 +425,8 @@ static void def_post (lw_pump pump, void * func, void * param)
 const lw_pumpdef def_eventpump =
 {
 	.add				= def_add,
-	.remove				= def_remove,
 	.update_callbacks	= def_update_callbacks,
+	.remove				= def_remove,
 	.post				= def_post,
 	.cleanup			= def_cleanup
 };

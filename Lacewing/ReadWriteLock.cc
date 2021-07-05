@@ -46,7 +46,7 @@ lacewing::readlock::~readlock()
 		this->lock.metaLock = false;
 		if (!foundWriter)
 		{
-			MessageBoxA(NULL, "Writer not found.", "Closing readlock failure.", MB_ICONERROR);
+			throw std::runtime_error("Closing readlock failure: Writer not found.");
 		}
 	}
 #endif
@@ -320,9 +320,11 @@ void lacewing::readwritelock::openWriteLock(writelock &wl)
 	if (checkHoldsRead(false))
 	{
 		char debugInfo[1024];
-		sprintf_s(debugInfo, "Deadlock - opened new write lock with read lock already held by same thread.\nNew writer opened from file [%s], func [%s] line %i.",
+		sprintf(debugInfo, "Deadlock - opened new write lock with read lock already held by same thread.\nNew writer opened from file [%s], func [%s] line %i.",
 			file, func, line);
+#ifdef _WIN32
 		MessageBoxA(NULL, debugInfo, "Deadlock failure.", MB_ICONERROR);
+#endif
 		throw std::runtime_error("Deadlock");
 	}
 #endif

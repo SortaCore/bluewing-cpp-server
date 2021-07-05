@@ -162,9 +162,11 @@ struct relayserverinternal
 			if (!client->pseudoUDP)
 				msElapsedUDP = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - client->lastudpmessagetime).count();
 
+#ifdef _MSC_VER
 			// detect a buggy version of std::chrono::steady_clock (was in a VS 2019 preview)
 			if (msElapsedTCP < 0 || msElapsedUDP < 0 || msElapsedNonPing < 0)
 				DebugBreak();
+#endif
 
 			// less than 5 seconds (or tcpPingMS) passed since last TCP message, skip the TCP ping
 			if (msElapsedTCP < tcpPingMS)
@@ -645,7 +647,7 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 
 		// TODO: This as an error feels awkward as it's easily flooded, but we need some log of it.
 		lacewing::error error = lacewing::error_new();
-		size_t msgPartSize = message.size(); msgPartSize = min(msgPartSize, 15);
+		size_t msgPartSize = message.size(); msgPartSize = msgPartSize > 15 ? 15 : msgPartSize;
 		error->add("Dropped peer text message \"%.*hs...\" from client %hs (ID %hu) -> client %hs (ID %hu), invalid char U+%0.4X '%hs' rejected.",
 			msgPartSize, message.data(), name().c_str(), id(), receivingClient->name().c_str(), receivingClient->id(),
 			rejectedCodePoint, rejectCharAsStr);
@@ -910,7 +912,7 @@ void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewi
 	if (internal.handlererror)
 	{
 		lacewing::error error = lacewing::error_new();
-		error->add("Overload of message stack; got more than %zu messages in one packet (sized %zu) from client ID %hu, name %hs, IP %hs.",
+		error->add("Overload of message stack; server running too slow? Got more than %zu messages pending (sized %zu) from client ID %hu, name %hs, IP %hs.",
 			maxMessagesInOneProcess, data.size(), client._id, client._name.c_str(), addr);
 
 		internal.handlererror(internal.server, error);
@@ -1433,7 +1435,7 @@ bool relayserver::client::checkname(std::string_view name)
 				rejectCharAsStr[numBytesUsed] = '\0';
 			}
 
-			int lenNoNull = sprintf_s(buffer, "name not valid (char U+%0.4X '%hs' rejected)", rejectedCodePoint, (char *)rejectCharAsStr);
+			int lenNoNull = sprintf(buffer, "name not valid (char U+%0.4X '%hs' rejected)", rejectedCodePoint, (char *)rejectCharAsStr);
 			builder.add(buffer, lenNoNull);
 		}
 
@@ -1851,7 +1853,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 
 						// TODO: This as an error feels awkward as it's easily flooded, but we need some log of it.
 						auto error = lacewing::error_new();
-						size_t msgPartSize = message3.size(); msgPartSize = min(msgPartSize, 15);
+						size_t msgPartSize = message3.size(); msgPartSize = msgPartSize > 15 ? 15 : msgPartSize;
 						error->add("Dropped server text message \"%.*hs...\" from client %hs (ID %hu), invalid char U+%0.4X '%hs' rejected. Client is no longer trusted.",
 							msgPartSize, message3.data(), client->name().c_str(), client->id(), rejectedCodePoint, rejectCharAsStr);
 						((relayserverinternal *)server.internaltag)->handlererror(server, error);
@@ -2456,7 +2458,7 @@ lw_i64 relayserver::client::getconnecttime() const
 	if (!connectRequestApproved)
 		return 0; // Set when connection approve message is sent
 
-	steady_clock::time_point end = steady_clock::now();
+	system_clock::time_point end = system_clock::now();
 	auto time = end - connectTime;
 	return duration_cast<seconds>(time).count();
 }
@@ -2592,7 +2594,7 @@ void relayserver::connect_response(
 
 	lw_trace("Connect request accepted in relayserver::connectresponse");
 	client->connectRequestApproved = true;
-	client->connectTime = std::chrono::steady_clock::now();
+	client->connectTime = std::chrono::high_resolution_clock::now();
 	client->clientImpl = relayserver::client::clientimpl::Unknown;
 
 	builder.addheader(0, 0);  /* response */
@@ -2699,7 +2701,7 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 
 		// sprintf then resize to fit, as string_view is copied directly into message, expecting no nulls
 		failedCharDenyReason.resize(
-			sprintf_s(failedCharDenyReason.data(), failedCharDenyReason.size(), "name not valid (char U+%0.4X '%s' rejected)",
+			sprintf(failedCharDenyReason.data(), "name not valid (char U+%0.4X '%s' rejected)",
 				rejectedCodePoint, rejectCharAsStr)
 		);
 		denyReason = failedCharDenyReason; // stays in scope
@@ -2786,7 +2788,7 @@ void relayserver::closechannel_finish(std::shared_ptr<lacewing::relayserver::cha
 {
 	// The channel should already be closed, with this event only updating the peer list and closing.
 	if (!channel->_readonly)
-		throw std::exception("Channel was not previously closed.");
+		throw std::runtime_error("Channel was not previously closed.");
 
 	// channel->close() will check for channel in server list, but we don't have it there
 	((relayserverinternal *)internaltag)->close_channel(channel);
@@ -2833,16 +2835,16 @@ void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
 	{
 		static char const * const end = "pproved client name is null or empty. Name refused.";
 		if (denyReason != nullptr)
-			sprintf_s(newDenyReason, "%*s\r\nPlus a%s", (lw_i32)denyReason.size(), denyReason.data(), end);
+			sprintf(newDenyReason, "%*s\r\nPlus a%s", (lw_i32)denyReason.size(), denyReason.data(), end);
 		else
-			sprintf_s(newDenyReason, "A%s", end);
+			sprintf(newDenyReason, "A%s", end);
 		denyReason = newDenyReason;
 	}
 	else
 	{
 		if (newClientName.size() > 255U)
 		{
-			sprintf_s(newDenyReason, "New client name \"%.10s...\" (%u chars) is too long. Name must be 255 chars maximum.", newClientName.data(), (std::uint32_t)newClientName.size());
+			sprintf(newDenyReason, "New client name \"%.10s...\" (%u chars) is too long. Name must be 255 chars maximum.", newClientName.data(), (std::uint32_t)newClientName.size());
 			denyReason = newDenyReason;
 			newClientName = newClientName.substr(0, 255);
 		}
@@ -2998,7 +3000,7 @@ void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<re
 			}
 
 			auto error = lacewing::error_new();
-			size_t msgPartSize = message.size(); msgPartSize = min(msgPartSize, 15);
+			size_t msgPartSize = message.size(); msgPartSize = msgPartSize > 15 ? 15 : msgPartSize;
 			error->add("Dropped channel text message \"%.*hs...\" from client %hs (ID %hu) -> channel %hs (ID %hu), invalid char U+%0.4X '%hs' rejected.",
 				msgPartSize, message.data(), client->name().c_str(), client->id(), name().c_str(), rejectedCodePoint, rejectCharAsStr);
 			((relayserverinternal *)server.internaltag)->handlererror(server, error);

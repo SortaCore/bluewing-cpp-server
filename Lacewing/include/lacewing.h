@@ -87,7 +87,12 @@
 	#ifndef lw_import
 		#define lw_import
 	#endif
-	#include <netinet/in6.h>
+
+	#ifdef __ANDROID__
+		#include "../src/unix/android config.h"
+	#else
+		#include "../src/unix/unix config.h"
+	#endif
 #else
 
 	/* For the definition of HANDLE and OVERLAPPED (used by lw_pump) */

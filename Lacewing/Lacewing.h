@@ -87,7 +87,7 @@
 	#ifndef lw_import
 		#define lw_import
 	#endif
-	#include <netinet/in6.h>
+	#include <netinet/in.h>
 #else
 
 	/* For the definition of HANDLE and OVERLAPPED (used by lw_pump) */
@@ -118,6 +118,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
+#include <cstring>
 
 // std::string_view requires C++17
 #if __cplusplus < 201703L && _MSVC_LANG < 201703L
