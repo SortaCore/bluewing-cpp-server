@@ -118,6 +118,10 @@ int main()
 	signal(SIGSEGV, CloseHandler);
 	signal(SIGTERM, CloseHandler);
 
+	// We don't use C-style printf(), so desync.
+	// It's unclear whether cout or printf is faster; and some say cout is faster only with a fast locale.
+	std::ios_base::sync_with_stdio(false);
+
 	// Block some IPs by default
 	//banIPList.push_back(BanEntry("75.128.140.10"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24LL * 60LL * 60LL)));
 	//banIPList.push_back(BanEntry("127.0.0.1"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24LL * 60LL * 60LL)));

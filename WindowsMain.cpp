@@ -111,7 +111,7 @@ struct BanEntry
 	int disconnects;
 	std::string reason;
 	__time64_t resetAt;
-	BanEntry(std::string ip, int disconnects, std::string reason, __time64_t resetAt) :
+	BanEntry(std::string_view ip, int disconnects, std::string_view reason, __time64_t resetAt) :
 		ip(ip), disconnects(disconnects), reason(reason), resetAt(resetAt)
 	{
 		// yay
@@ -167,7 +167,6 @@ int ExitWithError(const char * msg, int error)
 	return 1;
 }
 
-
 int main()
 {
 	// Enable memory tracking (does nothing in Release)
@@ -175,6 +174,10 @@ int main()
 
 	// Handle closing nicely
 	SetConsoleCtrlHandler(CloseHandler, TRUE);
+
+	// We don't use C-style printf(), so desync.
+	// It's unclear whether cout or printf is faster; and some say cout is faster only with a fast locale.
+	std::ios_base::sync_with_stdio(false);
 
 	// For Unicode text format
 	init_locale();
