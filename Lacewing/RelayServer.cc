@@ -2458,7 +2458,7 @@ lw_i64 relayserver::client::getconnecttime() const
 	if (!connectRequestApproved)
 		return 0; // Set when connection approve message is sent
 
-	system_clock::time_point end = system_clock::now();
+	decltype(connectTime) end = decltype(connectTime)::clock::now();
 	auto time = end - connectTime;
 	return duration_cast<seconds>(time).count();
 }
