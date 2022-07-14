@@ -6,6 +6,8 @@
 #include "ConsoleColors.h"
 #include "Lacewing/Lacewing.h"
 #include <signal.h>
+#include <termios.h>
+#include <unistd.h>
 
 using namespace std::string_view_literals;
 
@@ -100,22 +102,20 @@ struct clientstats
 };
 static std::vector<std::unique_ptr<clientstats>> clientdata;
 
-int ExitWithError(const char * msg, int error)
-{
-	std::cout << red << msg << ", got error number "sv << error << ".\r\n"sv;
-	std::cout << "Press any key to exit.\r\n"sv;
-
-	// Clear input for getchar()
-	std::cin.clear();
-	std::cin.ignore();
-	std::cin.ignore();
-
-	getchar(); // wait for user keypress
-	return 1;
-}
+static termios oldt;
 
 int main()
 {
+	// Disable console input
+	if (tcgetattr(STDIN_FILENO, &oldt) == -1)
+	{
+		std::cout << "Couldn't read console mode (error "sv << errno << "). Aborting server startup.\r\n"sv;
+		return errno;
+	}
+	termios newt = oldt;
+	newt.c_lflag &= ~ECHO;
+	tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
 	// Handle closing nicely
 	signal(SIGABRT, CloseHandler);
 	signal(SIGFPE, CloseHandler);
@@ -193,6 +193,7 @@ int main()
 	std::cout << green << "Host started. Port "sv << port << ", build "sv << globalserver->buildnum << ". "sv <<
 		(flashpolicypath.empty() ? "Flash not hosting"sv : "Flash policy hosting on TCP port 843"sv) << '.' <<
 		std::string(flashpolicypath.empty() ? 30 : 5, ' ') << "\r\n"sv << yellow;
+	std::cout.flush();
 
 	globalserver->host((lw_ui16)port);
 
@@ -239,20 +240,20 @@ int main()
 	lw_sync_delete(lw_trace_sync);
 #endif
 
-	std::wcout << green << timeBuffer << L" | Program completed.\r\n"sv;
-	std::wcout << timeBuffer << L" | Total bytes: "sv << totalBytesIn << L" in, "sv << totalBytesOut << L" out.\r\n"sv;
-	std::wcout << timeBuffer << L" | Total msgs: "sv << totalNumMessagesIn << L" in, "sv << totalNumMessagesOut << L" out.\r\n"sv;
-	std::wcout << timeBuffer << L" | Max msgs in 1 sec: "sv << maxNumMessagesIn << L" in, "sv << maxNumMessagesOut << L" out.\r\n"sv;
-	std::wcout << timeBuffer << L" | Max bytes in 1 sec: "sv << maxBytesInInOneSec << L" in, "sv << maxBytesOutInOneSec << L" out.\r\n"sv;
-	std::wcout << timeBuffer << L" | Press any key to exit.\r\n"sv;
+	std::cout << green << timeBuffer << " | Program completed.\r\n"sv;
+	std::cout << timeBuffer << " | Total bytes: "sv << totalBytesIn << " in, "sv << totalBytesOut << " out.\r\n"sv;
+	std::cout << timeBuffer << " | Total msgs: "sv << totalNumMessagesIn << " in, "sv << totalNumMessagesOut << " out.\r\n"sv;
+	std::cout << timeBuffer << " | Max msgs in 1 sec: "sv << maxNumMessagesIn << " in, "sv << maxNumMessagesOut << " out.\r\n"sv;
+	std::cout << timeBuffer << " | Max bytes in 1 sec: "sv << maxBytesInInOneSec << " in, "sv << maxBytesOutInOneSec << " out.\r\n"sv;
+	std::cout << timeBuffer << " | Press any key to exit.\r\n"sv;
 
-	// Clear input for getchar()
+	// Clear any keypress the user did before we waited
 	std::cin.clear();
 	std::cin.ignore();
-	std::cin.ignore();
+	std::cin.get(); // wait for user keypress
 
-	getchar(); // wait for user keypress
-
+	std::cout << "\x1B[0m"; // reset console color
+	tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // restore console input mode
 	return 0;
 }
 
@@ -611,39 +612,57 @@ void GenerateFlashPolicy(int port)
 
 void CloseHandler(int sig)
 {
-	std::cout << red << '\r' << timeBuffer;
+	std::cout << red << '\r' << timeBuffer << " | "sv;
 
 	// Catch exceptions
 	switch (sig)
 	{
 	case SIGABRT:
-		std::cout << "Caught SIGABRT: usually caused by an abort() or assert()";
+		std::cout << "Caught SIGABRT: usually caused by an abort() or assert()                   \r\n"sv;
 		break;
 	case SIGFPE:
-		std::cout << "Caught SIGFPE: arithmetic exception, such as divide by zero\n";
+		std::cout << "Caught SIGFPE: arithmetic exception, such as divide by zero                \r\n"sv;
 		break;
 	case SIGILL:
-		std::cout << "Caught SIGILL: illegal instruction\n";
+		std::cout << "Caught SIGILL: illegal instruction                                         \r\n"sv;
 		break;
 	case SIGINT:
-		std::cout << "Caught SIGINT: interactive attention signal, probably a ctrl+c\n";
+		std::cout << "Caught SIGINT: interactive attention signal, probably a ctrl+c             \r\n"sv;
 		break;
 	case SIGSEGV:
-		std::cout << "Caught SIGSEGV: segfault\n";
+		std::cout << "Caught SIGSEGV: segfault                                                   \r\n"sv;
 		break;
 	case SIGTERM:
 	default:
-		std::cout << "Caught SIGTERM: a termination request was sent to the program\n";
+		std::cout << "Caught SIGTERM: a termination request was sent to the program              \r\n"sv;
 		break;
 	}
-	std::cout << std::string(40, ' ') << "\r\n" << yellow;
 
 	if (!shutdowned)
 	{
-		std::cout << red << '\r' << timeBuffer << " | Got Ctrl-C or Close, ending app."sv << std::string(70, ' ') << "\r\n"sv << yellow;
+		std::cout << red << '\r' << timeBuffer << " | Got Ctrl-C or Close, ending the app."sv << std::string(30, ' ') << "\r\n"sv << yellow;
 		Shutdown();
 	}
 
+	// Every other command will likely kill the program after end of this handler
 	if (sig != SIGINT)
-		exit(sig);
+	{
+		std::cout << red << '\r' << timeBuffer << " | Aborting instantly from signal "sv << sig << '.' << std::string(40, ' ') << "\r\n"sv;
+		std::cout << "\x1B[0m"; // reset console color
+
+		tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // restore console input mode
+
+		if (!flashpolicypath.empty() && deleteFlashPolicyAtEndOfApp)
+			remove(flashpolicypath.c_str());
+
+		// Cleanup time
+		clientdata.clear();
+		lacewing::timer_delete(globalmsgrecvcounttimer);
+		globalserver->unhost();
+		globalserver->flash->unhost();
+		delete globalserver;
+		lacewing::pump_delete(globalpump);
+
+		exit(EXIT_FAILURE);
+	}
 }
