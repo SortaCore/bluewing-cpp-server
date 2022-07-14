@@ -34,6 +34,9 @@
 #define lw_client_flag_connecting	1
 #define lw_client_flag_connected	2
 
+// 3 second timeout
+static const int lw_client_timeout_ms = 3 * 1000;
+
 struct _lw_client
 {
 	struct _lw_fdstream fdstream;
@@ -49,10 +52,33 @@ struct _lw_client
 
 	int socket;
 	//lw_bool connecting; // part of flags, see lw_client_flag_connecting
+	lw_timer connect_timer;
 
 	lw_pump pump;
 	lw_pump_watch watch;
 };
+
+void lw_client_connect_timeout(lw_timer timer)
+{
+	lw_timer_stop (timer);
+
+	lw_client client = (lw_client)lw_timer_tag(timer);
+	if (lw_client_connected(client))
+		return;
+
+	if (client->on_error)
+	{
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "Connection timeout");
+		lw_error_addf(error, "Error connecting");
+		client->on_error(client, error);
+
+		lw_error_delete(error);
+	}
+
+	lwp_close_socket(client->socket);
+	client->flags &= ~lw_client_flag_connecting;
+}
 
 lw_client lw_client_new (lw_pump pump)
 {
@@ -64,6 +90,10 @@ lw_client lw_client_new (lw_pump pump)
 
 	lwp_fdstream_init (&ctx->fdstream, pump);
 
+	ctx->connect_timer = lw_timer_new(pump);
+	lw_timer_set_tag (ctx->connect_timer, ctx);
+	lw_timer_on_tick (ctx->connect_timer, lw_client_connect_timeout);
+
 	return ctx;
 }
 
@@ -71,6 +101,9 @@ void lw_client_delete (lw_client ctx)
 {
 	if (!ctx)
 		return;
+
+	lw_timer_delete (ctx->connect_timer);
+	ctx->connect_timer = NULL;
 
 	lw_stream_close ((lw_stream) ctx, lw_true);
 
@@ -80,7 +113,7 @@ void lw_client_delete (lw_client ctx)
 	free (ctx);
 }
 
-void lw_client_connect (lw_client ctx, const char * host, long port)
+void lw_client_connect (lw_client ctx, const char * host, lw_ui16 port)
 {
 	lw_addr address = lw_addr_new_port (host, port);
 
@@ -97,19 +130,22 @@ static void first_time_write_ready (void * tag)
 
 	assert (ctx->flags & lw_client_flag_connecting);
 
-	int error;
+	lw_timer_stop (ctx->connect_timer);
 
-	{	socklen_t error_len = sizeof (error);
-		getsockopt (ctx->socket, SOL_SOCKET, SO_ERROR, &error, &error_len);
+	int errorNum;
+
+	{	socklen_t error_len = sizeof (errorNum);
+		getsockopt (ctx->socket, SOL_SOCKET, SO_ERROR, &errorNum, &error_len);
 	}
 
-	if (error != 0)
+	if (errorNum != 0)
 	{
 		/* Failed to connect */
 
 		ctx->flags &= ~ lw_client_flag_connecting;
 
 		lw_error error = lw_error_new ();
+		lw_error_add (error, errorNum);
 		lw_error_addf (error, "Error connecting");
 
 		if (ctx->on_error)
@@ -211,7 +247,7 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 
 	// Android doesn't support AI_V4MAPPED, despite defining it.
 	// Due to that, https://stackoverflow.com/questions/5587935/cant-turn-off-socket-option-ipv6-v6only#comment15775318_8213504
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) && !defined(__APPLE__)
 	if (lw_addr_ipv6(address))
 		lwp_disable_ipv6_only((lwp_socket)ctx->socket);
 
@@ -252,10 +288,15 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 	{
 		lw_trace("connect() done, error %d", errno);
 		if (errno == EINPROGRESS)
+		{
+			// Start the connect timeout timer
+			lw_timer_start(ctx->connect_timer, lw_client_timeout_ms);
 			goto good; // No problem
+		}
 
 		ctx->flags &= ~ lw_client_flag_connecting;
 
+		// Connecting errors are also reported in first_time_write_ready()
 		lw_error error = lw_error_new ();
 
 		lw_error_add (error, errno);
@@ -268,7 +309,7 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 	}
 
 	// Else
-	lw_trace("connect() done, no error", errno);
+	lw_trace("connect() done, no error");
 good:
 
 	// Set Nagle. We can't do this in first_time_write_ready(), it causes EPERM on Android
@@ -291,6 +332,16 @@ lw_bool lw_client_connecting (lw_client ctx)
 
 lw_addr lw_client_server_addr (lw_client ctx)
 {
+	if (!lw_addr_ready(ctx->address))
+	{
+		lw_trace("addr not ready for lw_client; ctx %p, ctx->address %p.", ctx, ctx->address);
+		lw_error err = lw_addr_resolve(ctx->address);
+		if (err)
+		{
+			lw_error_addf(err, "lw_client_server_addr()");
+			ctx->on_error(ctx, err);
+		}
+	}
 	return ctx->address;
 }
 

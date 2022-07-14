@@ -29,10 +29,10 @@
 #include "common.h"
 #include "address.h"
 
-static void resolver (lw_addr);
+static int resolver (lw_addr);
 
 void lwp_addr_init (lw_addr ctx, const char * hostname,
-					const char * service, long hints)
+					const char * service, int hints)
 {
 	char * it;
 
@@ -92,11 +92,11 @@ void lw_addr_delete (lw_addr ctx)
 	free (ctx);
 }
 
-lw_addr lw_addr_new_port (const char * hostname, long port)
+lw_addr lw_addr_new_port (const char * hostname, lw_ui16 port)
 {
 	char service [64];
 
-	lwp_snprintf (service, sizeof (service), "%d", (int) port);
+	lwp_snprintf (service, sizeof (service), "%hu", port);
 
 	lw_addr ctx = (lw_addr) malloc (sizeof (*ctx));
 	lwp_addr_init (ctx, hostname, service, 0);
@@ -104,7 +104,7 @@ lw_addr lw_addr_new_port (const char * hostname, long port)
 	return ctx;
 }
 
-lw_addr lw_addr_new_hint (const char * hostname, const char * service, long hints)
+lw_addr lw_addr_new_hint (const char * hostname, const char * service, int hints)
 {
 	lw_addr ctx = (lw_addr) malloc (sizeof (*ctx));
 	lwp_addr_init (ctx, hostname, service, hints);
@@ -112,11 +112,11 @@ lw_addr lw_addr_new_hint (const char * hostname, const char * service, long hint
 	return ctx;
 }
 
-lw_addr lw_addr_new_port_hint (const char * hostname, long port, long hints)
+lw_addr lw_addr_new_port_hint (const char * hostname, lw_ui16 port, int hints)
 {
 	char service [64];
 
-	lwp_snprintf (service, sizeof (service), "%d", (int) port);
+	lwp_snprintf (service, sizeof (service), "%hu", port);
 
 	lw_addr ctx = (lw_addr) malloc (sizeof (*ctx));
 	lwp_addr_init (ctx, hostname, service, hints);
@@ -305,7 +305,7 @@ in6_addr lw_addr_toin6_addr (lw_addr ctx)
 	return v4;
 }
 
-void resolver (lw_addr ctx)
+int resolver (lw_addr ctx)
 {
 	struct addrinfo hints;
 	int result;
@@ -365,9 +365,10 @@ void resolver (lw_addr ctx)
 		if (gaierr[gaiLen - 2] == '.')
 			gaierr[gaiLen - 2] = '\0';
 
+		// Android note: missing INTERNET permission on some Android devices prevents DNS finding any records
 		lw_error_addf(ctx->error, "DNS lookup error - %s", gaierr);
 		free(gaierr);
-		return;
+		return result;
 	}
 
 	for (info = ctx->info_list; info; info = info->ai_next)
@@ -386,6 +387,7 @@ void resolver (lw_addr ctx)
 	}
 
 	lw_addr_set_type (ctx, ctx->hints & (lw_addr_type_tcp | lw_addr_type_udp));
+	return 0;
 }
 
 lw_bool lw_addr_ready (lw_addr ctx)
@@ -394,7 +396,7 @@ lw_bool lw_addr_ready (lw_addr ctx)
 		!lw_thread_started (ctx->resolver_thread);
 }
 
-long lw_addr_port (lw_addr ctx)
+lw_ui16 lw_addr_port (lw_addr ctx)
 {
 	if ((!lw_addr_ready (ctx)) || !ctx->info || !ctx->info->ai_addr)
 		return 0;

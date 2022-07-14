@@ -318,7 +318,7 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 	{
 		// Occasionally triggers during a disconnect/reconnect spam.
 		// Simple recreation: "On connect > Disconnect; Connect to X"
-		// 
+		//
 		// TODO: The client is unstable at that point, and will not properly disconnect from original connection
 		// nor acknowledge the server on the new connection, resulting in ping disconnect.
 		// Thankfully, after a ping disconnect, it should be back to functional again.
@@ -479,7 +479,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 	return size;
 }
 
-static size_t def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
+static lw_i64 def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
 {
 	if (lw_stream_get_def (_src) != &def_fdstream)
 		return -1;
@@ -586,6 +586,7 @@ static size_t def_bytes_left (lw_stream _ctx)
  * pending in the FDStream, rather than just the Stream.
  */
 
+
 static lw_bool def_close (lw_stream _ctx, lw_bool immediate)
 {
 	lw_fdstream ctx = (lw_fdstream) _ctx;
@@ -605,7 +606,18 @@ static lw_bool def_close (lw_stream _ctx, lw_bool immediate)
 	{
 		ctx->flags |= lwp_fdstream_flag_close_asap;
 		shutdown((SOCKET)ctx->fd, SD_RECEIVE);
+		// CancelIoEx is Vista+
+#if WINVER >= 0x0600
 		CancelIoEx(ctx->fd, (OVERLAPPED *)&ctx->read_overlapped);
+#else
+		typedef BOOL(WINAPI * CancelIoExLike)(
+			__in HANDLE hFile,
+			__in_opt LPOVERLAPPED lpOverlapped
+		);
+		CancelIoExLike cancelIoEx = (CancelIoExLike)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CancelIoEx");
+		if (cancelIoEx != NULL)
+			cancelIoEx(ctx->fd, (OVERLAPPED *)&ctx->read_overlapped);
+#endif
 		return lw_false;
 	}
 }

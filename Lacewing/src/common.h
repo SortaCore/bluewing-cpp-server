@@ -59,11 +59,15 @@
 
 #ifdef __ANDROID__
 	#include "unix/android config.h"
-#else
+#elif defined(__unix__)
 	#include "unix/unix config.h"
 #endif
 
+#if defined(__APPLE__)
+	#include "unix/ios config.h"
+#else
 	#include <sys/sendfile.h>
+#endif
 
 #endif
 
@@ -116,7 +120,7 @@
  typedef struct _lw_ws_session		* lw_ws_session;
  typedef struct _lw_ws_sessionitem	* lw_ws_sessionitem;
 
-#include "../include/lacewing.h"
+#include "../Lacewing.h"
 
 #ifdef _MSC_VER
 	#ifndef __cplusplus
@@ -141,7 +145,7 @@ void lwp_deinit ();
 #include <stdlib.h>
 #include <assert.h>
 #include <stdarg.h>
-#include <ctype.h>
+#include <cctype>
 #include <time.h>
 
 #ifdef _lacewing_debug
@@ -171,6 +175,8 @@ void lwp_deinit ();
 
 #if defined(HAVE_MALLOC_H) || defined(_WIN32)
 	#include <malloc.h>
+#elif defined(HAVE_MALLOC_MALLOC_H)
+	#include <malloc/malloc.h>
 #endif
 
 #if defined(_lacewing_debug) || defined(_lacewing_debug_output)
@@ -190,7 +196,7 @@ void lwp_disable_ipv6_only (lwp_socket socket);
 
 struct sockaddr_storage lwp_socket_addr (lwp_socket socket);
 
-long lwp_socket_port (lwp_socket socket);
+lw_ui16 lwp_socket_port (lwp_socket socket);
 
 void lwp_close_socket (lwp_socket socket);
 

@@ -68,7 +68,7 @@ struct _lw_server
 		#endif
 	#endif
 
-	list (lw_server_client, clients);
+	lw_list (lw_server_client, clients);
 };
 
 struct _lw_server_client
@@ -570,7 +570,7 @@ void on_client_close (lw_stream stream, void * tag)
 
 	lw_server ctx = client->server;
 
-	lwp_trace ("Close %d", client);
+	lwp_trace ("Close %d", client->fd);
 
 	client->fd = -1;
 

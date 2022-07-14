@@ -81,7 +81,7 @@ std::string lacewing::codepointsallowlist::setcodepointsallowedlist(std::string 
 			// Wildcard
 			if (cur[1] == '*')
 			{
-				char firstCharUpper = std::toupper(cur[0]);
+				char firstCharUpper = (char)std::toupper(cur[0]);
 				for (size_t i = 0; i < sizeof(wildcardCategory); i++)
 				{
 					if (firstCharUpper == wildcardCategory[i])
@@ -131,7 +131,7 @@ std::string lacewing::codepointsallowlist::setcodepointsallowedlist(std::string 
 				if (std::find(specificCodePoints.cbegin(), specificCodePoints.cend(), codePointAllowed) != specificCodePoints.cend())
 					return CPALMakeError(this, acTemp, "Specific codepoint %lu was added twice in list \"%hs\".", codePointAllowed, acStr.c_str());
 
-				specificCodePoints.push_back(codePointAllowed);
+				specificCodePoints.push_back((int)codePointAllowed);
 				if (cur[0] == ',')
 					++cur;
 				goto nextChar;

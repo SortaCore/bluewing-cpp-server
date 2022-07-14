@@ -38,13 +38,19 @@ const char * lw_version ()
 	if (!*version)
 	{
 		#if defined (_WIN32)
+		#ifdef _UNICODE
+			#define LWS_UNI "Unicode "
+		#else
+			#define LWS_UNI "ANSI "
+		#endif
 			#ifdef _WIN64
-				platform = "Windows x64";
+				platform = "Windows " LWS_UNI "x64";
 			#elif defined(_M_ARM64) // Soon(tm)
-				platform = "Windows ARM64";
+				platform = "Windows " LWS_UNI "ARM64";
 			#else
-				platform = "Windows x86";
+				platform = "Windows " LWS_UNI "x86";
 			#endif
+		#undef LWS_UNI
 		#elif defined (__ANDROID__)
 			#ifdef __aarch64__
 				platform = "Android ARM64";
@@ -60,6 +66,24 @@ const char * lw_version ()
 				platform = "Android x86";
 			#elif defined(__x86_64__)
 				platform = "Android x64";
+			#else
+				#error ABI not known, please amend code
+			#endif
+		#elif defined(__APPLE__)
+			#ifdef __arm64e__
+				platform = "iOS ARM64e";
+			#elif defined(__aarch64__)
+				platform = "iOS ARM64";
+			#elif defined(__ARM_ARCH_6__)
+				platform = "iOS armv6";
+			#elif defined(__ARM_ARCH_7S__)
+				platform = "iOS armv7s";
+			#elif defined(__ARM_ARCH_7A__)
+				platform = "iOS armv7";
+			#elif defined(__i386__)
+				platform = "iOS i386";
+			#elif defined(__x86_64__)
+				platform = "iOS x86_64";
 			#else
 				#error ABI not known, please amend code
 			#endif
@@ -96,7 +120,7 @@ void lw_dump (const char * buffer, size_t size)
 	size_t i;
 	int row_offset = 0, row_offset_c = 0, row = 0;
 
-	if (size == -1)
+	if (size == (size_t)-1)
 		size = (lw_ui32) strlen (buffer);
 
 	fprintf (stderr, "=== " lwp_fmt_size " bytes @ %p ===\n", size, buffer);
@@ -201,7 +225,7 @@ void lw_trace (const char * format, ...)
 
 		#ifdef __ANDROID__
 			__android_log_write (ANDROID_LOG_INFO, "liblacewing", data);
-		#elif defined(COXSDK)
+		#elif defined(COXSDK) && !defined(__APPLE__)
 			OutputDebugStringA (data);
 			OutputDebugStringA ("\n");
 		#else

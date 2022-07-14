@@ -8,8 +8,12 @@ bool lacewing::writelock::isEnabled() const
 {
 	return locked;
 }
-#if defined(COXSDK) && defined(__ANDROID__)
-#include "../Inc/Android/MMFAndroidMasterHeader.h"
+#if defined(COXSDK)
+	#if defined(__ANDROID__)
+		#include "../Inc/Android/MMFAndroidMasterHeader.h"
+	#elif defined(__APPLE__)
+		#include "../Inc/iOS/MMFiOSMasterHeader.h"
+	#endif
 #endif
 
 lacewing::readlock::~readlock()
@@ -46,7 +50,7 @@ lacewing::readlock::~readlock()
 		this->lock.metaLock = false;
 		if (!foundWriter)
 		{
-			throw std::runtime_error("Closing readlock failure: Writer not found.");
+			assert(false && "Closing readlock failure: Writer not found.");
 		}
 	}
 #endif
@@ -322,9 +326,9 @@ void lacewing::readwritelock::openWriteLock(writelock &wl)
 		char debugInfo[1024];
 		sprintf(debugInfo, "Deadlock - opened new write lock with read lock already held by same thread.\nNew writer opened from file [%s], func [%s] line %i.",
 			file, func, line);
-#ifdef _WIN32
-		MessageBoxA(NULL, debugInfo, "Deadlock failure.", MB_ICONERROR);
-#endif
+		#ifdef _WIN32
+			MessageBoxA(NULL, debugInfo, "Deadlock failure.", MB_ICONERROR);
+		#endif
 		throw std::runtime_error("Deadlock");
 	}
 #endif
