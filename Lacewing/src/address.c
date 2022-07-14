@@ -196,7 +196,7 @@ lw_addr lw_addr_clone (lw_addr ctx)
 
 	memcpy (addr->service, ctx->service, sizeof (ctx->service));
 
-	addr->hostname = addr->hostname_to_free = strdup(ctx->hostname);
+	addr->hostname = addr->hostname_to_free = ctx->hostname ? strdup(ctx->hostname) : NULL;
 
 	return addr;
 }
