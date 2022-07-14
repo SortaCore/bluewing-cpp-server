@@ -192,9 +192,6 @@
     <Filter Include="Header Files\Lacewing\src\unix\eventqueue">
       <UniqueIdentifier>{385abb9a-7b1f-4d40-b648-aeb462ca7633}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\include">
-      <UniqueIdentifier>{0dbd5d21-cc72-4194-a71e-50282b079038}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Lacewing\src\deps\uthash">
       <UniqueIdentifier>{c6baa449-9ca3-4e95-a526-0a38f47c6951}</UniqueIdentifier>
     </Filter>
