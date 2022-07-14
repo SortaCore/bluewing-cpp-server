@@ -47,27 +47,35 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
+    <UseOfStl>libstdc++_static</UseOfStl>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -76,43 +84,67 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <RemoteCppCompileToolExe>g++-8</RemoteCppCompileToolExe>
-    <OutDir>$(ProjectDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
+    <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
+    <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
+    <RemoteLdToolExe>g++-8</RemoteLdToolExe>
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
@@ -176,7 +208,6 @@
     <ClInclude Include="Lacewing\FrameBuilder.h" />
     <ClInclude Include="Lacewing\FrameReader.h" />
     <ClInclude Include="Lacewing\IDPool.h" />
-    <ClInclude Include="Lacewing\include\lacewing.h" />
     <ClInclude Include="Lacewing\Lacewing.h" />
     <ClInclude Include="Lacewing\MessageBuilder.h" />
     <ClInclude Include="Lacewing\MessageReader.h" />
@@ -200,10 +231,10 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;_lacewing_debug=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -213,8 +244,8 @@
     <ClCompile>
       <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -222,10 +253,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
-      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;_lacewing_debug=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -235,8 +266,8 @@
     <ClCompile>
       <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -244,10 +275,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;_lacewing_debug=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -257,8 +288,8 @@
     <ClCompile>
       <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -266,10 +297,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_lacewing_static;_DEBUG;_lacewing_debug=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -279,8 +310,8 @@
     <ClCompile>
       <PreprocessorDefinitions>_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>

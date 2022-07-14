@@ -275,9 +275,6 @@
     <ClInclude Include="Lacewing\src\unix\unix config.h">
       <Filter>Header Files\Lacewing\src\unix</Filter>
     </ClInclude>
-    <ClInclude Include="Lacewing\include\lacewing.h">
-      <Filter>Source Files\Lacewing\include</Filter>
-    </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utarray.h">
       <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
     </ClInclude>
