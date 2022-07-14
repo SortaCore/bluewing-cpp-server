@@ -119,6 +119,12 @@ struct BanEntry
 };
 static std::vector<BanEntry> banIPList;
 
+static std::uint64_t totalNumMessagesIn = 0, totalNumMessagesOut = 0;
+static std::uint64_t totalBytesIn = 0, totalBytesOut = 0;
+static size_t maxClients = 0, maxChannels = 0;
+static size_t maxNumMessagesIn = 0, maxNumMessagesOut = 0;
+static size_t maxBytesInInOneSec = 0, maxBytesOutInOneSec = 0;
+
 static size_t numMessagesIn = 0, numMessagesOut = 0;
 static size_t bytesIn = 0, bytesOut = 0;
 struct clientstats
@@ -310,7 +316,13 @@ int main()
 	lw_sync_delete(lw_trace_sync);
 #endif
 
-	std::wcout << green << timeBuffer << L" | Program completed. Press any key to exit.\r\n"sv;
+	std::wcout << green << timeBuffer << L" | Program completed.\r\n"sv;
+	std::wcout << timeBuffer << L" | Total bytes: "sv << totalBytesIn << L" in, "sv << totalBytesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Total msgs: "sv << totalNumMessagesIn << L" in, "sv << totalNumMessagesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Max msgs in 1 sec: "sv << maxNumMessagesIn << L" in, "sv << maxNumMessagesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Max bytes in 1 sec: "sv << maxBytesInInOneSec << L" in, "sv << maxBytesOutInOneSec << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Press any key to exit.\r\n"sv;
+
 	// Clear input for getchar()
 	std::cin.clear();
 	std::cin.ignore();
@@ -329,6 +341,10 @@ void UpdateTitle(size_t clientCount)
 		clientCount, clientCount == 1 ? L"" : L"s",
 		channelCount, channelCount == 1 ? L"" : L"s");
 	SetConsoleTitleW(name);
+	if (maxClients < clientCount)
+		maxClients = clientCount;
+	if (maxChannels < channelCount)
+		maxChannels = channelCount;
 }
 
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
@@ -406,6 +422,19 @@ void OnTimerTick(lacewing::timer timer)
 		std::wcsftime(timeBuffer, sizeof(timeBuffer), L"%T", &timeinfo);
 	else
 		wcscpy_s(timeBuffer, sizeof(timeBuffer), L"XX:XX:XX");
+		
+	totalNumMessagesIn += numMessagesIn;
+	totalNumMessagesOut += numMessagesOut;
+	totalBytesIn += bytesIn;
+	totalBytesOut += bytesOut;
+	if (maxNumMessagesIn < numMessagesIn)
+		maxNumMessagesIn = numMessagesIn;
+	if (maxNumMessagesOut < numMessagesOut)
+		maxNumMessagesOut = numMessagesOut;
+	if (maxBytesInInOneSec < bytesIn)
+		maxBytesInInOneSec = bytesIn;
+	if (maxBytesOutInOneSec < bytesOut)
+		maxBytesOutInOneSec = bytesOut;
 
 	std::wcout << timeBuffer << L" | Last sec received "sv << numMessagesIn << L" messages ("sv << bytesIn << L" bytes), forwarded "sv
 		<< numMessagesOut << L" ("sv << bytesOut << L" bytes)."sv << std::wstring(15, L' ') << '\r';

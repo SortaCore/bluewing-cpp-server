@@ -73,6 +73,12 @@ struct BanEntry
 };
 static std::vector<BanEntry> banIPList;
 
+static std::uint64_t totalNumMessagesIn = 0, totalNumMessagesOut = 0;
+static std::uint64_t totalBytesIn = 0, totalBytesOut = 0;
+static size_t maxClients = 0, maxChannels = 0;
+static size_t maxNumMessagesIn = 0, maxNumMessagesOut = 0;
+static size_t maxBytesInInOneSec = 0, maxBytesOutInOneSec = 0;
+
 static size_t numMessagesIn = 0, numMessagesOut = 0;
 static size_t bytesIn = 0, bytesOut = 0;
 struct clientstats
@@ -188,7 +194,7 @@ int main()
 		(flashpolicypath.empty() ? "Flash not hosting"sv : "Flash policy hosting on TCP port 843"sv) << '.' <<
 		std::string(flashpolicypath.empty() ? 30 : 5, ' ') << "\r\n"sv << yellow;
 
-	globalserver->host(port);
+	globalserver->host((lw_ui16)port);
 
 	if (!flashpolicypath.empty())
 		globalserver->flash->host(flashpolicypath.c_str());
@@ -233,7 +239,13 @@ int main()
 	lw_sync_delete(lw_trace_sync);
 #endif
 
-	std::cout << green << timeBuffer << " | Program completed. Press any key to exit.\r\n"sv;
+	std::wcout << green << timeBuffer << L" | Program completed.\r\n"sv;
+	std::wcout << timeBuffer << L" | Total bytes: "sv << totalBytesIn << L" in, "sv << totalBytesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Total msgs: "sv << totalNumMessagesIn << L" in, "sv << totalNumMessagesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Max msgs in 1 sec: "sv << maxNumMessagesIn << L" in, "sv << maxNumMessagesOut << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Max bytes in 1 sec: "sv << maxBytesInInOneSec << L" in, "sv << maxBytesOutInOneSec << L" out.\r\n"sv;
+	std::wcout << timeBuffer << L" | Press any key to exit.\r\n"sv;
+
 	// Clear input for getchar()
 	std::cin.clear();
 	std::cin.ignore();
@@ -257,6 +269,11 @@ void UpdateTitle(size_t clientCount)
 	// konsole: "\x1B]30;%p1%s\x07";
 	// screen: "\x1Bk%p1%s\x1B";
 	std::cout << "\033]0;" << name << "\007";
+
+	if (maxClients < clientCount)
+		maxClients = clientCount;
+	if (maxChannels < channelCount)
+		maxChannels = channelCount;
 }
 
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
@@ -335,8 +352,22 @@ void OnTimerTick(lacewing::timer timer)
 	else
 		strcpy(timeBuffer, "XX:XX:XX");
 
+	totalNumMessagesIn += numMessagesIn;
+	totalNumMessagesOut += numMessagesOut;
+	totalBytesIn += bytesIn;
+	totalBytesOut += bytesOut;
+	if (maxNumMessagesIn < numMessagesIn)
+		maxNumMessagesIn = numMessagesIn;
+	if (maxNumMessagesOut < numMessagesOut)
+		maxNumMessagesOut = numMessagesOut;
+	if (maxBytesInInOneSec < bytesIn)
+		maxBytesInInOneSec = bytesIn;
+	if (maxBytesOutInOneSec < bytesOut)
+		maxBytesOutInOneSec = bytesOut;
+
 	std::cout << timeBuffer << " | Last sec received "sv << numMessagesIn << " messages ("sv << bytesIn << " bytes), forwarded "sv
 		<< numMessagesOut << " ("sv << bytesOut << " bytes)."sv << std::string(15, ' ') << '\r';
+	std::cout.flush();
 	numMessagesOut = numMessagesIn = 0U;
 	bytesIn = bytesOut = 0U;
 
