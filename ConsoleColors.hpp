@@ -1,3 +1,11 @@
+/* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
+ *
+ * Created by Darkwire Software.
+ *
+ * This example console coloring file is available unlicensed; the MIT license of liblacewing/Lacewing Relay
+ * does not apply to this file.
+*/
+
 #pragma once
 #include <iostream>
 

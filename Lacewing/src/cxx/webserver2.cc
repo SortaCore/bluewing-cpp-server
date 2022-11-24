@@ -1,31 +1,12 @@
-
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
- * Copyright (C) 2012, 2013 James McLaughlin et al.  All rights reserved.
+ * Copyright (C) 2012, 2013 James McLaughlin et al.
+ * Copyright (C) 2012-2022 Darkwire Software.
+ * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *	notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *	notice, this list of conditions and the following disclaimer in the
- *	documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+ * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
+ * https://opensource.org/licenses/mit-license.php
+*/
 
 #include "../common.h"
 
@@ -89,9 +70,9 @@ long _webserver::port_secure ()
 	return lw_ws_port_secure ((lw_ws) this);
 }
 
-bool _webserver::load_cert_file (const char * filename, const char * passphrase)
+bool _webserver::load_cert_file (const char* filename_certchain, const char* filename_privkey, const char * passphrase)
 {
-	return lw_ws_load_cert_file ((lw_ws) this, filename, passphrase);
+	return lw_ws_load_cert_file ((lw_ws) this, filename_certchain, filename_privkey, passphrase);
 }
 
 bool _webserver::load_sys_cert (const char * store_name, const char * common_name,
@@ -170,6 +151,11 @@ void _webserver::on_upload_post (_webserver::hook_upload_post hook)
 	lw_ws_on_upload_post ((lw_ws) this, (lw_ws_hook_upload_post) hook);
 }
 
+void _webserver::on_websocket_message(_webserver::hook_websocketmessage hook)
+{
+	lw_ws_on_websocket_message ((lw_ws) this, (lw_ws_hook_websocket_message) hook);
+}
+
 lacewing::address _webserver_request::address ()
 {
 	return (lacewing::address) lw_ws_req_addr ((lw_ws_req) this);
@@ -178,6 +164,11 @@ lacewing::address _webserver_request::address ()
 bool _webserver_request::secure ()
 {
 	return lw_ws_req_secure ((lw_ws_req) this);
+}
+
+bool _webserver_request::websocket ()
+{
+	return lw_ws_req_websocket ((lw_ws_req) this);
 }
 
 const char * _webserver_request::url ()
@@ -192,7 +183,7 @@ const char * _webserver_request::hostname ()
 
 void _webserver_request::disconnect ()
 {
-	lw_ws_req_disconnect ((lw_ws_req) this);
+	lw_ws_req_disconnect ((lw_ws_req) this, 0);
 }
 
 void _webserver_request::redirect (const char * url)

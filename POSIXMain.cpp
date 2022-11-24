@@ -1,9 +1,16 @@
+/* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
+ *
+ * Created by Darkwire Software.
+ *
+ * This example server file is available unlicensed; the MIT license of liblacewing/Lacewing Relay does not apply to this file.
+*/
+
 #include <iostream>
 #include <ctime>
 #include <sstream>
 #include <algorithm>
 #include <vector>
-#include "ConsoleColors.h"
+#include "ConsoleColors.hpp"
 #include "Lacewing/Lacewing.h"
 #include <signal.h>
 #include <termios.h>
@@ -29,6 +36,10 @@ using namespace std::string_view_literals;
 // Set this to 0 for the app to ask the user what port it is, on bootup;
 // or to another number to use that by default
 static const int FIXEDPORT = 6121;
+// Set this to 0 for the app to disable websocket on either or both http/https variants.
+// websocketSecure will not work without certificate loading before websocket host is called.
+// WebSocket expects ./fullchain.pem and ./privkey.pem files, with no password, in same folder as executable.
+static int websocketNonSecure = 80, websocketSecure = 443;
 
 
 
@@ -93,24 +104,33 @@ struct clientstats
 	size_t bytesIn;
 	size_t numMessagesIn;
 	bool exceeded;
-	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0)
-		, bytesIn(0), numMessagesIn(0), exceeded(false), wastedServerMessages(0) {}
+	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
+		wastedServerMessages(0), bytesIn(0), numMessagesIn(0), exceeded(false) {}
 #else
 	clientstats(std::shared_ptr<lacewing::relayserver::client> _c) : c(_c), totalBytesIn(0), totalNumMessagesIn(0),
 		wastedServerMessages(0) {}
 #endif
 };
-static std::vector<std::unique_ptr<clientstats>> clientdata;
+static std::vector<std::shared_ptr<clientstats>> clientdata;
 
 static termios oldt;
+
+const char * sslPathCertChain = "./fullchain.pem";
+const char * sslPathPrivKey = "./privkey.pem";
 
 int main()
 {
 	// Disable console input
 	if (tcgetattr(STDIN_FILENO, &oldt) == -1)
 	{
-		std::cout << "Couldn't read console mode (error "sv << errno << "). Aborting server startup.\r\n"sv;
-		return errno;
+		std::cout << "Couldn't read console mode (error "sv << errno << ")."sv;
+
+		if (errno != ENOTTY)
+		{
+			std::cout << " Aborting server startup.\r\n"sv;
+			return errno;
+		}
+		std::cout << " 25 = not terminal; probably run in simulated terminal. Server startup continues.\r\n"sv;
 	}
 	termios newt = oldt;
 	newt.c_lflag &= ~ECHO;
@@ -135,6 +155,7 @@ int main()
 	globalpump = lacewing::eventpump_new();
 	globalserver = new lacewing::relayserver(globalpump);
 	globalmsgrecvcounttimer = lacewing::timer_new(globalpump);
+	lacewing::error error = nullptr;
 
 	{
 		char message[256];
@@ -188,11 +209,37 @@ int main()
 	// Update the current time in case host() errors, or try to connect before first tick
 	OnTimerTick(globalmsgrecvcounttimer);
 
-
 	// Host the thing
 	std::cout << green << "Host started. Port "sv << port << ", build "sv << globalserver->buildnum << ". "sv <<
 		(flashpolicypath.empty() ? "Flash not hosting"sv : "Flash policy hosting on TCP port 843"sv) << '.' <<
 		std::string(flashpolicypath.empty() ? 30 : 5, ' ') << "\r\n"sv << yellow;
+
+	if (websocketSecure)
+	{
+		if (!lw_file_exists(sslPathCertChain))
+		{
+			std::cout << yellow << "Couldn't find TLS certficate files - expecting \"fullchain.pem\" and \"privkey.pem\" in app folder.\r\n"
+				"Will continue webserver with just insecure websocket.\r\n"sv;
+			websocketSecure = 0;
+		}
+		else if (!globalserver->websocket->load_cert_file(sslPathCertChain, sslPathPrivKey, ""))
+		{
+			std::cout << red << "Found but couldn't load TLS certificate files \"fullchain.pem\" and \"privkey.pem\". Aborting server.\r\n"sv;
+			goto cleanup;
+		}
+	}
+
+	if (websocketNonSecure || websocketSecure)
+	{
+		std::cout << green << "WebSocket hosting. Port "sv;
+		if (websocketNonSecure)
+			std::cout << websocketNonSecure << " (non-secure, ws://xx)"sv;
+		if (websocketNonSecure && websocketSecure)
+			std::cout << " and port "sv;
+		if (websocketSecure)
+			std::cout << websocketSecure << " (secure, wss://xx)"sv;
+		std::cout << ".\r\n"sv << yellow;
+	}
 	std::cout.flush();
 
 	globalserver->host((lw_ui16)port);
@@ -200,11 +247,13 @@ int main()
 	if (!flashpolicypath.empty())
 		globalserver->flash->host(flashpolicypath.c_str());
 
+	if (websocketNonSecure || websocketSecure)
+		globalserver->host_websocket((lw_ui16)websocketNonSecure, (lw_ui16)websocketSecure);
+
 	// Update messages received/sent line every 1 sec
 	globalmsgrecvcounttimer->start(1000L);
 
 	// Start main event loop
-	lacewing::error error = nullptr;
 #ifdef _DEBUG
 	error = globalpump->start_eventloop();
 #else
@@ -221,11 +270,14 @@ int main()
 	if (error)
 		std::cout << red << "\r\n"sv << timeBuffer << " | Error occurred in pump: "sv << error->tostring() << "\r\n"sv;
 
+	cleanup:
 	// Cleanup time
 	clientdata.clear();
 	lacewing::timer_delete(globalmsgrecvcounttimer);
 	globalserver->unhost();
 	globalserver->flash->unhost();
+	globalserver->websocket->unhost();
+	globalserver->websocket->unhost_secure();
 	delete globalserver;
 	lacewing::pump_delete(globalpump);
 
@@ -269,7 +321,7 @@ void UpdateTitle(size_t clientCount)
 	// cygwin: "\x1B];%p1%s\x07";
 	// konsole: "\x1B]30;%p1%s\x07";
 	// screen: "\x1Bk%p1%s\x1B";
-	std::cout << "\033]0;" << name << "\007";
+	std::cout << "\033]0;"sv << name << '\007';
 
 	if (maxClients < clientCount)
 		maxClients = clientCount;
@@ -312,7 +364,7 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 	name = !name.empty() ? name : "[unset]"sv;
 	char addr[64];
 	lw_addr_prettystring(client->getaddress().data(), addr, sizeof(addr));
-	auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const std::unique_ptr<clientstats> &c) {
+	const auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto &c) {
 		return c->c == client; }
 	);
 
@@ -381,38 +433,38 @@ void OnTimerTick(lacewing::timer timer)
 			c->numMessagesIn = 0;
 		}
 	}
-	for (auto& c : clientdata)
+	// open clientdata as shared owner, or disconnect handler's erase may invalidate it while TimerTick is still using it
+	for (auto c : clientdata)
 	{
-		if (c->exceeded)
-		{
-			char addr[64];
-			const char * ipAddress = c->c->getaddress().data();
-			lw_addr_prettystring(ipAddress, addr, sizeof(addr));
+		if (!c->exceeded)
+			continue;
+		char addr[64];
+		const char * ipAddress = c->c->getaddress().data();
+		lw_addr_prettystring(ipAddress, addr, sizeof(addr));
 
-			auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
-			if (banEntry == banIPList.end())
-				banIPList.push_back(BanEntry(ipAddress, 1, "You have been banned for heavy TCP usage. Contact Phi on Clickteam Discord.", time(NULL) + 60LL));
-			else
-				++banEntry->disconnects;
+		auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
+		if (banEntry == banIPList.end())
+			banIPList.push_back(BanEntry(ipAddress, 1, "You have been banned for heavy TCP usage. Contact Phi on Clickteam Discord.", time(NULL) + 60LL));
+		else
+			++banEntry->disconnects;
 
-			std::cout << red << '\r' << timeBuffer << " | Client ID "sv << c->c->id() << ", IP "sv << addr <<
-				" dropped for heavy TCP upload ("sv << c->bytesIn << " bytes in "sv << c->numMessagesIn << " msgs)"sv << yellow << "\r\n"sv;
-			c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
-			c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
-			c->c->disconnect();
+		std::cout << red << '\r' << timeBuffer << " | Client ID "sv << c->c->id() << ", IP "sv << addr <<
+			" dropped for heavy TCP upload ("sv << c->bytesIn << " bytes in "sv << c->numMessagesIn << " msgs)"sv << yellow << "\r\n"sv;
+		c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
+		c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
+		c->c->disconnect();
 
-			// disconnect() will usually call disconnect handler, but rarely won't.
-			// If it does call the handler, the handler will delete the clientdata "c", so this for loop running through clientdata
-			// is now invalid, so we have to break or we get exception from invalid iterator.
-			// If it doesn't call the handler, we need to erase "c" or we'll get a disconnect re-attempted every timer tick.
-			auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const std::unique_ptr<clientstats> & ci) {
-				return ci->c == c->c; }
-			);
-			if (a != clientdata.cend())
-				clientdata.erase(a);
+		// disconnect() will usually call disconnect handler, but rarely won't.
+		// If it does call the handler, the handler will delete the clientdata "c", so this for loop running through clientdata
+		// is now invalid, so we have to break or we get exception from invalid iterator.
+		// If it doesn't call the handler, we need to erase "c" or we'll get a disconnect re-attempted every timer tick.
+		const auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto & cd) {
+			return cd->c == c->c; }
+		);
+		if (a != clientdata.cend())
+			clientdata.erase(a);
 
-			break;
-		}
+		break;
 	}
 #endif
 }
@@ -447,7 +499,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 		lw_addr_prettystring(senderclient->getaddress().data(), addr, sizeof(addr));
 		std::cout << red << '\r' << timeBuffer << " | Dropped server message from IP "sv << addr << ", invalid type."sv
 			<< std::string(35, ' ') << "\r\n"sv << yellow;
-		auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](std::unique_ptr<clientstats> &b) { return b->c == senderclient; });
+		const auto cd = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto &b) { return b->c == senderclient; });
 		if (cd != clientdata.end())
 		{
 			(**cd).totalBytesIn += data.size();
@@ -471,8 +523,8 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 }
 bool IncrementClient(std::shared_ptr<lacewing::relayserver::client> client, size_t size, bool blasted)
 {
-	auto cd = std::find_if(clientdata.begin(), clientdata.end(), [&](std::unique_ptr<clientstats> &b) { return b->c == client; });
-	if (cd != clientdata.end())
+	const auto cd = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto &b) { return b->c == client; });
+	if (cd != clientdata.cend())
 	{
 		(**cd).totalBytesIn += size;
 		++(**cd).totalNumMessagesIn;
@@ -542,6 +594,19 @@ void OnChannelMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 	size_t numCli = channel->clientcount() - 1U;
 	numMessagesOut += numCli;
 	bytesOut += numCli * data.size();
+}
+
+// Until we have a better general error handler for Lacewing...
+extern "C" void always_log(const char* c, ...)
+{
+	char output[1024];
+	va_list v;
+	va_start(v, c);
+	int numChars = vsprintf(output, c, v);
+	if (numChars <= 0)
+		std::abort();
+	std::cout << yellow << '\r' << timeBuffer << " | "sv << output << std::string(35, ' ') << "\r\n"sv;
+	va_end(v);
 }
 
 #include <sys/stat.h>   // stat
@@ -638,6 +703,7 @@ void CloseHandler(int sig)
 		break;
 	}
 
+
 	if (!shutdowned)
 	{
 		std::cout << red << '\r' << timeBuffer << " | Got Ctrl-C or Close, ending the app."sv << std::string(30, ' ') << "\r\n"sv << yellow;
@@ -660,6 +726,8 @@ void CloseHandler(int sig)
 		lacewing::timer_delete(globalmsgrecvcounttimer);
 		globalserver->unhost();
 		globalserver->flash->unhost();
+		globalserver->websocket->unhost();
+		globalserver->websocket->unhost_secure();
 		delete globalserver;
 		lacewing::pump_delete(globalpump);
 

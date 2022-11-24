@@ -105,7 +105,6 @@
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <CompileAs>CompileAsCpp</CompileAs>
       <MinimalRebuild>false</MinimalRebuild>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -125,7 +124,6 @@
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;_DEBUG;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -143,7 +141,6 @@
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <CompileAs>CompileAsCpp</CompileAs>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>true</BufferSecurityCheck>
@@ -169,10 +166,10 @@
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;NDEBUG;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -184,6 +181,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
+    <ClCompile Include="Lacewing\deps\http-parser\http_parser.c" />
+    <ClCompile Include="Lacewing\deps\multipart-parser\multipart_parser.c" />
     <ClCompile Include="Lacewing\deps\utf8proc.c" />
     <ClCompile Include="Lacewing\deps\utf8proc_data.c" />
     <ClCompile Include="Lacewing\PhiAddress.cc" />
@@ -207,6 +206,7 @@
     <ClCompile Include="Lacewing\src\cxx\thread2.cc" />
     <ClCompile Include="Lacewing\src\cxx\timer2.cc" />
     <ClCompile Include="Lacewing\src\cxx\udp2.cc" />
+    <ClCompile Include="Lacewing\src\cxx\webserver2.cc" />
     <ClCompile Include="Lacewing\src\error.c" />
     <ClCompile Include="Lacewing\src\filter.c" />
     <ClCompile Include="Lacewing\src\flashpolicy.c" />
@@ -220,6 +220,14 @@
     <ClCompile Include="Lacewing\src\stream.c" />
     <ClCompile Include="Lacewing\src\streamgraph.c" />
     <ClCompile Include="Lacewing\src\util.c" />
+    <ClCompile Include="Lacewing\src\webserver\http\http-client.c" />
+    <ClCompile Include="Lacewing\src\webserver\http\http-parse.c" />
+    <ClCompile Include="Lacewing\src\webserver\mimetypes.c" />
+    <ClCompile Include="Lacewing\src\webserver\multipart.c" />
+    <ClCompile Include="Lacewing\src\webserver\request.c" />
+    <ClCompile Include="Lacewing\src\webserver\sessions.c" />
+    <ClCompile Include="Lacewing\src\webserver\upload.c" />
+    <ClCompile Include="Lacewing\src\webserver\webserver.c" />
     <ClCompile Include="Lacewing\src\windows\client.c" />
     <ClCompile Include="Lacewing\src\windows\compat.c" />
     <ClCompile Include="Lacewing\src\windows\event.c" />
@@ -239,8 +247,14 @@
     <ClCompile Include="WindowsMain.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConsoleColors.h" />
+    <ClInclude Include="ConsoleColors.hpp" />
+    <ClInclude Include="Lacewing\deps\http-parser\http_parser.h" />
+    <ClInclude Include="Lacewing\deps\multipart-parser\multipart_parser.h" />
     <ClInclude Include="Lacewing\deps\utf8proc.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utarray.h" />
+    <ClInclude Include="Lacewing\deps\uthash\uthash.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utlist.h" />
+    <ClInclude Include="Lacewing\deps\uthash\utstring.h" />
     <ClInclude Include="Lacewing\FrameBuilder.h" />
     <ClInclude Include="Lacewing\FrameReader.h" />
     <ClInclude Include="Lacewing\IDPool.h" />
@@ -258,6 +272,10 @@
     <ClInclude Include="Lacewing\src\refcount.h" />
     <ClInclude Include="Lacewing\src\stream.h" />
     <ClInclude Include="Lacewing\src\streamgraph.h" />
+    <ClInclude Include="Lacewing\src\webserver\common.h" />
+    <ClInclude Include="Lacewing\src\webserver\http\http.h" />
+    <ClInclude Include="Lacewing\src\webserver\multipart.h" />
+    <ClInclude Include="Lacewing\src\webserver\spdy\spdy.h" />
     <ClInclude Include="Lacewing\src\windows\common.h" />
     <ClInclude Include="Lacewing\src\windows\compat.h" />
     <ClInclude Include="Lacewing\src\windows\fdstream.h" />

@@ -1,31 +1,12 @@
-
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
- * Copyright (C) 2014 James McLaughlin.  All rights reserved.
+ * Copyright (C) 2014 James McLaughlin.
+ * Copyright (C) 2012-2022 Darkwire Software.
+ * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *	notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *	notice, this list of conditions and the following disclaimer in the
- *	documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+ * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
+ * https://opensource.org/licenses/mit-license.php
+*/
 
 #include "common.h"
 
@@ -46,12 +27,18 @@ static void list_refs (char * buf, struct lwp_refcount * refcount)
 		strcat (buf, refcount->refs [i]);
 	}
 }
-
 lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name)
 {
 	// this ref counter is in use; wait and retry
-	while (refcount->reflock.exchange(true))
-		std::this_thread::yield();
+#ifdef msvc_windows_atomic_workaround
+	while (InterlockedExchange(&refcount->reflock, lw_true))
+		Sleep(0);
+#else
+	if (refcount->refcount == 0)
+		atomic_init(&refcount->reflock, lw_false);
+	while (atomic_exchange(&refcount->reflock, lw_true))
+		pthread_yield();
+#endif
 
 	/* sanity check
 	*/
@@ -80,8 +67,11 @@ lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name)
 			break;
 		}
 	}
-
-	refcount->reflock = false;
+#ifdef msvc_windows_atomic_workaround
+	InterlockedExchange(&refcount->reflock, lw_false);
+#else
+	atomic_exchange(&refcount->reflock, lw_false);
+#endif
 
 	return lw_false;
 }
@@ -89,8 +79,13 @@ lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name)
 lw_bool _lwp_release (struct lwp_refcount * refcount, const char * name)
 {
 	// this ref counter is in use; wait and retry
-	while (refcount->reflock.exchange(true))
-		std::this_thread::yield();
+#ifdef msvc_windows_atomic_workaround
+	while (InterlockedExchange(&refcount->reflock, lw_true))
+		Sleep(0);
+#else
+	while (atomic_exchange(&refcount->reflock, lw_true))
+		pthread_yield();
+#endif
 
 	assert (refcount->refcount >= 1 && refcount->refcount < MAX_REFS);
 
@@ -121,16 +116,25 @@ lw_bool _lwp_release (struct lwp_refcount * refcount, const char * name)
 
 	if (refcount->refcount == 0)
 	{
+		// freeing, and can't set false after, so we'll do this in case of invalid memory
+#ifdef msvc_windows_atomic_workaround
+		InterlockedExchange(&refcount->reflock, lw_false);
+#else
+		atomic_exchange(&refcount->reflock, lw_false);
+#endif
 		if (refcount->on_dealloc)
 			refcount->on_dealloc ((void *) refcount);
 		else
 			free (refcount);
 
-		refcount->reflock = false;
 		return lw_true;
 	}
 
-	refcount->reflock = false;
+#ifdef msvc_windows_atomic_workaround
+	InterlockedExchange(&refcount->reflock, lw_false);
+#else
+	atomic_exchange(&refcount->reflock, lw_false);
+#endif
 	return lw_false;
 }
 

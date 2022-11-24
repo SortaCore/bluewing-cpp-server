@@ -287,3 +287,12 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 *.wew
+
+# Hide private crypto keys
+*.pem
+*.pfx
+*.p7c
+*.p12
+*.cer
+*.cert
+*.crt
