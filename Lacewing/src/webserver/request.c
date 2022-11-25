@@ -465,7 +465,8 @@ void lwp_ws_req_respond (lw_ws_req ctx)
 {
 	assert (!ctx->responded);
 
-	/* Respond may delete us w/ SPDY blah blah */
+	/* James note: Respond may delete us w/ SPDY blah blah
+	   Phi note: SPDY was deprecated in favour of HTTP/2 in 2021, and so removed from liblacewing */
 
 	ctx->client->respond (ctx->client, ctx);
 }

@@ -140,10 +140,10 @@
       <Filter>Source Files\Lacewing\src\cxx</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\utf8proc.c">
-      <Filter>Source Files\Lacewing\src\deps</Filter>
+      <Filter>Source Files\Lacewing\deps</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\utf8proc_data.c">
-      <Filter>Source Files\Lacewing\src\deps</Filter>
+      <Filter>Source Files\Lacewing\deps</Filter>
     </ClCompile>
     <ClCompile Include="POSIXMain.cpp">
       <Filter>Source Files</Filter>
@@ -155,7 +155,7 @@
       <Filter>Source Files\Lacewing\src\cxx</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\http-parser\http_parser.c">
-      <Filter>Source Files\Lacewing\src\deps\http-parser</Filter>
+      <Filter>Source Files\Lacewing\deps\http-parser</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\src\webserver\mimetypes.c">
       <Filter>Source Files\Lacewing\src\webserver</Filter>
@@ -185,7 +185,7 @@
       <Filter>Source Files\Lacewing\src\openssl</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\multipart-parser\multipart_parser.c">
-      <Filter>Source Files\Lacewing\src\deps\multipart-parser</Filter>
+      <Filter>Source Files\Lacewing\deps\multipart-parser</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -197,9 +197,6 @@
     </Filter>
     <Filter Include="Header Files\Lacewing\src">
       <UniqueIdentifier>{71ba31b0-12b9-4dda-855a-030f833b61c3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps">
-      <UniqueIdentifier>{4edbc167-289d-4e66-b4a6-2acee0ac278e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files">
       <UniqueIdentifier>{436bf31e-0942-4a19-9f32-42a54942d912}</UniqueIdentifier>
@@ -219,20 +216,11 @@
     <Filter Include="Source Files\Lacewing\src\cxx">
       <UniqueIdentifier>{197c916d-40d7-482f-8ee9-79242d8b7a89}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps">
-      <UniqueIdentifier>{f00c82ab-3cbc-44d5-b81a-bcb32aa4ec1d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Lacewing\src\unix">
       <UniqueIdentifier>{fe34474d-8482-4b5b-995e-3b2725129576}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\Lacewing\src\unix\eventqueue">
       <UniqueIdentifier>{385abb9a-7b1f-4d40-b648-aeb462ca7633}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\uthash">
-      <UniqueIdentifier>{c6baa449-9ca3-4e95-a526-0a38f47c6951}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps\http-parser">
-      <UniqueIdentifier>{a0a66168-1065-4d7a-9c99-17f7b06e2b03}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Lacewing\src\webserver">
       <UniqueIdentifier>{e03d87d4-a439-4d31-800a-576fc3cbfcf9}</UniqueIdentifier>
@@ -243,14 +231,35 @@
     <Filter Include="Source Files\Lacewing\src\openssl">
       <UniqueIdentifier>{e0881888-e09f-4389-9ca8-dd18345e848a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\http-parser">
+    <Filter Include="Header Files\Lacewing\src\webserver">
+      <UniqueIdentifier>{419ac600-69d5-43d2-a36c-ec23fc4684c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\webserver\http">
+      <UniqueIdentifier>{c9e8dda6-9c53-47b4-b29b-21a01511e53f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\openssl">
+      <UniqueIdentifier>{396081b6-6f7b-462a-a084-51b99197bf97}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\deps">
+      <UniqueIdentifier>{4edbc167-289d-4e66-b4a6-2acee0ac278e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\deps\uthash">
+      <UniqueIdentifier>{c6baa449-9ca3-4e95-a526-0a38f47c6951}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\deps\http-parser">
       <UniqueIdentifier>{107b684f-2520-4c07-9ad2-0f5837aff6c7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps\multipart-parser">
-      <UniqueIdentifier>{6c79b88f-dd69-4e57-82ac-f3a354d0d745}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\multipart-parser">
+    <Filter Include="Header Files\Lacewing\deps\multipart-parser">
       <UniqueIdentifier>{7f366758-551a-4145-b96b-7bee82b83d42}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps">
+      <UniqueIdentifier>{f00c82ab-3cbc-44d5-b81a-bcb32aa4ec1d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps\http-parser">
+      <UniqueIdentifier>{a0a66168-1065-4d7a-9c99-17f7b06e2b03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps\multipart-parser">
+      <UniqueIdentifier>{6c79b88f-dd69-4e57-82ac-f3a354d0d745}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -276,7 +285,7 @@
       <Filter>Header Files\Lacewing</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\utf8proc.h">
-      <Filter>Header Files\Lacewing\src\deps</Filter>
+      <Filter>Header Files\Lacewing\deps</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\src\address.h">
       <Filter>Header Files\Lacewing\src</Filter>
@@ -330,34 +339,34 @@
       <Filter>Header Files\Lacewing\src\unix</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utarray.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\uthash.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utlist.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utstring.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\common.h">
-      <Filter>Source Files\Lacewing\src\webserver</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\multipart.h">
-      <Filter>Source Files\Lacewing\src\webserver</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\http\http.h">
-      <Filter>Source Files\Lacewing\src\webserver\http</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\openssl\sslclient.h">
-      <Filter>Source Files\Lacewing\src\openssl</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\http-parser\http_parser.h">
-      <Filter>Header Files\Lacewing\src\deps\http-parser</Filter>
+      <Filter>Header Files\Lacewing\deps\http-parser</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\multipart-parser\multipart_parser.h">
-      <Filter>Header Files\Lacewing\src\deps\multipart-parser</Filter>
+      <Filter>Header Files\Lacewing\deps\multipart-parser</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\common.h">
+      <Filter>Header Files\Lacewing\src\webserver</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\multipart.h">
+      <Filter>Header Files\Lacewing\src\webserver</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\http\http.h">
+      <Filter>Header Files\Lacewing\src\webserver\http</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\openssl\sslclient.h">
+      <Filter>Header Files\Lacewing\src\openssl</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

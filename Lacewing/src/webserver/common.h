@@ -189,8 +189,3 @@ struct _lwp_ws_client
 };
 
 #include "http/http.h"
-
-#ifdef ENABLE_SPDY
-	#include "spdy/spdy.h"
-#endif
-

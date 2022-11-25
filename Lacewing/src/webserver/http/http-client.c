@@ -266,7 +266,7 @@ void client_respond (lwp_ws_client client, lw_ws_req request)
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) client;
 
 	/* The request parameter is redundant here, because HTTP only ever has one
-	* request object per client (unlike SPDY).  Sanity check...
+	* request object per client (unlike now-deprecated SPDY).  Sanity check...
 	*/
 
 	assert (request == ctx->request);

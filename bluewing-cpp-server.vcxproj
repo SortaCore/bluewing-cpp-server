@@ -275,7 +275,6 @@
     <ClInclude Include="Lacewing\src\webserver\common.h" />
     <ClInclude Include="Lacewing\src\webserver\http\http.h" />
     <ClInclude Include="Lacewing\src\webserver\multipart.h" />
-    <ClInclude Include="Lacewing\src\webserver\spdy\spdy.h" />
     <ClInclude Include="Lacewing\src\windows\common.h" />
     <ClInclude Include="Lacewing\src\windows\compat.h" />
     <ClInclude Include="Lacewing\src\windows\fdstream.h" />

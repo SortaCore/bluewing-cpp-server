@@ -15,30 +15,7 @@ static void on_connect (lw_server server, lw_server_client client_socket)
 	lw_ws ws = (lw_ws) lw_server_tag (server);
 	lw_bool secure = (server == ws->socket_secure);
 
-	lwp_ws_client client;
-
-	do
-	{
-	  #ifdef ENABLE_SPDY
-
-		 if (!strcasecmp (lw_server_client_npn (client_socket), "spdy/3"))
-		 {
-			client = lwp_ws_spdyclient_new (ws, client_socket, secure, 3);
-			break;
-		 }
-
-		 if (!strcasecmp (lw_server_client_npn (client_socket), "spdy/2"))
-		 {
-			client = lwp_ws_spdyclient_new (ws, client_socket, secure, 2);
-			break;
-		 }
-
-	  #endif
-
-	  client = lwp_ws_httpclient_new (ws, client_socket, secure);
-
-	} while (0);
-
+	lwp_ws_client client = lwp_ws_httpclient_new (ws, client_socket, secure);
 	if (!client)
 	{
 	  lw_stream_close ((lw_stream) client_socket, lw_true);
@@ -348,11 +325,6 @@ lw_ws lw_ws_new (lw_pump pump)
 	lw_server_on_connect (ctx->socket_secure, on_connect);
 	lw_server_on_disconnect (ctx->socket_secure, on_disconnect);
 	lw_server_on_error (ctx->socket_secure, on_error);
-
-	#ifdef ENABLE_SPDY
-	  lw_server_add_npn (ctx->socket_secure, "spdy/3");
-	  lw_server_add_npn (ctx->socket_secure, "spdy/2");
-	#endif
 
 	lw_server_add_npn (ctx->socket_secure, "http/1.1");
 	lw_server_add_npn (ctx->socket_secure, "http/1.0");

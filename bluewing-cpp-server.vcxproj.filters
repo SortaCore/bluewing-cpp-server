@@ -34,35 +34,38 @@
     <Filter Include="Header Files\Lacewing\src\windows">
       <UniqueIdentifier>{62f4f2e8-f164-4959-9417-881b87c8e319}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps">
-      <UniqueIdentifier>{5be8bdd4-8cf1-4b4a-936d-d9ba6557d559}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps">
-      <UniqueIdentifier>{366eb6b9-2279-444a-a847-24ba467d30f6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Lacewing\src\webserver">
       <UniqueIdentifier>{8ce457f5-3810-4092-aff7-754509f89bcd}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Lacewing\src\webserver\http">
       <UniqueIdentifier>{f0893cfd-3092-453e-a4b9-23128748ab8d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\webserver\spdy">
-      <UniqueIdentifier>{db630bd0-0a28-422f-8791-908a20f6f085}</UniqueIdentifier>
+    <Filter Include="Header Files\Lacewing\src\webserver">
+      <UniqueIdentifier>{429491fd-1984-428b-a99a-fb69596f579a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps\multipart-parser">
-      <UniqueIdentifier>{0cf7c6ce-ecdc-4749-94e6-d6eea5020f32}</UniqueIdentifier>
+    <Filter Include="Header Files\Lacewing\src\webserver\http">
+      <UniqueIdentifier>{57c8248a-ea42-4619-b576-2b1b7583a30d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Lacewing\src\deps\http-parser">
-      <UniqueIdentifier>{0645920b-bacc-45ab-b3c6-93ce994cb50d}</UniqueIdentifier>
+    <Filter Include="Header Files\Lacewing\deps">
+      <UniqueIdentifier>{366eb6b9-2279-444a-a847-24ba467d30f6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\multipart-parser">
+    <Filter Include="Header Files\Lacewing\deps\multipart-parser">
       <UniqueIdentifier>{4e8e6c9a-b35d-4bbb-8dbb-b3d752ea1324}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\http-parser">
+    <Filter Include="Header Files\Lacewing\deps\http-parser">
       <UniqueIdentifier>{480816f5-8497-4c00-afcf-1d2a2d97f577}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Lacewing\src\deps\uthash">
+    <Filter Include="Header Files\Lacewing\deps\uthash">
       <UniqueIdentifier>{029ba3b3-5119-4575-bdae-45eb1aeb25b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps">
+      <UniqueIdentifier>{5be8bdd4-8cf1-4b4a-936d-d9ba6557d559}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps\multipart-parser">
+      <UniqueIdentifier>{0cf7c6ce-ecdc-4749-94e6-d6eea5020f32}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lacewing\deps\http-parser">
+      <UniqueIdentifier>{0645920b-bacc-45ab-b3c6-93ce994cb50d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -220,10 +223,10 @@
       <Filter>Source Files\Lacewing</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\utf8proc.c">
-      <Filter>Source Files\Lacewing\src\deps</Filter>
+      <Filter>Source Files\Lacewing\deps</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\utf8proc_data.c">
-      <Filter>Source Files\Lacewing\src\deps</Filter>
+      <Filter>Source Files\Lacewing\deps</Filter>
     </ClCompile>
     <ClCompile Include="WindowsMain.cpp">
       <Filter>Source Files</Filter>
@@ -253,10 +256,10 @@
       <Filter>Source Files\Lacewing\src\webserver\http</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\multipart-parser\multipart_parser.c">
-      <Filter>Source Files\Lacewing\src\deps\multipart-parser</Filter>
+      <Filter>Source Files\Lacewing\deps\multipart-parser</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\deps\http-parser\http_parser.c">
-      <Filter>Source Files\Lacewing\src\deps\http-parser</Filter>
+      <Filter>Source Files\Lacewing\deps\http-parser</Filter>
     </ClCompile>
     <ClCompile Include="Lacewing\src\cxx\webserver2.cc">
       <Filter>Source Files\Lacewing\src\cxx</Filter>
@@ -332,38 +335,35 @@
     <ClInclude Include="Lacewing\FrameReader.h">
       <Filter>Header Files\Lacewing</Filter>
     </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\common.h">
-      <Filter>Source Files\Lacewing\src\webserver</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\multipart.h">
-      <Filter>Source Files\Lacewing\src\webserver</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\http\http.h">
-      <Filter>Source Files\Lacewing\src\webserver\http</Filter>
-    </ClInclude>
-    <ClInclude Include="Lacewing\src\webserver\spdy\spdy.h">
-      <Filter>Source Files\Lacewing\src\webserver\spdy</Filter>
-    </ClInclude>
     <ClInclude Include="Lacewing\deps\utf8proc.h">
-      <Filter>Header Files\Lacewing\src\deps</Filter>
+      <Filter>Header Files\Lacewing\deps</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\http-parser\http_parser.h">
-      <Filter>Header Files\Lacewing\src\deps\http-parser</Filter>
+      <Filter>Header Files\Lacewing\deps\http-parser</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\multipart-parser\multipart_parser.h">
-      <Filter>Header Files\Lacewing\src\deps\multipart-parser</Filter>
+      <Filter>Header Files\Lacewing\deps\multipart-parser</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utarray.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\uthash.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utlist.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
     </ClInclude>
     <ClInclude Include="Lacewing\deps\uthash\utstring.h">
-      <Filter>Header Files\Lacewing\src\deps\uthash</Filter>
+      <Filter>Header Files\Lacewing\deps\uthash</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\http\http.h">
+      <Filter>Header Files\Lacewing\src\webserver\http</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\common.h">
+      <Filter>Header Files\Lacewing\src\webserver</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\webserver\multipart.h">
+      <Filter>Header Files\Lacewing\src\webserver</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -171,8 +171,10 @@ void lw_server_delete (lw_server ctx)
 
 	lw_server_unhost (ctx);
 
+#ifdef ENABLE_SSL
 	if (ctx->ssl_context)
 		SSL_CTX_free(ctx->ssl_context);
+#endif
 
 	free (ctx);
 }
