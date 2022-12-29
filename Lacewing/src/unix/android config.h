@@ -1,5 +1,5 @@
 #define ENABLE_CXX
-#define ENABLE_SSL
+// #define ENABLE_SSL // define in project settings if using webserver https
 #define ENABLE_THREADS
 
 #define USE_EPOLL

@@ -37,7 +37,7 @@ static inline lw_bool _lwp_retain(struct lwp_refcount* refcount)
 	InterlockedIncrement(&refcount->refcount);
 #else
 	if (refcount->refcount == 0)
-		atomic_init(&refcount->refcount, 0);
+		atomic_init(&refcount->refcount, (unsigned short)0);
 	++ refcount->refcount;
 #endif
 

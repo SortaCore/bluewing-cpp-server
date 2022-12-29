@@ -487,10 +487,11 @@ typedef lw_i8 lw_bool;
 	lw_import				void  lw_server_host_filter		(lw_server, lw_filter);
 	lw_import				void  lw_server_unhost			(lw_server);
 	lw_import			 lw_bool  lw_server_hosting			(lw_server);
-	lw_import				long  lw_server_port			(lw_server);
-	lw_import			 lw_bool  lw_server_load_cert_file	(lw_server, const char * filename_certchain, const char* filename_privkey, const char * passphrase);
-	lw_import			 lw_bool  lw_server_load_sys_cert	(lw_server, const char * store_name, const char * common_name, const char * location);
+	lw_import				 int  lw_server_port			(lw_server);
+	lw_import			 lw_bool  lw_server_load_cert_file	(lw_server, const char * filename_certchain, const char * filename_privkey, const char * passphrase);
+	lw_import			 lw_bool  lw_server_load_sys_cert	(lw_server, const char * common_name, const char * location, const char * store_name);
 	lw_import			 lw_bool  lw_server_cert_loaded		(lw_server);
+	lw_import			  time_t  lw_server_cert_expiry_time(lw_server);
 	lw_import			 lw_bool  lw_server_can_npn			(lw_server);
 	lw_import				void  lw_server_add_npn			(lw_server, const char * protocol);
 	lw_import		const char *  lw_server_client_npn		(lw_server_client);
@@ -560,11 +561,12 @@ typedef lw_i8 lw_bool;
 	lw_import				void  lw_ws_unhost_secure			(lw_ws);
 	lw_import			 lw_bool  lw_ws_hosting					(lw_ws);
 	lw_import			 lw_bool  lw_ws_hosting_secure			(lw_ws);
-	lw_import				long  lw_ws_port					(lw_ws);
-	lw_import				long  lw_ws_port_secure				(lw_ws);
-	lw_import			 lw_bool  lw_ws_load_cert_file			(lw_ws, const char * filename_certchain, const char* filename_privkey, const char * passphrase);
-	lw_import			 lw_bool  lw_ws_load_sys_cert			(lw_ws, const char * store_name, const char * common_name, const char * location);
+	lw_import				 int  lw_ws_port					(lw_ws);
+	lw_import				 int  lw_ws_port_secure				(lw_ws);
+	lw_import			 lw_bool  lw_ws_load_cert_file			(lw_ws, const char * filename_certchain, const char * filename_privkey, const char * passphrase);
+	lw_import			 lw_bool  lw_ws_load_sys_cert			(lw_ws, const char * common_name, const char * location, const char * store_name);
 	lw_import			 lw_bool  lw_ws_cert_loaded				(lw_ws);
+	lw_import			  time_t  lw_ws_cert_expiry_time		(lw_ws);
 	lw_import				void  lw_ws_session_close			(lw_ws, const char * id);
 	lw_import				void  lw_ws_enable_manual_finish	(lw_ws);
 	lw_import				long  lw_ws_idle_timeout			(lw_ws);
@@ -726,7 +728,7 @@ std::string lw_u8str_simplify(const std::string_view first, bool destructive = t
 ///			  Both control and whitespace category will always be removed. </remarks>
 std::string_view lw_u8str_trim(std::string_view toTrim, bool abortOnTrimNeeded = false);
 
-#if defined(_WIN32) && defined(_UNICODE)
+#if defined(_WIN32)
 // For Unicode support on Windows.
 // Returns null or a wide-converted version of the U8 string passed. Free it with free(). Pass size -1 for null-terminated strings.
 extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str, int size);
@@ -1161,11 +1163,11 @@ struct _server
 	lw_import long port	();
 
 	lw_import bool load_cert_file
-		(const char * filename_certchain, const char* filename_privkey, const char * passphrase = "");
+		(const char * filename_certchain, const char * filename_privkey, const char * passphrase = "");
 
 	lw_import bool load_sys_cert
-		(const char * storename, const char * common_name,
-		 const char * location = "CurrentUser");
+		(const char * common_name, const char * location = "CurrentUser",
+			const char * store_name = "My");
 
 	lw_import bool cert_loaded ();
 
@@ -1271,17 +1273,18 @@ struct _webserver
 	lw_import bool hosting ();
 	lw_import bool hosting_secure ();
 
-	lw_import long port ();
-	lw_import long port_secure ();
+	lw_import int port ();
+	lw_import int port_secure ();
 
 	lw_import bool load_cert_file
 		(const char * filename_certchain, const char* filename_privkey, const char * passphrase = "");
 
 	lw_import bool load_sys_cert
-		(const char * store_name, const char * common_name,
-		 const char * location = "CurrentUser");
+		(const char* common_name, const char* location = "CurrentUser",
+			const char* store_name = "My");
 
 	lw_import bool cert_loaded ();
+	lw_import time_t cert_expiry_time ();
 
 	lw_import void enable_manual_finish ();
 
@@ -1921,7 +1924,7 @@ struct codepointsallowlist {
 struct relayserverinternal;
 struct relayserver
 {
-	static const int buildnum = 32;
+	static const int buildnum = 33;
 
 	void * internaltag, * tag = nullptr;
 
@@ -1938,6 +1941,8 @@ struct relayserver
 	void host_websocket(lw_ui16 portNonSecure = 80, lw_ui16 portSecure = 443);
 	void host_websocket(lacewing::filter& filterNonSecure, lacewing::filter& filterSecure);
 	void unhost();
+	// This works with clients of regular server, so you should use this instead of websocket->unhost/unhost_secure
+	void unhost_websocket(bool insecure, bool secure);
 
 	bool hosting();
 	lw_ui16 port();
@@ -2095,7 +2100,7 @@ struct relayserver
 		// Can't use socket->address, as when server_client is free'd it is no longer valid
 		// Since there's a logical use for looking up address during closing, we'll keep a copy.
 		std::string address;
-		in6_addr addressInt = {0};
+		in6_addr addressInt = {};
 		// Time the Relay connection was approved - zero timepoint if not yet approved
 		::std::chrono::high_resolution_clock::time_point connectRequestApprovedTime;
 		::std::chrono::steady_clock::time_point lasttcpmessagetime;

@@ -27,6 +27,11 @@ static void list_refs (char * buf, struct lwp_refcount * refcount)
 		strcat (buf, refcount->refs [i]);
 	}
 }
+
+#ifndef _WIN32
+#include <sched.h> // for sched_yield, will be removed
+#endif
+
 lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name)
 {
 	// this ref counter is in use; wait and retry
@@ -37,7 +42,12 @@ lw_bool _lwp_retain (struct lwp_refcount * refcount, const char * name)
 	if (refcount->refcount == 0)
 		atomic_init(&refcount->reflock, lw_false);
 	while (atomic_exchange(&refcount->reflock, lw_true))
-		pthread_yield();
+	{
+		// TODO: We should use a pthread mutex instead of telling kernel to reschedule.
+		// Scheduler may report this thread is still most worthy of its CPU slice, and so return control to this thread,
+		// while loop goes around again, and result is yielding is not much better than not even trying.
+		sched_yield();
+	}
 #endif
 
 	/* sanity check
@@ -84,7 +94,7 @@ lw_bool _lwp_release (struct lwp_refcount * refcount, const char * name)
 		Sleep(0);
 #else
 	while (atomic_exchange(&refcount->reflock, lw_true))
-		pthread_yield();
+		sched_yield();
 #endif
 
 	assert (refcount->refcount >= 1 && refcount->refcount < MAX_REFS);

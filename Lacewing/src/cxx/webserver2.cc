@@ -60,12 +60,12 @@ bool _webserver::hosting_secure ()
 	return lw_ws_hosting_secure ((lw_ws) this);
 }
 
-long _webserver::port ()
+int _webserver::port ()
 {
 	return lw_ws_port ((lw_ws) this);
 }
 
-long _webserver::port_secure ()
+int _webserver::port_secure ()
 {
 	return lw_ws_port_secure ((lw_ws) this);
 }
@@ -75,15 +75,20 @@ bool _webserver::load_cert_file (const char* filename_certchain, const char* fil
 	return lw_ws_load_cert_file ((lw_ws) this, filename_certchain, filename_privkey, passphrase);
 }
 
-bool _webserver::load_sys_cert (const char * store_name, const char * common_name,
-								const char * location)
+bool _webserver::load_sys_cert (const char * common_name, const char * location,
+								const char * store_name)
 {
-	return lw_ws_load_sys_cert ((lw_ws) this, store_name, common_name, location);
+	return lw_ws_load_sys_cert ((lw_ws) this, common_name, location, store_name);
 }
 
 bool _webserver::cert_loaded ()
 {
 	return lw_ws_cert_loaded ((lw_ws) this);
+}
+
+time_t _webserver::cert_expiry_time()
+{
+	return lw_ws_cert_expiry_time ((lw_ws) this);
 }
 
 void _webserver::enable_manual_finish ()

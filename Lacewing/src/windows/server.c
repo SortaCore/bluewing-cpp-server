@@ -43,7 +43,7 @@ struct _lw_server
 	lw_server_hook_error on_error;
 
 	lw_bool cert_loaded;
-	time_t cert_expiry_time;
+	time_t cert_expiry_time; // Expiry time in UTC
 	CredHandle ssl_creds;
 
 	lw_list (struct _accept_overlapped, pending_accepts);
@@ -378,16 +378,18 @@ size_t lw_server_num_clients (lw_server ctx)
 	return list_length (ctx->clients);
 }
 
-long lw_server_port (lw_server ctx)
+int lw_server_port (lw_server ctx)
 {
 	return lwp_socket_port (ctx->socket);
 }
 
 lw_bool lw_server_load_sys_cert (lw_server ctx,
-								 const char * store_name,
 								 const char * common_name,
-								 const char * location)
+								 const char * location,
+								 const char * store_name)
 {
+	// Allow already-hosting server - see lw_server_load_cert_file for why
+#if 0
 	if (lw_server_hosting (ctx) || lw_server_cert_loaded (ctx))
 	{
 	  lw_error error = lw_error_new ();
@@ -402,6 +404,7 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 
 	  return lw_false;
 	}
+#endif
 
 	if(!location || !*location)
 	  location = "CurrentUser";
@@ -410,7 +413,7 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 	  store_name = "MY";
 
 	int location_id = -1;
-	
+
 	do
 	{
 	  if(!strcasecmp (location, "CurrentService"))
@@ -546,7 +549,7 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 	creds.cCreds				 = 1;
 	creds.paCred				 = &context;
 	creds.grbitEnabledProtocols = SP_PROT_TLS1_X_SERVER;
-	
+
 	{
 		TimeStamp expiry_time;
 
@@ -576,7 +579,7 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 			lw_error_addf (error, "Error acquiring credentials handle");
 
 			if (ctx->on_error)
-			ctx->on_error (ctx, error);
+				ctx->on_error (ctx, error);
 
 			lw_error_delete (error);
 
@@ -587,11 +590,17 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 		// Expiry time is also available at context->pCertInfo.NotAfter
 		{
 			time_t tmt = expiry_time.QuadPart / 10000000ULL - 11644473600ULL;
-			double secondsUntilExpiry = difftime(tmt, time(NULL));
-			if (secondsUntilExpiry < 0)
+			struct tm* tm = localtime(&tmt);
+			char buff[50];
+			if (!tm || strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", tm) < 0)
+				always_log("time conversion failed, error %d", errno);
+			else
+				always_log("SSL certificate will expire at %s (local time).", buff);
+
+			if (difftime(tmt, time(NULL)) < 0)
 			{
 				lw_error error = lw_error_new();
-				lw_error_addf(error, "SSL certificate expired %.f seconds ago", secondsUntilExpiry);
+				lw_error_addf(error, "SSL certificate expired already, at %s (local time)", buff);
 
 				if (ctx->on_error)
 					ctx->on_error(ctx, error);
@@ -601,12 +610,6 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 				return lw_false;
 			}
 
-			struct tm* tm = localtime(&tmt);
-			char buff[50];
-			if (!tm || strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", tm) < 0)
-				always_log("time conversion failed, error %d", errno);
-			else
-				always_log("SSL certificate will expire at %s.", buff);
 			ctx->cert_expiry_time = tmt;
 		}
 	}
@@ -616,14 +619,14 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 	return lw_true;
 }
 struct buffer { BYTE* data; DWORD size; };
-static lw_error read_cert_file(struct buffer* res, const char* filenameUTF8, const TCHAR* filenameTCHAR, lw_bool textual) {
+static lw_error read_cert_file(CRYPT_DATA_BLOB * res, const char* filenameUTF8, const WCHAR* filenameWCHAR, lw_bool textual) {
 	lw_error ret = NULL;
 	LARGE_INTEGER fileSize;
 	DWORD amountRead;
 	HANDLE fil;
 	do {
-		res->data = NULL;
-		fil = CreateFile(filenameTCHAR, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+		res->pbData = NULL;
+		fil = CreateFileW(filenameWCHAR, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 		if (fil == INVALID_HANDLE_VALUE)
 		{
 			ret = lw_error_new();
@@ -646,27 +649,28 @@ static lw_error read_cert_file(struct buffer* res, const char* filenameUTF8, con
 			break;
 		}
 
-		res->data = (BYTE*)malloc(fileSize.LowPart);
-		res->size = fileSize.LowPart;
-		if (res->data == NULL)
+		res->pbData = (BYTE*)malloc(fileSize.LowPart);
+		res->cbData = fileSize.LowPart;
+		if (res->pbData == NULL)
 		{
 			ret = lw_error_new();
-			lw_error_addf(ret, "Couldn't allocate %u bytes", res->size);
+			lw_error_addf(ret, "Couldn't allocate %u bytes", res->cbData);
 			break;
 		}
-		if (!ReadFile(fil, res->data, res->size, &amountRead, NULL) || amountRead != res->size)
+		if (!ReadFile(fil, res->pbData, res->cbData, &amountRead, NULL) || amountRead != res->cbData)
 		{
 			ret = lw_error_new();
-			lw_error_addf(ret, "Couldn't read %u bytes", res->size);
+			lw_error_add(ret, GetLastError());
+			lw_error_addf(ret, "Couldn't read %u bytes", res->cbData);
 			break;
 		}
-		
+
 		// PEM file to DER
 		if (textual == lw_false)
 			break;
 
 		DWORD expDERSize;
-		if (!CryptStringToBinaryA(res->data, res->size, CRYPT_STRING_BASE64HEADER,
+		if (!CryptStringToBinaryA(res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
 			NULL, &expDERSize, NULL, NULL))
 		{
 			ret = lw_error_new();
@@ -682,7 +686,7 @@ static lw_error read_cert_file(struct buffer* res, const char* filenameUTF8, con
 			break;
 		}
 
-		if (!CryptStringToBinaryA(res->data, res->size, CRYPT_STRING_BASE64HEADER,
+		if (!CryptStringToBinaryA(res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
 			DERdata, &expDERSize, NULL, NULL))
 		{
 			ret = lw_error_new();
@@ -690,17 +694,17 @@ static lw_error read_cert_file(struct buffer* res, const char* filenameUTF8, con
 			lw_error_addf(ret, "CryptStringToBinary failed");
 		}
 
-		free(res->data);
-		res->data = DERdata;
-		res->size = expDERSize;
+		free(res->pbData);
+		res->pbData = DERdata;
+		res->cbData = expDERSize;
 	} while (lw_false);
 
 	if (fil != INVALID_HANDLE_VALUE)
 		CloseHandle(fil);
-	if (ret && res->data)
+	if (ret && res->pbData)
 	{
-		free(res->data);
-		res->data = NULL;
+		free(res->pbData);
+		res->pbData = NULL;
 	}
 	return ret;
 }
@@ -711,7 +715,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 								  const char * filename_privkey,
 								  const char * passphrase)
 {
-	if (filename_cert_chain == filename_privkey || !strcmp(filename_cert_chain, filename_privkey))
+	if (filename_cert_chain == filename_privkey ||
+		filename_privkey && (filename_privkey[0] == '\0' || !strcmp(filename_cert_chain, filename_privkey)))
 		filename_privkey = NULL;
 	if (passphrase && passphrase[0] == '\0')
 		passphrase = NULL;
@@ -724,20 +729,17 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 	PCCERT_CONTEXT cert_context = NULL;
 	LPCSTR provider = CERT_STORE_PROV_FILENAME;
-#ifdef _UNICODE
-	wchar_t* filename_cert_chain_tchar = lw_char_to_wchar(filename_cert_chain, -1);
-	wchar_t* filename_privkey_tchar = filename_privkey ? lw_char_to_wchar(filename_privkey, -1) : NULL;
 
-	if (filename_cert_chain_tchar == NULL || !lw_file_exists (filename_cert_chain) || (filename_privkey && !lw_file_exists (filename_privkey)))
-#else
-	char * filename_cert_chain_tchar = filename_cert_chain;
-	char * filename_privkey_tchar = filename_privkey;
-	if (!lw_file_exists (filename_cert_chain) || (filename_privkey && !lw_file_exists(filename_privkey)))
-#endif
+	// CertSetCertificateContextProperty() is Unicode only, so no point with TCHAR here
+	wchar_t* filename_cert_chain_wchar = lw_char_to_wchar(filename_cert_chain, -1);
+	wchar_t* filename_privkey_wchar = filename_privkey ? lw_char_to_wchar(filename_privkey, -1) : NULL;
+
+	if (filename_cert_chain_wchar == NULL || !lw_file_exists (filename_cert_chain) ||
+		(filename_privkey && (filename_privkey_wchar == NULL || !lw_file_exists (filename_privkey))))
 	{
 	  lw_error error = lw_error_new ();
 
-	  lw_error_addf (error, "File not found: %s", filename_cert_chain);
+	  lw_error_addf (error, "File not found: %s", !lw_file_exists(filename_cert_chain) ? filename_cert_chain : filename_privkey);
 	  lw_error_addf (error, "Error loading certificate");
 
 	  if (ctx->on_error)
@@ -745,6 +747,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 	  lw_error_delete (error);
 
+	  free(filename_cert_chain_wchar);
+	  free(filename_privkey_wchar);
 	  return lw_false;
 	}
 
@@ -790,15 +794,15 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 	{
 		encodeType = pem_two_files;
 		lw_error error = NULL;
+		CRYPT_DATA_BLOB cert_chain = { 0 }, priv_key = { 0 };
 		do {
-			struct buffer cert_chain, priv_key;
-			error = read_cert_file(&cert_chain, filename_cert_chain, filename_cert_chain_tchar, lw_true);
+			error = read_cert_file(&cert_chain, filename_cert_chain, filename_cert_chain_wchar, lw_true);
 			if (error)
 			{
 				lw_error_addf(error, "Error loading certificate chain file as PEM");
 				break;
 			}
-			error = read_cert_file(&priv_key, filename_privkey, filename_privkey_tchar, lw_true);
+			error = read_cert_file(&priv_key, filename_privkey, filename_privkey_wchar, lw_true);
 			if (error)
 			{
 				lw_error_addf(error, "Error loading private key file");
@@ -809,14 +813,14 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 			char* privKeyBlob;
 			HCRYPTPROV cryptProvHandle = 0;
 			HCRYPTKEY keyHandle;
-			TCHAR privateKeyName[128] = _T("SSL liblacewing ");
-			TCHAR* slash = _tcsrchr(filename_privkey_tchar, _T('\\')), * slash2 = _tcsrchr(filename_privkey_tchar, _T('/'));
+			WCHAR privateKeyName[128] = L"SSL/TLS liblacewing ";
+			WCHAR* slash = wcsrchr(filename_privkey_wchar, L'\\'), * slash2 = wcsrchr(filename_privkey_wchar, L'/');
 			slash = slash > slash2 ? slash : slash2;
-			_tcscat(privateKeyName, slash + 1);
+			wcscat(privateKeyName, slash + 1);
 
 			// Get size then decode
 			if (!CryptDecodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_RSA_PRIVATE_KEY,
-				priv_key.data, priv_key.size, 0, NULL, NULL, &privKeyBlobLen))
+				priv_key.pbData, priv_key.cbData, 0, NULL, NULL, &privKeyBlobLen))
 			{
 				error = lw_error_new();
 				lw_error_add(error, GetLastError());
@@ -825,7 +829,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 			}
 			privKeyBlob = (char *)malloc(privKeyBlobLen);
 			if (!CryptDecodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_RSA_PRIVATE_KEY,
-				priv_key.data, priv_key.size, 0, NULL, privKeyBlob, &privKeyBlobLen))
+				priv_key.pbData, priv_key.cbData, 0, NULL, privKeyBlob, &privKeyBlobLen))
 			{
 				error = lw_error_new();
 				lw_error_add(error, GetLastError());
@@ -834,12 +838,12 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 			}
 
 			// Open the key container
-			if (!CryptAcquireContext(&cryptProvHandle, privateKeyName, MS_DEF_RSA_SCHANNEL_PROV, PROV_RSA_SCHANNEL, 0))
+			if (!CryptAcquireContextW(&cryptProvHandle, privateKeyName, MS_DEF_RSA_SCHANNEL_PROV_W, PROV_RSA_SCHANNEL, 0))
 			{
 				if (GetLastError() == NTE_BAD_KEYSET)
 				{
 					// No key container accessible, let's make one
-					if (!CryptAcquireContext(&cryptProvHandle, privateKeyName, MS_DEF_RSA_SCHANNEL_PROV, PROV_RSA_SCHANNEL, CRYPT_NEWKEYSET))
+					if (!CryptAcquireContextW(&cryptProvHandle, privateKeyName, MS_DEF_RSA_SCHANNEL_PROV_W, PROV_RSA_SCHANNEL, CRYPT_NEWKEYSET))
 					{
 						error = lw_error_new();
 						lw_error_add(error, GetLastError());
@@ -864,9 +868,9 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 				lw_error_addf(error, "CryptImportKey failed");
 				break;
 			}
-			
+
 			CryptDestroyKey(keyHandle);
-			
+
 			if (!CryptReleaseContext(cryptProvHandle, 0))
 			{
 				error = lw_error_new();
@@ -878,7 +882,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 			/*
 			 * Acquire context
 			 */
-			cert_context = CertCreateCertificateContext(X509_ASN_ENCODING, cert_chain.data, cert_chain.size);
+			cert_context = CertCreateCertificateContext(X509_ASN_ENCODING, cert_chain.pbData, cert_chain.cbData);
 			if (!cert_context)
 			{
 				error = lw_error_new();
@@ -890,7 +894,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 			// Tell the Crypto API how to find the private key
 			CRYPT_KEY_PROV_INFO keyProvInfo = { 0 };
 			keyProvInfo.pwszContainerName = privateKeyName;
-			keyProvInfo.pwszProvName = MS_DEF_RSA_SCHANNEL_PROV;
+			keyProvInfo.pwszProvName = MS_DEF_RSA_SCHANNEL_PROV_W;
 			keyProvInfo.dwProvType = PROV_RSA_SCHANNEL;
 			keyProvInfo.dwKeySpec = AT_KEYEXCHANGE;
 			if (!CertSetCertificateContextProperty(cert_context, CERT_KEY_PROV_INFO_PROP_ID, 0, &keyProvInfo))
@@ -908,6 +912,10 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 			lw_error_delete(error);
 
+			free(filename_cert_chain_wchar);
+			free(filename_privkey_wchar);
+			free(cert_chain.pbData);
+			free(priv_key.pbData);
 			return lw_false;
 		}
 	}
@@ -916,7 +924,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 		// Convert fullchain/privkey to pfx:
 		// openssl pkcs12 -export -in "..fullchain.pem" -inkey "..privkey.pem" -out "..sslcert.pfx"
-		// 
+		//
 		// TODO: Password protection handling.
 		// TODO: Load cert and private key separately (OpenSSL style), or both as PFX.
 		// Might be PEM and CER files needed.
@@ -927,7 +935,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 				X509_ASN_ENCODING,
 				0,
 				CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG,
-				filename_cert_chain_tchar
+				filename_cert_chain_wchar
 			);
 
 		encodeType = x509;
@@ -939,15 +947,14 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 				PKCS_7_ASN_ENCODING,
 				0,
 				CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG,
-				filename_cert_chain_tchar
+				filename_cert_chain_wchar
 			);
 			encodeType = pkcs7;
 
 			if (!cert_store)
 			{
-				struct buffer pfx;
-				lw_error error = read_cert_file(&pfx, filename_cert_chain, filename_cert_chain_tchar, lw_false);
-				CRYPT_DATA_BLOB blob = { .pbData = pfx.data, .cbData = pfx.size };
+				CRYPT_DATA_BLOB pfx;
+				lw_error error = read_cert_file(&pfx, filename_cert_chain, filename_cert_chain_wchar, lw_false);
 				if (error)
 				{
 					lw_error_addf(error, "Error loading cert chain file \"%s\", tried x509, pkcs#7, pkcs#12", filename_cert_chain);
@@ -962,7 +969,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 				// PFXImportCertStore is Unicode only
 				wchar_t * passphrase_wchar = passphrase ? lw_char_to_wchar(passphrase, -1) : NULL;
-				cert_store = PFXImportCertStore(&blob, passphrase_wchar, 0);
+				cert_store = PFXImportCertStore(&pfx, passphrase_wchar, 0);
 				if (passphrase_wchar)
 				{
 					SecureZeroMemory(passphrase_wchar, _msize(passphrase_wchar));
@@ -982,6 +989,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 					lw_error_delete(error);
 
+					free(filename_cert_chain_wchar);
+					free(filename_privkey_wchar);
 					return lw_false;
 				}
 
@@ -1014,6 +1023,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 				lw_error_delete(error);
 
+				free(filename_cert_chain_wchar);
+				free(filename_privkey_wchar);
 				return lw_false;
 			}
 		}
@@ -1046,43 +1057,56 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 		lw_error_delete (error);
 
+		free(filename_cert_chain_wchar);
+		free(filename_privkey_wchar);
 		return lw_false;
 	}
 
 	// Get expiry time, convert from SECURITY_INTEGER i.e. FILETIME to tm (FILETIME has epoch in 1600 AD)
+	// FILETIME is stored in UTC. https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-offcrypto/04433e0f-b53b-4d5d-990c-6d91a9232eb3
 	// Expiry time is also available at context->pCertInfo.NotAfter
 	{
 		time_t tmt = expiry_time.QuadPart / 10000000ULL - 11644473600ULL;
-		double secondsUntilExpiry = difftime(tmt, time(NULL));
-		if (secondsUntilExpiry < 0)
-		{
-			lw_error error = lw_error_new();
-			lw_error_addf(error, "SSL certificate expired %.f seconds ago", secondsUntilExpiry);
-
-			if (ctx->on_error)
-				ctx->on_error(ctx, error);
-
-			lw_error_delete(error);
-
-			return lw_false;
-		}
 
 		struct tm* tm = localtime(&tmt);
 		char buff[50];
 		if (!tm || strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", tm) < 0)
 			always_log("time conversion failed, error %d", errno);
 		else
-			always_log("SSL certificate will expire at %s.", buff);
+			always_log("SSL certificate will expire at %s (local time).", buff);
+
+		if (difftime(tmt, time(NULL)) < 0)
+		{
+			lw_error error = lw_error_new();
+			lw_error_addf(error, "SSL certificate expired already, at %s (local time)", buff);
+
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+
+			lw_error_delete(error);
+
+			free(filename_cert_chain_wchar);
+			free(filename_privkey_wchar);
+			return lw_false;
+		}
+
 		ctx->cert_expiry_time = tmt;
 	}
 	ctx->cert_loaded = lw_true;
 
+	free(filename_cert_chain_wchar);
+	free(filename_privkey_wchar);
 	return lw_true;
 }
 
 lw_bool lw_server_cert_loaded (lw_server ctx)
 {
 	return ctx->cert_loaded;
+}
+
+time_t lw_server_cert_expiry_time (lw_server ctx)
+{
+	return ctx->cert_expiry_time;
 }
 
 lw_bool lw_server_can_npn (lw_server ctx)

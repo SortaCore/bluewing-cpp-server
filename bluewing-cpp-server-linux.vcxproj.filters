@@ -261,6 +261,9 @@
     <Filter Include="Source Files\Lacewing\deps\multipart-parser">
       <UniqueIdentifier>{6c79b88f-dd69-4e57-82ac-f3a354d0d745}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Lacewing\openssl">
+      <UniqueIdentifier>{5bab8e35-e646-4d3c-bf97-96f0738888e5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConsoleColors.hpp">
@@ -367,6 +370,171 @@
     </ClInclude>
     <ClInclude Include="Lacewing\src\openssl\sslclient.h">
       <Filter>Header Files\Lacewing\src\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\asn1.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\asn1err.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\async.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\asyncerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\bio.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\bioerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\bn.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\bnerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\buffer.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\buffererr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\comp.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\comperr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\crypto.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\cryptoerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ct.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\cterr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\dh.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\dherr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\dsa.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\dsaerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\dtls1.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\e_os2.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ec.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ecerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\err.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\evp.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\evperr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\hmac.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\lhash.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\md5.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\obj_mac.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\objects.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\objectserr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\opensslconf.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\opensslv.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ossl_typ.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\pem.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\pemerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\pkcs7.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\pkcs7err.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\rsa.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\rsaerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\safestack.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\sha.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\srtp.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ssl.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ssl2.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\ssl3.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\sslerr.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\stack.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\symhacks.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\tls1.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\x509.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\x509_vfy.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\openssl\x509err.h">
+      <Filter>Header Files\Lacewing\openssl</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

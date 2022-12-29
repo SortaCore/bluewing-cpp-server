@@ -313,7 +313,7 @@ int main()
 		}
 		else if (!globalserver->websocket->load_cert_file(".\\fullchain.pem", ".\\privkey.pem", ""))
 		{
-			std::wcout << red << L"Found but couldn't load SSL certificate files \"fullchain.pem\" and \"privkey.pem\". Aborting server.\r\n"sv;
+			std::wcout << red << L"Found but couldn't load TLS certificate files \"fullchain.pem\" and \"privkey.pem\". Aborting server.\r\n"sv;
 			goto cleanup;
 		}
 	}

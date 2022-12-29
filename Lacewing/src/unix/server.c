@@ -44,6 +44,7 @@ struct _lw_server
 	#ifdef ENABLE_SSL
 		SSL_CTX * ssl_context;
 		char ssl_passphrase [128];
+		time_t cert_expiry_time; // expiry time in UTC
 
 		#ifdef _lacewing_npn
 			unsigned char npn [128];
@@ -242,7 +243,7 @@ static void listen_socket_read_ready (void * tag)
 			ctx->on_connect (ctx, client);
 
 		 if (lwp_release (client, "on_connect") ||
-				((lw_stream) ctx)->flags & lwp_stream_flag_dead)
+				((lw_stream)client)->flags & lwp_stream_flag_dead)
 		 {
 			 if (ctx->on_disconnect)
 				 ctx->on_disconnect(ctx, client);
@@ -336,6 +337,11 @@ void lw_server_unhost (lw_server ctx)
 
 	lw_pump_remove(ctx->pump, ctx->pump_watch);
 	ctx->pump_watch = NULL;
+
+	// Not having this leaves lw_server_client connections open but server is closed
+	list_each(lw_server_client, ctx->clients, e) {
+		lw_stream_close(&e->fdstream.stream, lw_true);
+	}
 }
 
 lw_bool lw_server_hosting (lw_server ctx)
@@ -348,7 +354,7 @@ size_t lw_server_num_clients (lw_server ctx)
 	return list_length (ctx->clients);
 }
 
-long lw_server_port (lw_server ctx)
+int lw_server_port (lw_server ctx)
 {
 	return lwp_socket_port (ctx->socket);
 }
@@ -359,6 +365,15 @@ lw_bool lw_server_cert_loaded (lw_server ctx)
 	  return ctx->ssl_context != 0;
 	#else
 	  return lw_false;
+	#endif
+}
+
+time_t lw_server_cert_expiry_time (lw_server ctx)
+{
+	#ifdef ENABLE_SSL
+	  return ctx->cert_expiry_time;
+	#else
+	  return 0;
 	#endif
 }
 
@@ -442,8 +457,11 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 
 	if (SSL_CTX_use_certificate_chain_file (ctx->ssl_context, filename_cert_chain) != 1)
 	{
-		always_log ("Failed to load certificate chain file: %s",
-						ERR_error_string (ERR_get_error(), 0));
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "Failed to load certificate chain file: %s", ERR_error_string(ERR_get_error(), 0));
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		lw_error_delete(error);
 
 		SSL_CTX_free (ctx->ssl_context);
 		ctx->ssl_context = 0;
@@ -453,8 +471,11 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 	if (SSL_CTX_use_PrivateKey_file (ctx->ssl_context, filename_privkey,
 									 SSL_FILETYPE_PEM) != 1)
 	{
-		always_log ("Failed to load private key file: %s",
-						ERR_error_string (ERR_get_error(), 0));
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "Failed to load private key file: %s", ERR_error_string(ERR_get_error(), 0));
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		lw_error_delete(error);
 
 		SSL_CTX_free (ctx->ssl_context);
 		ctx->ssl_context = 0;
@@ -463,8 +484,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 
 	X509* x509 = SSL_CTX_get0_certificate(ctx->ssl_context);
 	const ASN1_TIME* notAfter = X509_getm_notAfter(x509);
-	struct tm tm1;
-	if (ASN1_TIME_to_tm(notAfter, &tm1))
+	struct tm tm;
+	if (ASN1_TIME_to_tm(notAfter, &tm))
 	{
 		int day, sec;
 		// time must be valid
@@ -472,28 +493,37 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 			assert(lw_false);
 			abort();
 		}
+
+		char buff[50];
+		// Unix, iOS: int return; Android: size_t return
+		if (strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", &tm) <= 0)
+			always_log("time conversion failed, error %d", errno);
+		else
+			always_log("SSL certificate will expire at %s (local time).", buff);
+
 		if (day > 0 || sec > 0)
-		{
-			struct tm tm;
-			char buff[50];
-			if (!ASN1_TIME_to_tm(notAfter, &tm))
-				always_log("asn1 time conversion failed");
-			else if (strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", &tm) < 0)
-				always_log("time conversion failed, error %d", errno);
-			else
-				always_log("SSL certificate will expire at %s.", buff);
-		}
+			ctx->cert_expiry_time = timegm(&tm);
 		else
 		{
-			always_log("SSL certificate has already expired.");
 			SSL_CTX_free(ctx->ssl_context);
 			ctx->ssl_context = 0;
+
+			lw_error error = lw_error_new ();
+			lw_error_addf(error, "SSL certificate has already expired, at %s (local time)", buff);
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+			lw_error_delete(error);
 			return lw_false;
 		}
 	}
 	else
 	{
-		always_log("Failed to read certificate expiration time.");
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "Failed to read certificate expiration time.");
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		lw_error_delete(error);
+
 		SSL_CTX_free(ctx->ssl_context);
 		ctx->ssl_context = 0;
 		return lw_false;
@@ -505,9 +535,9 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 }
 
 lw_bool lw_server_load_sys_cert (lw_server ctx,
-								 const char * store_name,
 								 const char * common_name,
-								 const char * location)
+								 const char * location,
+								 const char * store_name)
 {
 	lw_error error = lw_error_new ();
 	lw_error_addf (error, "System certificates are only supported on Windows");

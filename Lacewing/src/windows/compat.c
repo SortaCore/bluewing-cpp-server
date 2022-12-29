@@ -68,7 +68,7 @@ fn_GetFileSizeEx compat_GetFileSizeEx ()
 	return fn ? fn : (fn = (fn_GetFileSizeEx) KERNEL32 ("GetFileSizeEx"));
 }
 
-#if defined(_WIN32) && defined(_UNICODE)
+#if defined(_WIN32)
 
 // Returns null or a wide-converted version of the U8 string passed. Free it with free(). Pass size -1 for null-terminated strings.
 lw_import wchar_t * lw_char_to_wchar(const char * u8str, int size)

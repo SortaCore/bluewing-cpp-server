@@ -65,14 +65,14 @@ static void def_cleanup (lw_pump pump)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
-	lwp_eventqueue_delete (ctx->queue);
-	ctx->queue = (lwp_eventqueue)~0;
-
 	if (ctx->signalpipe_read != -1)
 	{
 		close(ctx->signalpipe_read);
 		close(ctx->signalpipe_write);
 	}
+
+	lwp_eventqueue_update(ctx->queue, ctx->signalpipe_read,
+		lw_true, lw_false, lw_false, lw_false, lw_true, lw_false, NULL, NULL);
 
 	#ifdef ENABLE_THREADS
 		if (lw_thread_started (ctx->watcher.thread))
@@ -85,6 +85,9 @@ static void def_cleanup (lw_pump pump)
 
 		lw_event_delete (ctx->watcher.resume_event);
 	#endif
+
+	lwp_eventqueue_delete(ctx->queue);
+	ctx->queue = (lwp_eventqueue)~0;
 }
 
 lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)

@@ -88,6 +88,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -95,6 +96,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -102,6 +104,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -109,6 +112,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -116,6 +120,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -123,6 +128,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -130,6 +136,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -137,6 +144,7 @@
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
@@ -217,6 +225,61 @@
     <ClInclude Include="Lacewing\Lacewing.h" />
     <ClInclude Include="Lacewing\MessageBuilder.h" />
     <ClInclude Include="Lacewing\MessageReader.h" />
+    <ClInclude Include="Lacewing\openssl\asn1.h" />
+    <ClInclude Include="Lacewing\openssl\asn1err.h" />
+    <ClInclude Include="Lacewing\openssl\async.h" />
+    <ClInclude Include="Lacewing\openssl\asyncerr.h" />
+    <ClInclude Include="Lacewing\openssl\bio.h" />
+    <ClInclude Include="Lacewing\openssl\bioerr.h" />
+    <ClInclude Include="Lacewing\openssl\bn.h" />
+    <ClInclude Include="Lacewing\openssl\bnerr.h" />
+    <ClInclude Include="Lacewing\openssl\buffer.h" />
+    <ClInclude Include="Lacewing\openssl\buffererr.h" />
+    <ClInclude Include="Lacewing\openssl\comp.h" />
+    <ClInclude Include="Lacewing\openssl\comperr.h" />
+    <ClInclude Include="Lacewing\openssl\crypto.h" />
+    <ClInclude Include="Lacewing\openssl\cryptoerr.h" />
+    <ClInclude Include="Lacewing\openssl\ct.h" />
+    <ClInclude Include="Lacewing\openssl\cterr.h" />
+    <ClInclude Include="Lacewing\openssl\dh.h" />
+    <ClInclude Include="Lacewing\openssl\dherr.h" />
+    <ClInclude Include="Lacewing\openssl\dsa.h" />
+    <ClInclude Include="Lacewing\openssl\dsaerr.h" />
+    <ClInclude Include="Lacewing\openssl\dtls1.h" />
+    <ClInclude Include="Lacewing\openssl\ec.h" />
+    <ClInclude Include="Lacewing\openssl\ecerr.h" />
+    <ClInclude Include="Lacewing\openssl\err.h" />
+    <ClInclude Include="Lacewing\openssl\evp.h" />
+    <ClInclude Include="Lacewing\openssl\evperr.h" />
+    <ClInclude Include="Lacewing\openssl\e_os2.h" />
+    <ClInclude Include="Lacewing\openssl\hmac.h" />
+    <ClInclude Include="Lacewing\openssl\lhash.h" />
+    <ClInclude Include="Lacewing\openssl\md5.h" />
+    <ClInclude Include="Lacewing\openssl\objects.h" />
+    <ClInclude Include="Lacewing\openssl\objectserr.h" />
+    <ClInclude Include="Lacewing\openssl\obj_mac.h" />
+    <ClInclude Include="Lacewing\openssl\opensslconf.h" />
+    <ClInclude Include="Lacewing\openssl\opensslv.h" />
+    <ClInclude Include="Lacewing\openssl\ossl_typ.h" />
+    <ClInclude Include="Lacewing\openssl\pem.h" />
+    <ClInclude Include="Lacewing\openssl\pemerr.h" />
+    <ClInclude Include="Lacewing\openssl\pkcs7.h" />
+    <ClInclude Include="Lacewing\openssl\pkcs7err.h" />
+    <ClInclude Include="Lacewing\openssl\rsa.h" />
+    <ClInclude Include="Lacewing\openssl\rsaerr.h" />
+    <ClInclude Include="Lacewing\openssl\safestack.h" />
+    <ClInclude Include="Lacewing\openssl\sha.h" />
+    <ClInclude Include="Lacewing\openssl\srtp.h" />
+    <ClInclude Include="Lacewing\openssl\ssl.h" />
+    <ClInclude Include="Lacewing\openssl\ssl2.h" />
+    <ClInclude Include="Lacewing\openssl\ssl3.h" />
+    <ClInclude Include="Lacewing\openssl\sslerr.h" />
+    <ClInclude Include="Lacewing\openssl\stack.h" />
+    <ClInclude Include="Lacewing\openssl\symhacks.h" />
+    <ClInclude Include="Lacewing\openssl\tls1.h" />
+    <ClInclude Include="Lacewing\openssl\x509.h" />
+    <ClInclude Include="Lacewing\openssl\x509err.h" />
+    <ClInclude Include="Lacewing\openssl\x509_vfy.h" />
     <ClInclude Include="Lacewing\src\address.h" />
     <ClInclude Include="Lacewing\src\common.h" />
     <ClInclude Include="Lacewing\src\flashpolicy.h" />
@@ -241,7 +304,7 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -252,7 +315,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -263,7 +326,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -274,7 +337,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -285,7 +348,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -296,7 +359,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -307,7 +370,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;_DEBUG;_lacewing_debug;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;_lacewing_debug;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -318,7 +381,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>

@@ -50,11 +50,11 @@ bool _server::load_cert_file (const char * filename_certchain, const char* filen
 	return lw_server_load_cert_file ((lw_server) this, filename_certchain, filename_privkey, passphrase);
 }
 
-bool _server::load_sys_cert (const char * store_name, const char * common_name,
-							 const char * location)
+bool _server::load_sys_cert (const char * common_name, const char * location,
+							 const char * store_name)
 {
-	return lw_server_load_sys_cert ((lw_server) this, store_name,
-									common_name, location);
+	return lw_server_load_sys_cert ((lw_server) this, common_name,
+									location, store_name);
 }
 
 bool _server::cert_loaded ()

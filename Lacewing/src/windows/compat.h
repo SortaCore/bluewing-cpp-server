@@ -42,7 +42,7 @@ fn_mkgmtime64 compat_mkgmtime64 ();
 typedef BOOL (WINAPI * fn_GetFileSizeEx) (HANDLE, PLARGE_INTEGER);
 fn_GetFileSizeEx compat_GetFileSizeEx ();
 
-#if defined(_WIN32) && defined(_UNICODE)
+#if defined(_WIN32)
 #if __cplusplus
 extern "C"
 #endif

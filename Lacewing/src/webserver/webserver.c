@@ -409,12 +409,12 @@ lw_bool lw_ws_hosting_secure (lw_ws ctx)
 	return lw_server_hosting (ctx->socket_secure);
 }
 
-long lw_ws_port (lw_ws ctx)
+int lw_ws_port (lw_ws ctx)
 {
 	return lw_server_port (ctx->socket);
 }
 
-long lw_ws_port_secure (lw_ws ctx)
+int lw_ws_port_secure (lw_ws ctx)
 {
 	return lw_server_port (ctx->socket_secure);
 }
@@ -425,17 +425,22 @@ lw_bool lw_ws_load_cert_file (lw_ws ctx, const char * filename_certchain, const 
 	return lw_server_load_cert_file (ctx->socket_secure, filename_certchain, filename_privkey, passphrase);
 }
 
-lw_bool lw_ws_load_sys_cert (lw_ws ctx, const char * store_name,
-										const char * common_name,
-										const char * location)
+lw_bool lw_ws_load_sys_cert (lw_ws ctx, const char * common_name,
+										const char * location,
+										const char * store_name)
 {
-	return lw_server_load_sys_cert (ctx->socket_secure, store_name,
-									common_name, location);
+	return lw_server_load_sys_cert (ctx->socket_secure,
+									common_name, location, store_name);
 }
 
 lw_bool lw_ws_cert_loaded (lw_ws ctx)
 {
 	return lw_server_cert_loaded (ctx->socket_secure);
+}
+
+time_t lw_ws_cert_expiry_time (lw_ws ctx)
+{
+	return lw_server_cert_expiry_time (ctx->socket_secure);
 }
 
 void lw_ws_enable_manual_finish (lw_ws ctx)

@@ -269,13 +269,13 @@ struct relayserverinternal
 			if (std::find(clients.begin(), clients.end(), client) != clients.end())
 			{
 				serverReadLock.lw_unlock();
-				//auto clientWriteLock = clientsocket->lock.createWriteLock();
+				auto clientWriteLock = client->lock.createWriteLock();
 				if (client->_readonly)
 					continue;
 				client->_readonly = true;
 
 				auto error = lacewing::error_new();
-				error->add("Disconnecting client ID %i due to ping timeout", client->_id);
+				error->add("Disconnecting client ID %hu due to ping timeout", client->_id);
 				handlererror(this->server, error);
 				lacewing::error_delete(error);
 
@@ -314,7 +314,8 @@ struct relayserverinternal
 			if (std::find(clients.begin(), clients.end(), client) != clients.end())
 			{
 				serverReadLock.lw_unlock();
-				//auto clientWriteLock = clientsocket->lock.createWriteLock();
+
+				auto clientWriteLock = client->lock.createWriteLock();
 				if (client->_readonly)
 					continue;
 
@@ -323,12 +324,14 @@ struct relayserverinternal
 					impl.erase(impl.cend());
 
 				auto error = lacewing::error_new();
-				error->add("Disconnecting client ID %i due to inactivity timeout; client impl \"%s\".", client->_id, impl.c_str());
+				error->add("Disconnecting client ID %hu due to inactivity timeout; client impl \"%s\".", client->_id, impl.c_str());
 				handlererror(this->server, error);
 				lacewing::error_delete(error);
 
+				// Don't send warning to a client that hasn't even sent Lacewing handshake after connecting
 				if (client->gotfirstbyte)
 					client->send(0, "You're being kicked for inactivity.", 0);
+
 				if (client->socket->is_websocket())
 					client->disconnect(1000);
 				else // Close nicely - if client has not got first byte, e.g. non-Lacewing, close immediately
@@ -1178,18 +1181,18 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 			char sha1[20];
 			lw_sha1(sha1, webSocketKey.data(), webSocketKey.size());
 			const std::string webSocketKeyResponse = b64encode(sha1, sizeof(sha1));
-
-			auto c = ((struct _lw_ws_req*)req)->client;
-			c->websocket = lw_true;
-			c->ws->timeout = 0; // disable timeout - next used when server inits a disconnect and is waiting for WebSocket close packet back
+			
+			lwp_ws_client reqClient = ((struct _lw_ws_req*)req)->client;
+			reqClient->websocket = lw_true;
+			reqClient->ws->timeout = 0; // disable timeout - next used when server inits a disconnect and is waiting for WebSocket close packet back
 
 			lw_server server;
-			if (c->secure)
-				server = ((lw_ws)webserver)->socket;
-			else
+			if (reqClient->secure)
 				server = ((lw_ws)webserver)->socket_secure;
-			lw_server_client_set_websocket(c->socket, lw_true);
-			internal.generic_handlerconnect((lacewing::server)server, (lacewing::server_client)c->socket);
+			else
+				server = ((lw_ws)webserver)->socket;
+			lw_server_client_set_websocket(reqClient->socket, lw_true);
+			internal.generic_handlerconnect((lacewing::server)server, (lacewing::server_client)reqClient->socket);
 
 			req->header("Upgrade", "WebSocket");
 			req->header("Connection", "Upgrade");
@@ -1268,9 +1271,9 @@ void handlerwebserverdisconnect(lacewing::webserver webserver, lacewing::webserv
 		return; // not websocket - just some dumb client, don't pass to relayserver
 	lw_server server;
 	if (client->secure)
-		server = ((lw_ws)webserver)->socket;
-	else
 		server = ((lw_ws)webserver)->socket_secure;
+	else
+		server = ((lw_ws)webserver)->socket;
 	internal.generic_handlerdisconnect((lacewing::server)server, (lacewing::server_client)client->socket);
 }
 
@@ -1394,6 +1397,9 @@ void relayserver::host_websocket(lw_ui16 portNonSecure, lw_ui16 portSecure)
 		websocket->host_secure(portSecure);
 		assert(websocket->hosting_secure());
 	}
+
+	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
+	serverInternal->pingtimer->start(serverInternal->tcpPingMS);
 }
 void relayserver::host_websocket(lacewing::filter& filterNonSecure, lacewing::filter& filterSecure)
 {
@@ -1410,44 +1416,99 @@ void relayserver::host_websocket(lacewing::filter& filterNonSecure, lacewing::fi
 		websocket->host_secure(filterSecure);
 		assert(websocket->hosting_secure());
 	}
+
+	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
+	serverInternal->pingtimer->start(serverInternal->tcpPingMS);
 }
 
 void relayserver::unhost()
 {
-	socket->unhost();
-	udp->unhost();
-	websocket->unhost();
-	websocket->unhost_secure();
+	// websocket and flash are unhosted explicitly only, as they're hosted explicitly
+	// flash only points to regular server, so it has no client list itself
 
 	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
-	serverInternal->pingtimer->stop();
+	const bool isWebSocketActive = websocket->hosting() || websocket->hosting_secure();
+	if (!isWebSocketActive)
+		serverInternal->pingtimer->stop();
 
 	// This will drop all clients, by doing so drop all channels
 	// and both of those will free the IDs
-	// We'll set them all as readonly so peer leave messages aren't sent as the clients leave their channels
-	for (auto &c : serverInternal->clients)
-		c->_readonly = true; // unhost() has already made clients inaccessible
+	// We'll set the leavers all as readonly before closing channels, so peer leave messages aren't sent to them
+	// as the clients leave their channels
+	for (auto& c : serverInternal->clients)
+	{
+		if (!c->socket->is_websocket())
+			c->_readonly = true; // unhost() has already made clients inaccessible
+	}
 
 	// Prevent the channel_close handler from being run
-	const auto handler = serverInternal->handlerchannel_close;
-	serverInternal->handlerchannel_close = nullptr;
+	// const auto handler = serverInternal->handlerchannel_close;
+	// serverInternal->handlerchannel_close = nullptr;
 
-	while (!serverInternal->clients.empty())
-	{
-		auto& c = serverInternal->clients.back();
-		serverInternal->close_client(c);
-	}
-
-	// any with autoclose on
-	while (!serverInternal->channels.empty())
-	{
-		auto& c = serverInternal->channels.back();
-		c->_readonly = true;
-		serverInternal->close_channel(c);
-	}
+	// disconnect handlers check server that ran them is still hosting
+	socket->unhost();
+	udp->unhost();
 
 	// Reinstate for next host() call
-	serverInternal->handlerchannel_close = handler;
+	// serverInternal->handlerchannel_close = handler;
+}
+void relayserver::unhost_websocket(bool insecure, bool secure)
+{
+	// Turn off parameters for servers that aren't hosting
+	insecure &= websocket->hosting();
+	secure &= websocket->hosting_secure();
+
+	if (!insecure && !secure)
+		return;
+
+	// disconnect handlers check server that ran them is still hosting
+	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
+	// If we've got a different server up (and we're not about to unhost it here), then keep ping timer running
+	const bool isOtherHosting = socket->hosting() || (!insecure && websocket->hosting()) || (!secure && websocket->hosting_secure());
+	if (!isOtherHosting)
+		serverInternal->pingtimer->stop();
+
+	// We'll set the leavers all as readonly before closing channels, so peer leave messages aren't sent to leavers
+	// as the clients leave their channels
+	// (they're still sent to clients on still-hosting servers, obviously)
+	if (insecure)
+	{
+		for (auto c = lw_server_client_first(((lw_ws)websocket)->socket); c; c = lw_server_client_next(c))
+		{
+			relayserver::client* client = (relayserver::client*)lw_server_client_get_relay_tag(c);
+			if (client)
+				client->_readonly = true;
+		}
+	}
+	if (secure)
+	{
+		for (auto c = lw_server_client_first(((lw_ws)websocket)->socket_secure); c; c = lw_server_client_next(c))
+		{
+			relayserver::client* client = (relayserver::client*)lw_server_client_get_relay_tag(c);
+			if (client)
+				client->_readonly = true;
+		}
+	}
+
+	// Prevent the channel_close handler from being run
+	// const auto handler = server->handlerchannel_close;
+	// serverInternal->handlerchannel_close = nullptr;
+
+	// This will drop clients, by doing so drop all channels and both of those will free the IDs
+	//
+	// The lower-level handler (lacewing::handlerdisconnect) will be triggered, but will not call the RelayServer disconnect handler,
+	// as that will check server is hosting before calling it
+	// note: unhost calls handlerdisconnect, which:
+	// expects client still in server list
+	// calls close_client
+	// resets relay tag to null
+	if (insecure)
+		websocket->unhost();
+	if (secure)
+		websocket->unhost_secure();
+
+	// Resume close handler
+	// serverInternal->handlerchannel_close = handler;
 }
 
 bool relayserver::hosting()
@@ -2438,7 +2499,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 		case 10: /* implementation response */
 		{
 			const std::string_view impl = reader.get(reader.bytesleft());
-			if (reader.failed || impl.empty())
+			if (reader.failed || impl.empty() || !lw_u8str_validate(impl))
 			{
 				errStr << "Failed to read implementation response"sv;
 				trustedClient = false;
@@ -2462,14 +2523,17 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			}
 			else if (impl.find("Android"sv) != std::string_view::npos)
 				client->clientImpl = relayserver::client::clientimpl::Android;
-			else if (impl.find("Flash"sv) != std::string_view::npos)
-				client->clientImpl = relayserver::client::clientimpl::Flash;
 			else if (impl.find("iOS"sv) != std::string_view::npos)
 				client->clientImpl = relayserver::client::clientimpl::iOS;
-			else if (impl.find("Macintosh"sv) != std::string_view::npos)
-				client->clientImpl = relayserver::client::clientimpl::Macintosh;
+			// First test in client build 99, first release as build 100
 			else if (impl.find("HTML5"sv) != std::string_view::npos)
 				client->clientImpl = relayserver::client::clientimpl::HTML5;
+			// While supported, Blue Flash never existed, and Relay Flash won't return a implementation response
+			else if (impl.find("Flash"sv) != std::string_view::npos)
+				client->clientImpl = relayserver::client::clientimpl::Flash;
+			// While supported, not created yet
+			else if (impl.find("Macintosh"sv) != std::string_view::npos)
+				client->clientImpl = relayserver::client::clientimpl::Macintosh;
 			else
 			{
 				errStr << "Failed to recognise platform of implementation \""sv << impl << "\". Leaving it as Unknown."sv;
@@ -3004,9 +3068,11 @@ void relayserver::connect_response(
 
 	framebuilder builder(true);
 
-	// Force a connect refusal if not hosting serevr
+	// Force a connect refusal if not hosting server
+	// TODO: Is this necessary? Client should've been d/c'd on unhost
+	// If it is necessary, the HTML5 server hosting check is borked, client could be on the other  server
 	std::string_view denyReason = passedDenyReason;
-	if (denyReason.empty() && !hosting())
+	if (denyReason.empty() && (client->socket->is_websocket() ? !websocket->hosting() && !websocket->hosting_secure() : !hosting()))
 		denyReason = "Server has shut down."sv;
 
 	// Connect request denied
@@ -3026,7 +3092,7 @@ void relayserver::connect_response(
 
 	// Connect request accepted
 
-	lw_trace("Connect request accepted in relayserver::connectresponse");
+	lwp_trace("Connect request accepted in relayserver::connectresponse");
 	client->connectRequestApproved = true;
 	client->connectRequestApprovedTime = decltype(client->connectRequestApprovedTime)::clock::now();
 	client->clientImpl = relayserver::client::clientimpl::Unknown;

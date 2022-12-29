@@ -41,7 +41,7 @@ void lwp_eventqueue_add (lwp_eventqueue queue,
 	event.events = (read != 0 ? EPOLLIN : 0u) |
 				  (write != 0 ? EPOLLOUT : 0u) |
 				  (edge_triggered != 0 ? EPOLLET : 0u);
-	lw_trace ("lwp_eventqueue_add EPOLL_CTL_ADD: Queuing event with fd %d, read %d, write %d, edge %d, TAG %p.",
+	lwp_trace ("lwp_eventqueue_add EPOLL_CTL_ADD: Queuing event with fd %d, read %d, write %d, edge %d, TAG %p.",
 		fd, read ? 1 : 0, write ? 1 : 0, edge_triggered ? 1 : 0, tag);
 
 	epoll_ctl (queue->epollFD, EPOLL_CTL_ADD, fd, &event);
@@ -67,13 +67,19 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 					   (write ? EPOLLOUT : 0u) |
 					   (edge_triggered ? EPOLLET : 0u);
 		res = epoll_ctl(queue->epollFD, EPOLL_CTL_MOD, fd, &event);
+		if (res == -1)
+			always_log("epoll_ctl mod for fd %d, epoll fd %d returned -1, err %d", fd, queue->epollFD, errno);
+		else {
+			lwp_trace("epoll_ctl mod for fd %d, epoll fd %d returned %i, err %d", fd, queue->epollFD, res, errno);
+		}
 		assert(res != -1 && "mod");
 	}
 	else // deleting
 	{
-		// pump already closed down
+		// Pump already closed down - this should not happen!
+		// It means the client/server closes after the pump is deleted. Should be before.
 		if (queue->epollFD == -1)
-			lwp_trace("Can't delete pump FD %d, main pump FD is already closed down.", fd);
+			always_log("Error: Can't delete pump FD %d, main pump FD is already closed down.", fd);
 		else
 		{
 			res = epoll_ctl(queue->epollFD, EPOLL_CTL_DEL, fd, &event);

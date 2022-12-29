@@ -76,11 +76,12 @@
 #endif
 
 #ifdef ENABLE_SSL
-	// If missing, try installing the libssl-dev apt package
-	#include <openssl/ssl.h>
-	#include <openssl/md5.h>
-	#include <openssl/sha.h>
-	#include <openssl/err.h>
+	// If missing on Unix, make sure directory of Lacewing is in include header path
+	// Otherwise, try installing the libssl-dev apt package
+	#include "openssl/ssl.h"
+	#include "openssl/md5.h"
+	#include "openssl/sha.h"
+	#include "openssl/err.h"
 #endif
 
 #ifdef OPENSSL_NPN_NEGOTIATED

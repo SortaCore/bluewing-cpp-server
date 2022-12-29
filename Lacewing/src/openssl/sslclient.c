@@ -9,6 +9,10 @@
 */
 
 #include "../common.h"
+
+// Allows files to include c file all the time and conditionally define ENABLE_SSL
+#ifdef ENABLE_SSL
+
 #include "sslclient.h"
 #include "../stream.h"
 
@@ -332,3 +336,5 @@ lw_streamdef def_downstream =
 {
 	.sink_data = downstream_sink_data
 };
+
+#endif // ENABLE_SSL
