@@ -16,9 +16,9 @@
 #include "sslclient.h"
 #include "../stream.h"
 
-#define lwp_sslclient_flag_handshook	1
-#define lwp_sslclient_flag_pumping	 2
-#define lwp_sslclient_flag_dead		4
+#define lwp_sslclient_flag_handshook	((lw_i8)1)
+#define lwp_sslclient_flag_pumping		((lw_i8)2)
+#define lwp_sslclient_flag_dead			((lw_i8)4)
 
 struct _lwp_sslclient
 {
@@ -29,7 +29,7 @@ struct _lwp_sslclient
 
 	int write_condition;
 
-	char flags;
+	lw_i8 flags;
 
 	void * tag;
 	lwp_sslclient_on_handshook on_handshook;

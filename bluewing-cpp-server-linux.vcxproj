@@ -87,32 +87,48 @@
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCCompileToolExe>arm-linux-gnueabi-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteCppCompileToolExe>arm-linux-gnueabi-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>arm-linux-gnueabi-g++</RemoteLdToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCCompileToolExe>arm-linux-gnueabi-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteLdToolExe>arm-linux-gnueabi-g++</RemoteLdToolExe>
+    <RemoteCppCompileToolExe>arm-linux-gnueabi-g++</RemoteCppCompileToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCCompileToolExe>aarch64-linux-gnu-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteCppCompileToolExe>aarch64-linux-gnu-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>aarch64-linux-gnu-g++</RemoteLdToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCCompileToolExe>aarch64-linux-gnu-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteCppCompileToolExe>aarch64-linux-gnu-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>aarch64-linux-gnu-g++</RemoteLdToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -121,6 +137,7 @@
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -129,22 +146,31 @@
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
     <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteCCompileToolExe>i686-linux-gnu-g++</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>i686-linux-gnu-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>i686-linux-gnu-g++</RemoteLdToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
+    <ValidateArchitecture>false</ValidateArchitecture>
+    <RemoteCCompileToolExe>i686-linux-gnu-g++</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>i686-linux-gnu-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>i686-linux-gnu-g++</RemoteLdToolExe>
+    <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
@@ -310,7 +336,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl;atomic</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
@@ -321,7 +348,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl;atomic</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -332,7 +360,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -343,7 +372,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -354,7 +384,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -365,7 +396,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
@@ -376,7 +408,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
@@ -387,7 +420,8 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

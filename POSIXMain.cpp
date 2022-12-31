@@ -149,8 +149,8 @@ int main()
 	std::ios_base::sync_with_stdio(false);
 
 	// Block some IPs by default
-	//banIPList.push_back(BanEntry("75.128.140.10"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24LL * 60LL * 60LL)));
-	//banIPList.push_back(BanEntry("127.0.0.1"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24LL * 60LL * 60LL)));
+	//banIPList.push_back(BanEntry("75.128.140.10"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24 * 60 * 60)));
+	//banIPList.push_back(BanEntry("127.0.0.1"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, (time(NULL) + 24 * 60 * 60)));
 
 	globalpump = lacewing::eventpump_new();
 	globalserver = new lacewing::relayserver(globalpump);
@@ -341,7 +341,7 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 			banIPList.erase(banEntry);
 		else if (banEntry->disconnects > 3)
 		{
-			banEntry->resetAt = time(NULL) + ((long long)(banEntry->disconnects++ << 2)) * 60LL * 60LL;
+			banEntry->resetAt = time(NULL) + (time_t)(((long long)(banEntry->disconnects++ << 2)) * 60 * 60);
 
 			std::cout << green << '\r' << timeBuffer << " | Blocked connection attempt from IP "sv << addr << ", banned due to "sv
 				<< banEntry->reason << '.'
@@ -384,7 +384,7 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 		{
 			std::cout << yellow << '\r' << timeBuffer << " | Due to malformed protocol usage, created a IP ban entry."sv << std::string(25, ' ')
 				<< "\r\n"sv << yellow;
-			banIPList.push_back(BanEntry(addr, 1, "Broken Lacewing protocol", (time(NULL) + 30LL * 60LL)));
+			banIPList.push_back(BanEntry(addr, 1, "Broken Lacewing protocol", (time(NULL) + 30 * 60)));
 		}
 		else
 		{
@@ -444,7 +444,7 @@ void OnTimerTick(lacewing::timer timer)
 
 		auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 		if (banEntry == banIPList.end())
-			banIPList.push_back(BanEntry(ipAddress, 1, "You have been banned for heavy TCP usage. Contact Phi on Clickteam Discord.", time(NULL) + 60LL));
+			banIPList.push_back(BanEntry(ipAddress, 1, "You have been banned for heavy TCP usage. Contact Phi on Clickteam Discord.", time(NULL) + 60));
 		else
 			++banEntry->disconnects;
 
@@ -507,7 +507,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 
 			if ((**cd).wastedServerMessages++ > 5) {
 				banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
-					time(NULL) + 60LL * 60LL));
+					time(NULL) + 60 * 60));
 				senderclient->send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord."sv);
 				senderclient->disconnect();
 			}

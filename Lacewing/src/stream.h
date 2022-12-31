@@ -14,24 +14,24 @@
 #include "streamgraph.h"
 
 /* BeginQueue has been called */
- #define lwp_stream_flag_queueing  1
+ #define lwp_stream_flag_queuing  ((lw_i8)1)
 
 /* Close was called with immediately = false, stream was busy */
- #define lwp_stream_flag_closeASAP  2
+ #define lwp_stream_flag_closeASAP  ((lw_i8)2)
 
 /* Currently in the process of an immediate Close (this is just to prevent
  * re-entrance to the Close routine)
  */
- #define lwp_stream_flag_closing  4
+ #define lwp_stream_flag_closing  ((lw_i8)4)
 
 /* Deleted when user count was > 0 - waiting to be freed */
- #define lwp_stream_flag_dead 8
+ #define lwp_stream_flag_dead ((lw_i8)8)
 
 /* Currently attempting to drain the queues.  Because draining the queues
  * might cause another retry, this flag prevents re-entrance to the
  * write_queued proc.
  */
- #define lwp_stream_flag_draining_queues 16
+ #define lwp_stream_flag_draining_queues ((lw_i8)16)
 
 typedef struct _lwp_stream_data_hook
 {
@@ -91,7 +91,7 @@ struct _lw_stream
 	lw_pump pump;
 	lw_pump_watch watch;
 
-	char flags;
+	lw_i8 flags;
 
 	void * tag;
 

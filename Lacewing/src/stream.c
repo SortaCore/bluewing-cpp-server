@@ -288,7 +288,7 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 				&& list_length (ctx->front_queue) > 0)
 		{
 			lwp_trace ("%p : Adding to front queue (queueing = %d, front queue length = %zu)",
-				ctx, (int) ( (ctx->flags & lwp_stream_flag_queueing) != 0),
+				ctx, (int) ( (ctx->flags & lwp_stream_flag_queuing) != 0),
 				list_length (ctx->front_queue));
 
 			if (flags & lwp_stream_write_partial)
@@ -324,10 +324,10 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 	}
 
 	if ( (! (flags & lwp_stream_write_ignore_queue)) &&
-			( (ctx->flags & lwp_stream_flag_queueing) || list_length (ctx->back_queue) > 0))
+			( (ctx->flags & lwp_stream_flag_queuing) || list_length (ctx->back_queue) > 0))
 	{
 		lwp_trace ("%p : Adding to back queue (queueing = %d, front queue length = %zu)",
-			ctx, (int) ( (ctx->flags & lwp_stream_flag_queueing) != 0),
+			ctx, (int) ( (ctx->flags & lwp_stream_flag_queuing) != 0),
 							list_length (ctx->front_queue));
 
 		if (flags & lwp_stream_write_partial)
@@ -410,7 +410,7 @@ void lwp_stream_write_stream (lw_stream ctx, lw_stream source,
 	if (! (flags & lwp_stream_write_ignore_queue))
 	{
 		if (list_length (ctx->back_queue) > 0
-			|| ctx->flags & lwp_stream_flag_queueing)
+			|| ctx->flags & lwp_stream_flag_queuing)
 		{
 			should_queue = lw_true;
 		}
@@ -758,7 +758,7 @@ list_type (struct _lwp_stream_queued) lwp_stream_write_queue(lw_stream ctx,
 		if (queued->type == lwp_stream_queued_begin_marker)
 		{
 			list_elem_remove (queued);
-			ctx->flags |= lwp_stream_flag_queueing;
+			ctx->flags |= lwp_stream_flag_queuing;
 
 			break;
 		}
@@ -816,7 +816,7 @@ list_type (struct _lwp_stream_queued) lwp_stream_write_queue(lw_stream ctx,
 
 void lwp_stream_write_queued (lw_stream ctx)
 {
-	if (ctx->flags & lwp_stream_flag_queueing)
+	if (ctx->flags & lwp_stream_flag_queuing)
 		return;
 
 	if (ctx->flags & lwp_stream_flag_draining_queues)
@@ -1066,7 +1066,7 @@ void lw_stream_begin_queue (lw_stream stream)
 	}
 	else
 	{
-		stream->flags |= lwp_stream_flag_queueing;
+		stream->flags |= lwp_stream_flag_queuing;
 	}
 }
 
@@ -1123,9 +1123,9 @@ void lw_stream_end_queue (lw_stream ctx)
 
 	// TODO : Look for a queued item w/ Flag_BeginQueue if Queueing is false?
 
-	assert (ctx->flags & lwp_stream_flag_queueing);
+	assert (ctx->flags & lwp_stream_flag_queuing);
 
-	ctx->flags &= ~ lwp_stream_flag_queueing;
+	ctx->flags &= ~ lwp_stream_flag_queuing;
 
 	lwp_stream_write_queued (ctx);
 }
@@ -1143,7 +1143,7 @@ lw_bool lwp_stream_is_transparent (lw_stream ctx)
 		return lw_false;
 	}
 
-	if (ctx->flags & lwp_stream_flag_queueing)
+	if (ctx->flags & lwp_stream_flag_queuing)
 		return lw_false;
 
 	return ctx->def->is_transparent && ctx->def->is_transparent (ctx);

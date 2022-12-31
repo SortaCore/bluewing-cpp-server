@@ -12,8 +12,8 @@
 #include "../address.h"
 #include "fdstream.h"
 
-#define lw_client_flag_connecting	1
-#define lw_client_flag_connected	2
+#define lw_client_flag_connecting	((lw_i8)1)
+#define lw_client_flag_connected	((lw_i8)2)
 
 // 3 second timeout
 static const int lw_client_timeout_ms = 3 * 1000;
@@ -27,7 +27,7 @@ struct _lw_client
 	lw_client_hook_data		  on_data;
 	lw_client_hook_error	  on_error;
 
-	char flags;
+	lw_i8 flags;
 
 	lw_addr address;
 

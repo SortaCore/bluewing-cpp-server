@@ -496,7 +496,7 @@ void lw_ws_req_disconnect (lw_ws_req ctx, unsigned int websocket_exit_reason)
 
 			lw_ui8 opcode = 0b10001000; // fin, connection close
 			lw_ui16 exit_reason = htons((lw_ui16)websocket_exit_reason);
-			lw_i8 maskAndLen = (lw_i8)sizeof(exit_reason);
+			char maskAndLen = (char)sizeof(exit_reason);
 			char close_msg[] = { *(char*)&opcode, maskAndLen, ((char*)&exit_reason)[0], ((char*)&exit_reason)[1] };
 			lwp_stream_write((lw_stream)ctx->client->socket, close_msg, sizeof(close_msg), lwp_stream_write_ignore_busy);
 

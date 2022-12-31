@@ -179,7 +179,7 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 		// Unmask the packet
 		unmaskedData = (char *)malloc(size);
 		for (size_t i = 0; i < size; i++)
-			unmaskedData[i] = data[i] ^ ((lw_i8 *)&mask)[i % 4];
+			unmaskedData[i] = data[i] ^ ((char *)&mask)[i % 4];
 		data = unmaskedData;
 
 		// If we've started a disconnect (!= -1), we'll ignore everything except an acknowledging close response.
@@ -196,8 +196,8 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 			// However, the browser could send its own pings, so we'll respond as expected.
 			else if (opcode == 9)
 			{
-				error2[0] = (lw_i8)0b10001010; // fin + pong
-				error2[1] = (lw_i8)size; // msg size (no mask); note control frames like ping are hard-capped to < 125 bytes
+				error2[0] = (char)0b10001010; // fin + pong
+				error2[1] = (char)size; // msg size (no mask); note control frames like ping are hard-capped to < 125 bytes
 				memcpy(error2 + 2, unmaskedData, size);
 				lwp_stream_write(&client->client.stream, error2, 2 + size, lwp_stream_write_ignore_busy);
 			}

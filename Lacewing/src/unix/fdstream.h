@@ -21,16 +21,16 @@ struct _lw_fdstream
 
 	int fd;
 
-	char flags;
+	lw_i8 flags;
 
 	size_t size;
 	size_t reading_size;
 };
 
-#define lwp_fdstream_flag_nagle		1
-#define lwp_fdstream_flag_is_socket	2
-#define lwp_fdstream_flag_autoclose	4
-#define lwp_fdstream_flag_reading	 8
+#define lwp_fdstream_flag_nagle		((lw_i8)1)
+#define lwp_fdstream_flag_is_socket	((lw_i8)2)
+#define lwp_fdstream_flag_autoclose	((lw_i8)4)
+#define lwp_fdstream_flag_reading	 ((lw_i8)8)
 
 void lwp_fdstream_init (lw_fdstream, lw_pump);
 
