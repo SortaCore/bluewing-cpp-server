@@ -55,7 +55,7 @@ static size_t def_upstream_sink_data (lw_stream upstream,
 		lw_error_add(err, status);
 		lw_error_addf(err, "Encrypting message failed");
 		if (ctx->handle_error)
-			ctx->handle_error(ctx->server, ctx->orig_stream, err);
+			ctx->handle_error(ctx->client, err);
 		lw_error_delete(err);
 
 		return size;
@@ -99,7 +99,7 @@ static size_t def_downstream_sink_data (lw_stream downstream,
 		 lw_error_add(err, ctx->status);
 		 lw_error_addf(err, "Secure handshake failure");
 		 if (ctx->handle_error)
-			 ctx->handle_error(ctx->server, ctx->orig_stream, err);
+			 ctx->handle_error(ctx->client, err);
 		 lw_error_delete(err);
 		 return size;
 	  }
@@ -142,7 +142,7 @@ size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
 		lw_error_add(err, ctx->status);
 		lw_error_addf(err, "Secure content expired");
 		if (ctx->handle_error)
-			ctx->handle_error(ctx->server, ctx->orig_stream, err);
+			ctx->handle_error(ctx->client, err);
 		lw_error_delete(err);
 		return size;
 	}
@@ -173,7 +173,7 @@ size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
 		lw_error_add(err, ctx->status);
 		lw_error_addf(err, "Error decrypting the message");
 		if (ctx->handle_error)
-			ctx->handle_error(ctx->server, ctx->orig_stream, err);
+			ctx->handle_error(ctx->client, err);
 		lw_error_delete(err);
 		return size;
 	}
@@ -231,7 +231,7 @@ const static lw_streamdef def_downstream =
 	0  /* cleanup */
 };
 
-void lwp_ssl_init (lwp_ssl ctx, lw_stream socket)
+void lwp_ssl_init (lwp_ssl ctx, lw_server_client socket)
 {
 	memset (ctx, 0, sizeof (*ctx));
 

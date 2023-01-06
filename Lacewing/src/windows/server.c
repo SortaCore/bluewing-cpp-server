@@ -122,14 +122,15 @@ void * lw_server_tag (lw_server ctx)
 {
 	return ctx->tag;
 }
-void on_ssl_error (lw_server ctx, lw_stream client, lw_error error)
+void on_ssl_error (lw_server_client client, lw_error error)
 {
-	lw_error_addf(error, "SSL client error");
-	if (ctx->on_error)
-		ctx->on_error(ctx, error);
+	lw_error_addf(error, "SSL error");
+	
+	if (client->server->on_error)
+		client->server->on_error(client->server, error);
 
 	// SSL errors are generally unrecoverable
-	lw_stream_close(client, lw_true);
+	lw_stream_close((lw_stream)client, lw_true);
 }
 
 lw_server_client lwp_server_client_new (lw_server ctx, SOCKET socket)
@@ -153,7 +154,6 @@ lw_server_client lwp_server_client_new (lw_server ctx, SOCKET socket)
 	if (ctx->cert_loaded)
 	{
 	  lwp_serverssl_init (&client->ssl, ctx->ssl_creds, client);
-	  client->ssl.ssl.server = ctx;
 	  client->ssl.ssl.handle_error = on_ssl_error;
 	}
 

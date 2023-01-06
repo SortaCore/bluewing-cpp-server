@@ -275,9 +275,9 @@ int main()
 		std::wcout << L"Enter port number to begin (default 6121):"sv;
 
 		{
-			std::string portStr;
-			std::getline(std::cin, portStr);
-			std::stringstream lazy(portStr); lazy >> port;
+			std::wstring portStr;
+			std::getline(std::wcin, portStr);
+			std::wstringstream lazy(portStr); lazy >> port;
 			port = port <= 0 || port > 0xFFFF ? 6121 : port;
 		}
 	}
@@ -364,6 +364,7 @@ int main()
 	lacewing::timer_delete(globalmsgrecvcounttimer);
 	globalserver->unhost();
 	globalserver->flash->unhost();
+	globalserver->unhost_websocket(true, true);
 	delete globalserver;
 	lacewing::pump_delete(globalpump);
 
@@ -385,11 +386,11 @@ int main()
 	std::wcout << timeBuffer << L" | Press any key to exit.\r\n"sv;
 
 	// Clear input for getchar()
-	std::cin.clear();
-	std::cin.ignore();
-	std::cin.ignore();
+	std::wcin.clear();
+	std::wcin.ignore();
+	std::wcin.ignore();
 
-	getchar(); // wait for user keypress
+	getwchar(); // wait for user keypress
 
 	return 0;
 }

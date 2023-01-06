@@ -149,9 +149,11 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 			// Packet is too small to necessitate a 2-byte size
 			if (size < 2 + 4 + 126)
 			{
-				error = "message too small to be valid";
-				errorCode = 1002;
-				break;
+				// Pretend we haven't read anything, so this header comes back, but with more data behind it
+				// This is necessary due to Firefox sending big WS packets as one network packet with just WS header,
+				// with next packet data.
+				// TODO: Performance: WebSocket large packet processing will be faster if we actually store the read part here, like MessageReader does.
+				return 0;
 			}
 
 			packetLen = ntohs(*(unsigned short*)&data[0]);

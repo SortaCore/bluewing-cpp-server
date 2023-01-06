@@ -16,9 +16,8 @@
 typedef struct _lwp_ssl
 {
 	DWORD status;
-	lw_server server;
-	lw_stream orig_stream;
-	void (*handle_error)(lw_server, lw_stream, lw_error);
+	lw_server_client client;
+	void (*handle_error)(lw_server_client, lw_error);
 	lw_bool handshake_complete;
 
 	lw_bool got_context;
@@ -37,7 +36,7 @@ typedef struct _lwp_ssl
 	
 } * lwp_ssl;
 
-void lwp_ssl_init (lwp_ssl, lw_stream socket);
+void lwp_ssl_init (lwp_ssl, lw_server_client socket);
 void lwp_ssl_cleanup (lwp_ssl);
 
 #endif
