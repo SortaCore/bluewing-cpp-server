@@ -123,7 +123,7 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 		}
 
 		// Packet length is three forms in WebSocket; 8-bit (<126), 16-bit (126), and 64-bit (127).
-		// We don't expect user to send >65kb message via Bluewing, HTML5 or not.
+		// We don't expect user to send >65kb message via Bluewing, WebSocket or not.
 		// It's possible we could read it anyway if it's less than 4GB, but the
 		// Bluewing level ping timeout will make sending big packets dangerous anyway.
 		lw_i32 packetLen = data[1] & 0b01111111;

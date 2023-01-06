@@ -761,6 +761,8 @@ const char * relayserver::client::getimplementation() const
 			return "Macintosh";
 		case clientimpl::HTML5:
 			return "HTML5";
+		case clientimpl::UWP:
+			return "UWP";
 		default:
 			return "Unknown [error]";
 	}
@@ -1154,7 +1156,9 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 	relayserverinternal& internal = *(relayserverinternal*)webserver->tag();
 	std::string error;
 
-	if (!strcasecmp(req->header("Connection"), "upgrade"))
+	// According to spec Connection must only *include* Upgrade.
+	// Firefox sends Keep-Alive as well, for some reason.
+	if (strstr(req->header("Connection"), "Upgrade") != NULL)
 	{
 		do {
 			const char* webSocketKey2 = req->header("Sec-WebSocket-Key");
@@ -1205,7 +1209,7 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 		} while (false);
 
 		lacewing::error err = lacewing::error_new();
-		err->add("Failed a HTML5 WebSocket connection, due to %s.\n", error.c_str());
+		err->add("Failed a HTML5/UWP WebSocket connection, due to %s.\n", error.c_str());
 		if (internal.handlererror)
 			internal.handlererror(internal.server, err);
 		lacewing::error_delete(err);
@@ -2528,6 +2532,9 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			// First test in client build 99, first release as build 100
 			else if (impl.find("HTML5"sv) != std::string_view::npos)
 				client->clientImpl = relayserver::client::clientimpl::HTML5;
+			// Released in client build 101 - uses HTML5 JS code
+			else if (impl.find("UWP"sv) != std::string_view::npos)
+				client->clientImpl = relayserver::client::clientimpl::UWP;
 			// While supported, Blue Flash never existed, and Relay Flash won't return a implementation response
 			else if (impl.find("Flash"sv) != std::string_view::npos)
 				client->clientImpl = relayserver::client::clientimpl::Flash;
@@ -3070,7 +3077,7 @@ void relayserver::connect_response(
 
 	// Force a connect refusal if not hosting server
 	// TODO: Is this necessary? Client should've been d/c'd on unhost
-	// If it is necessary, the HTML5 server hosting check is borked, client could be on the other  server
+	// If it is necessary, this WebSocket server hosting check is borked, as connecting client could be on the other WebSocket server
 	std::string_view denyReason = passedDenyReason;
 	if (denyReason.empty() && (client->socket->is_websocket() ? !websocket->hosting() && !websocket->hosting_secure() : !hosting()))
 		denyReason = "Server has shut down."sv;

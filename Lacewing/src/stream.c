@@ -383,7 +383,7 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 			queue_back (ctx, buffer + written, size - written);
 		}
 	}
-
+	
 	return size;
 }
 

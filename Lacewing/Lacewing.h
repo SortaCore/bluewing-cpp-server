@@ -2048,7 +2048,8 @@ struct relayserver
 			Android,
 			iOS,
 			Macintosh,
-			HTML5
+			HTML5,
+			UWP
 			// Edit relayserverinternal::client::getimplementation if you add more lines
 		};
 
@@ -2116,7 +2117,7 @@ struct relayserver
 
 		std::string clientImplStr;
 
-		bool pseudoUDP = true; // Is UDP not supported (e.g. Flash, HTML5) so "faked" by receiver
+		bool pseudoUDP = true; // Is UDP not supported (e.g. HTML5, UWP JS) so "faked" by receiver
 
 		// Got opening null byte, indicating not a HTTP client.
 		bool gotfirstbyte = false;
