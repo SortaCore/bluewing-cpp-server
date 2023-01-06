@@ -236,8 +236,6 @@
     <ClCompile Include="Lacewing\src\windows\file.c" />
     <ClCompile Include="Lacewing\src\windows\global2.c" />
     <ClCompile Include="Lacewing\src\windows\server.c" />
-    <ClCompile Include="Lacewing\src\windows\sslclient.c" />
-    <ClCompile Include="Lacewing\src\windows\ssl\clientssl.c" />
     <ClCompile Include="Lacewing\src\windows\ssl\serverssl.c" />
     <ClCompile Include="Lacewing\src\windows\ssl\ssl.c" />
     <ClCompile Include="Lacewing\src\windows\sync.c" />
@@ -278,7 +276,8 @@
     <ClInclude Include="Lacewing\src\windows\common.h" />
     <ClInclude Include="Lacewing\src\windows\compat.h" />
     <ClInclude Include="Lacewing\src\windows\fdstream.h" />
-    <ClInclude Include="Lacewing\src\windows\sslclient.h" />
+    <ClInclude Include="Lacewing\src\windows\ssl\serverssl.h" />
+    <ClInclude Include="Lacewing\src\windows\ssl\ssl.h" />
     <ClInclude Include="Lacewing\src\windows\typeof.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

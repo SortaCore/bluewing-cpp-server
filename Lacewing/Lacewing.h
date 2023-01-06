@@ -2053,17 +2053,6 @@ struct relayserver
 			// Edit relayserverinternal::client::getimplementation if you add more lines
 		};
 
-		enum class webstate {
-			// Not a websocket
-			rawsocket = -1,
-			// In Lacewing websocket mode
-			websocket = 0,
-			// Websocket handshake part 1: Waiting for client to send HTTP upgrade request
-			httprequestpending,
-			// Websocket handshake part 2: Waiting for client to reply to the HTTP upgrade approval in a Lacewing way
-			httprespackpending,
-		};
-
 		mutable lacewing::readwritelock lock;
 
 		void * tag = nullptr;

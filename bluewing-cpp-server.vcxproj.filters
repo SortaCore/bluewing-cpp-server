@@ -67,6 +67,12 @@
     <Filter Include="Source Files\Lacewing\deps\http-parser">
       <UniqueIdentifier>{0645920b-bacc-45ab-b3c6-93ce994cb50d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Lacewing\src\windows\ssl">
+      <UniqueIdentifier>{6937536c-e755-4074-9a4d-d6d20a3fedf6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Lacewing\src\windows\ssl">
+      <UniqueIdentifier>{4d0e779d-53d8-419b-819a-a6e2edbf09ce}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Lacewing\RelayServer.cc">
@@ -189,18 +195,6 @@
     <ClCompile Include="Lacewing\src\windows\server.c">
       <Filter>Source Files\Lacewing\src\windows</Filter>
     </ClCompile>
-    <ClCompile Include="Lacewing\src\windows\sslclient.c">
-      <Filter>Source Files\Lacewing\src\windows</Filter>
-    </ClCompile>
-    <ClCompile Include="Lacewing\src\windows\ssl\clientssl.c">
-      <Filter>Source Files\Lacewing\src\windows</Filter>
-    </ClCompile>
-    <ClCompile Include="Lacewing\src\windows\ssl\serverssl.c">
-      <Filter>Source Files\Lacewing\src\windows</Filter>
-    </ClCompile>
-    <ClCompile Include="Lacewing\src\windows\ssl\ssl.c">
-      <Filter>Source Files\Lacewing\src\windows</Filter>
-    </ClCompile>
     <ClCompile Include="Lacewing\src\windows\sync.c">
       <Filter>Source Files\Lacewing\src\windows</Filter>
     </ClCompile>
@@ -264,6 +258,12 @@
     <ClCompile Include="Lacewing\src\cxx\webserver2.cc">
       <Filter>Source Files\Lacewing\src\cxx</Filter>
     </ClCompile>
+    <ClCompile Include="Lacewing\src\windows\ssl\ssl.c">
+      <Filter>Source Files\Lacewing\src\windows\ssl</Filter>
+    </ClCompile>
+    <ClCompile Include="Lacewing\src\windows\ssl\serverssl.c">
+      <Filter>Source Files\Lacewing\src\windows\ssl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConsoleColors.hpp">
@@ -323,9 +323,6 @@
     <ClInclude Include="Lacewing\src\windows\fdstream.h">
       <Filter>Header Files\Lacewing\src\windows</Filter>
     </ClInclude>
-    <ClInclude Include="Lacewing\src\windows\sslclient.h">
-      <Filter>Header Files\Lacewing\src\windows</Filter>
-    </ClInclude>
     <ClInclude Include="Lacewing\src\windows\typeof.h">
       <Filter>Header Files\Lacewing\src\windows</Filter>
     </ClInclude>
@@ -364,6 +361,12 @@
     </ClInclude>
     <ClInclude Include="Lacewing\src\webserver\multipart.h">
       <Filter>Header Files\Lacewing\src\webserver</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\windows\ssl\serverssl.h">
+      <Filter>Header Files\Lacewing\src\windows\ssl</Filter>
+    </ClInclude>
+    <ClInclude Include="Lacewing\src\windows\ssl\ssl.h">
+      <Filter>Header Files\Lacewing\src\windows\ssl</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

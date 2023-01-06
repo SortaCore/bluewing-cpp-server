@@ -16,6 +16,9 @@
 typedef struct _lwp_ssl
 {
 	DWORD status;
+	lw_server server;
+	lw_stream orig_stream;
+	void (*handle_error)(lw_server, lw_stream, lw_error);
 	lw_bool handshake_complete;
 
 	lw_bool got_context;

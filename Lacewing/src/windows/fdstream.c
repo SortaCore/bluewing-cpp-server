@@ -448,7 +448,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 #ifdef _lacewing_debug
 			lw_error err = lw_error_new();
 			lw_error_add(err, error);
-			lwp_trace("Failed to write to socket %p, got error %s", lw_error_tostring(err));
+			lwp_trace("Failed to write to socket %p, got error %s", ctx, lw_error_tostring(err));
 			lw_error_delete(err);
 #endif
 
