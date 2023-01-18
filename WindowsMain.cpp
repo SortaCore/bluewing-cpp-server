@@ -569,23 +569,6 @@ void OnError(lacewing::relayserver &server, lacewing::error error)
 void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
 	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant)
 {
-	senderclient->send(3, data, 2);
-#if 0
-	char data3[] = "\x41" "\x85\xFF" "\x70\x2F\xFC\xFF";
-		//"\x1\x1\x1\x1" "ABC\xCF\x95\xCF\x95";
-	std::string_view data2((const char*)&data3, sizeof(data3));
-
-	senderclient->blast(12, data2, 2);
-	senderclient->send(3, data2, 2);
-	{
-		auto rl = senderclient->lock.createReadLock();
-		auto ch = senderclient->getchannels();
-		auto ch2 = ch[0];
-		rl.lw_unlock();
-		ch2->send(103, data2, 2);
-		ch2->blast(255, data2, 2);
-	}
-#endif
 	++numMessagesIn;
 	bytesIn += data.size();
 	if constexpr (false)
@@ -614,8 +597,13 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 			++(**cd).totalNumMessagesIn;
 
 			if ((**cd).wastedServerMessages++ > 5) {
-				banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
-					_time64(NULL) + 60LL * 60LL));
+
+				auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry& b) { return b.ip == addr; });
+				if (banEntry == banIPList.end())
+					banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
+						_time64(NULL) + 60LL * 60LL));
+				else
+					++banEntry->disconnects;
 				senderclient->send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord."sv);
 				senderclient->disconnect();
 			}

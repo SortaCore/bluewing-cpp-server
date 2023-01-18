@@ -506,8 +506,12 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 			++(**cd).totalNumMessagesIn;
 
 			if ((**cd).wastedServerMessages++ > 5) {
-				banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
-					time(NULL) + 60 * 60));
+				auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry& b) { return b.ip == addr; });
+				if (banEntry == banIPList.end())
+					banIPList.push_back(BanEntry(addr, 1, "Sending too many messages the server is not meant to handle.",
+						time(NULL) + 60 * 60));
+				else
+					++banEntry->disconnects;
 				senderclient->send(1, "You have been banned for sending too many server messages that the server is not designed to receive.\r\nContact Phi on Clickteam Discord."sv);
 				senderclient->disconnect();
 			}
