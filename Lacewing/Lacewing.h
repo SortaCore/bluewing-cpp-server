@@ -2141,7 +2141,14 @@ struct relayserver
 	// Expects you have already checked channel with that name does not exist.
 	std::shared_ptr<relayserver::channel> createchannel(std::string_view channelName, std::shared_ptr<lacewing::relayserver::client> master, bool hidden, bool autoclose);
 
-	mutable lacewing::readwritelock lock;
+	// handles unhost/host, welcome message change, handler change
+	mutable lacewing::readwritelock lock_meta;
+	// handles channel list modifications - only to the underlying vector, not to requests like leave or close requests
+	mutable lacewing::readwritelock lock_channellist;
+	// handles client list modifications - only to the underlying vector, not to requests like disconnect requests
+	mutable lacewing::readwritelock lock_clientlist;
+	// handles UDP?
+	mutable lacewing::readwritelock lock_udp;
 
 	typedef void(*handler_connect)		(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 	typedef void(*handler_disconnect)	(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
