@@ -616,7 +616,7 @@ namespace lacewing
 		case 0: /* response */
 		{
 			lw_ui8  responsetype = reader.get <lw_ui8>();
-			bool	succeeded    = reader.get <lw_ui8>() != 0;
+			bool	succeeded	= reader.get <lw_ui8>() != 0;
 
 			if (reader.failed)
 				break;
@@ -755,8 +755,8 @@ namespace lacewing
 
 					for (; reader.bytesleft() > 0;)
 					{
-						lw_ui16 peerid     = reader.get <lw_ui16>();
-						lw_ui8 flags2      = reader.get <lw_ui8>();
+						lw_ui16 peerid	 = reader.get <lw_ui16>();
+						lw_ui8 flags2	  = reader.get <lw_ui8>();
 						lw_ui8 namelength2 = reader.get <lw_ui8>();
 						std::string_view name2 = reader.get(namelength2);
 
@@ -1045,7 +1045,6 @@ namespace lacewing
 		case 7: /* objectpeermessage */
 		case 8: /* objectserverchannelmessage */
 		{
-			// todo: replace every lacewingassert() with a real error.
 			lacewing::error error = lacewing::error_new();
 			error->add("'Object' message type received, but Bluewing Client implementation does not support it.");
 			this->handler_error(client, error);
@@ -1233,7 +1232,12 @@ namespace lacewing
 				#elif defined (__ANDROID__)
 					platform = "Android";
 				#elif defined(__APPLE__)
-					platform = "iOS";
+					// Not ifdef!
+					#if MacBuild
+						platform = "Macintosh";
+					#else
+						platform = "iOS";
+					#endif
 				#else
 					platform = "Unix-based";
 					struct utsname name;
