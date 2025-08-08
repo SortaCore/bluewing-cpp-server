@@ -1451,7 +1451,7 @@ reexecute:
 			}
 
 			parser->flags |= F_CONTENTLENGTH;
-			parser->content_length = ch - '0';
+			parser->content_length = (uint64_t)ch - '0';
 			parser->header_state = h_content_length_num;
 			break;
 
@@ -1560,9 +1560,7 @@ reexecute:
 				goto error;
 			  }
 
-			  t = parser->content_length;
-			  t *= 10;
-			  t += ch - '0';
+			  t = (parser->content_length * 10) + ((uint64_t)ch - '0');
 
 			  /* Overflow? Test against a conservative limit for simplicity. */
 			  if (UNLIKELY((ULLONG_MAX - 10) / 10 < parser->content_length)) {

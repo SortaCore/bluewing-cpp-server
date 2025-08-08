@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -29,6 +29,7 @@ struct _lw_client
 
 	HANDLE socket;
 	lw_bool connecting;
+	lw_ui16 local_port_next_connect;
 };
 
 lw_client lw_client_new (lw_pump pump)
@@ -85,7 +86,10 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 		ctx->connecting = lw_false;
 
 		lw_error error = lw_error_new ();
-		lw_error_add (error, errorNum);
+		if (errorNum == ERROR_NETWORK_UNREACHABLE && lw_addr_ipv6(ctx->address))
+			lw_error_addf(error, "Network unreachable - Non-IPv6 client connecting to IPv6 server?");
+		else
+			lw_error_add (error, errorNum);
 		lw_error_addf (error, "Error connecting");
 
 		if (ctx->on_error)
@@ -214,12 +218,18 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 	{
 		((struct sockaddr_in6 *) &local_address)->sin6_family = AF_INET6;
 		((struct sockaddr_in6 *) &local_address)->sin6_addr = in6addr_any;
+		((struct sockaddr_in6 *) &local_address)->sin6_port = htons(ctx->local_port_next_connect);
 	}
 	else
 	{
 		((struct sockaddr_in *) &local_address)->sin_family = AF_INET;
 		((struct sockaddr_in *) &local_address)->sin_addr.S_un.S_addr = INADDR_ANY;
+		((struct sockaddr_in *) &local_address)->sin_port = htons(ctx->local_port_next_connect);
 	}
+	lw_bool was_locked_local = ctx->local_port_next_connect != 0;
+	ctx->local_port_next_connect = 0;
+
+	lwp_setsockopt((SOCKET)ctx->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&was_locked_local, sizeof(was_locked_local));
 
 	if (bind ((SOCKET) ctx->socket,
 			(struct sockaddr *) &local_address, sizeof (local_address)) == -1)
@@ -229,7 +239,7 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 		lw_error error = lw_error_new ();
 
 		lw_error_add (error, WSAGetLastError ());
-		lw_error_addf (error, "Error binding socket");
+		lw_error_addf (error, "Error binding socket%s", was_locked_local ? " with fixed port" : "");
 
 		if (ctx->on_error)
 			ctx->on_error (ctx, error);
@@ -244,8 +254,8 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 
 	OVERLAPPED * overlapped = (OVERLAPPED *) calloc (sizeof (*overlapped), 1);
 
-	if (!lw_ConnectEx ((SOCKET) ctx->socket, address->info->ai_addr,
-			(int) address->info->ai_addrlen, 0, 0, 0, overlapped))
+	if (!lw_ConnectEx ((SOCKET) ctx->socket, ctx->address->info->ai_addr,
+			(int) ctx->address->info->ai_addrlen, 0, 0, 0, overlapped))
 	{
 		int code = WSAGetLastError ();
 
@@ -265,6 +275,11 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 
 		lw_error_delete(error);
 	}
+}
+
+void lw_client_set_local_port (lw_client ctx, lw_ui16 localport)
+{
+	ctx->local_port_next_connect = localport;
 }
 
 lw_bool lw_client_connected (lw_client ctx)

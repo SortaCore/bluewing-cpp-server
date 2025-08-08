@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * Copyright (C) 2021-2022 Darkwire Software.
+ * Copyright (C) 2021-2025 Darkwire Software.
  * All rights reserved.
  *
  * https://opensource.org/licenses/mit-license.php
@@ -9,6 +9,11 @@
 
 #include "Lacewing.h"
 #include "deps/utf8proc.h"
+#ifdef _MSC_VER
+	// suppress complaints about utf8proc C enums not being C++ enum classes
+	#pragma warning (push)
+	#pragma warning (disable: 26812)
+#endif
 
 static std::string CPALMakeError(lacewing::codepointsallowlist * that, lacewing::codepointsallowlist & acTemp, const char * str, ...)
 {
@@ -225,3 +230,7 @@ int lacewing::codepointsallowlist::checkcodepointsallowed(const std::string_view
 
 	return -1; // All good
 }
+
+#ifdef _MSC_VER
+	#pragma warning (pop)
+#endif

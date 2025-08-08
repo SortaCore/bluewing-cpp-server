@@ -87,11 +87,8 @@
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>arm-linux-gnueabi-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
     <ValidateArchitecture>false</ValidateArchitecture>
-    <RemoteCppCompileToolExe>arm-linux-gnueabi-g++</RemoteCppCompileToolExe>
-    <RemoteLdToolExe>arm-linux-gnueabi-g++</RemoteLdToolExe>
     <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
@@ -99,11 +96,8 @@
     <IntDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</IntDir>
     <RemoteIntRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteIntRelDir>
     <RemoteOutRelDir>$(RemoteProjectRelDir)/Linux/$(Platform)/$(Configuration)</RemoteOutRelDir>
-    <RemoteCCompileToolExe>arm-linux-gnueabi-gcc</RemoteCCompileToolExe>
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
     <ValidateArchitecture>false</ValidateArchitecture>
-    <RemoteLdToolExe>arm-linux-gnueabi-g++</RemoteLdToolExe>
-    <RemoteCppCompileToolExe>arm-linux-gnueabi-g++</RemoteCppCompileToolExe>
     <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">

@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -409,6 +409,8 @@ void lwp_fdstream_init (lw_fdstream ctx, lw_pump pump)
 lw_fdstream lw_fdstream_new (lw_pump pump)
 {
 	lw_fdstream ctx = (lw_fdstream)malloc (sizeof (*ctx));
+	if (!ctx)
+		return NULL;
 	lwp_fdstream_init (ctx, pump);
 
 	return ctx;

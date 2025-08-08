@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * Copyright (C) 2012 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -80,6 +80,11 @@ size_t _server::num_clients ()
 server_client _server::client_first ()
 {
 	return (server_client) lw_server_client_first ((lw_server) this);
+}
+
+lw_ui16 _server::hole_punch (const char* remote_ip_and_port, lw_ui16 local_port)
+{
+	return lw_server_hole_punch ((lw_server) this, remote_ip_and_port, local_port);
 }
 
 void _server::on_connect (_server::hook_connect hook)

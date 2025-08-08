@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -21,7 +21,7 @@ lw_sync lw_sync_new ()
 	lw_sync ctx = (lw_sync)malloc (sizeof (*ctx));
 
 	if (!ctx)
-	  return 0;
+		return 0;
 
 	pthread_mutexattr_init (&ctx->attr);
 	pthread_mutexattr_settype (&ctx->attr, PTHREAD_MUTEX_RECURSIVE);

@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -16,7 +16,7 @@ lw_pump lw_pump_new (const lw_pumpdef * def)
 	lw_pump ctx = (lw_pump) malloc (sizeof (*ctx) + def->tail_size);
 
 	if (!ctx)
-	  return 0;
+		return 0;
 
 	lwp_pump_init (ctx, def);
 
@@ -136,7 +136,7 @@ static void remove_proc (struct remove_proc_data * data)
 void lw_pump_post_remove (lw_pump ctx, lw_pump_watch watch)
 {
 	struct remove_proc_data * data =
-	  (struct remove_proc_data *) malloc (sizeof (*data));
+	  (struct remove_proc_data *) lw_malloc_or_exit (sizeof (*data));
 
 	data->pump = ctx;
 	data->watch = watch;

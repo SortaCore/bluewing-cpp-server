@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -111,6 +111,184 @@ void lw_server_delete (lw_server ctx)
 	lwp_deinit ();
 
 	//free (ctx);
+}
+
+lw_ui16 lw_server_hole_punch (lw_server ctx, const char* remote_ip_and_port, lw_ui16 local_port)
+{
+	lw_addr addr = lw_addr_new(remote_ip_and_port, "");
+	lw_error err = lw_addr_resolve(addr);
+	if (err)
+	{
+		lw_error_addf(err, "Error resolving hole punch address");
+		if (ctx->on_error)
+			ctx->on_error(ctx, err);
+		lw_addr_delete(addr);
+		return 0;
+	}
+	err = lw_error_new();
+
+	if (ctx->socket != INVALID_SOCKET)
+	{
+		lw_error_addf(err, "Server already hosting, cannot hole punch");
+		if (ctx->on_error)
+			ctx->on_error(ctx, err);
+		lw_error_delete(err);
+		lw_addr_delete(addr);
+		return 0;
+	}
+
+	// Init to an invalid ID ping message
+	WSABUF b;
+	b.buf = (char[]){ (char)(11 << 4), (char)0xFF, (char)0xFF };
+	b.len = 3;
+	int type = lw_addr_type_tcp;
+	lw_bool broke = lw_false;
+	lw_bool isIPV6 = lw_addr_ipv6(addr);
+	do {
+		SOCKET sock = socket(isIPV6 ? AF_INET6 : AF_INET,
+			type == lw_addr_type_tcp ? SOCK_STREAM : SOCK_DGRAM,
+			type == lw_addr_type_tcp ? IPPROTO_TCP : IPPROTO_UDP);
+		char yes = 1;
+		if (sock == -1)
+		{
+			lw_error_add(err, WSAGetLastError());
+			lw_error_addf(err, "create for %s hole punch failed", type == lw_addr_type_tcp ? "tcp" : "udp");
+			broke = lw_true;
+			break;
+		}
+		// reuse addr on
+		lwp_setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+		struct sockaddr_storage s = { 0 };
+		s.ss_family = isIPV6 ? AF_INET6 : AF_INET;
+		// Port is at same offset in both sockaddr_in and sockaddr_in6
+		((struct sockaddr_in6*)&s)->sin6_port = htons((lw_ui16)local_port);
+
+		/*// Tiny timeout?
+		int timeout = 3000;  // user timeout in milliseconds [ms]
+		int SOL_TCP = 6, TCP_USER_TIMEOUT = 18;
+		lwp_setsockopt(sock, SOL_TCP, TCP_USER_TIMEOUT, (char*)&timeout, sizeof(timeout));
+		*/
+
+		if (bind(sock, (struct sockaddr*)&s, isIPV6 ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1)
+		{
+			lw_error_add(err, WSAGetLastError());
+			lw_error_addf(err, "bind on hole punch failed, continuing");
+			broke = lw_true;
+		}
+		u_long mode = 1;  // 1 to enable non-blocking socket
+		ioctlsocket(sock, FIONBIO, &mode);
+			
+		int conRet = -1;
+		if (broke == lw_false)
+		{
+			if (type == lw_addr_type_tcp)
+				conRet = connect(sock, addr->info->ai_addr, (int)addr->info->ai_addrlen);
+			// UDP v4: send plainly
+			else if (!isIPV6)
+				conRet = sendto(sock, b.buf, b.len, 0, addr->info->ai_addr, (int)addr->info->ai_addrlen);
+			// UDP v6: set fixed output public IP, and send
+			else
+			{
+				fn_WSASendMsg wsaSendMsg = compat_WSASendMsg();
+				if (!wsaSendMsg)
+				{
+					WSASetLastError(WSAEPROTONOSUPPORT);
+					conRet = -1;
+				}
+				else
+				{
+					WSACMSGHDR* cmsg = (WSACMSGHDR*)lw_calloc_or_exit(WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)), 1);
+					if (!lwp_set_ipv6pktinfo_cmsg(cmsg))
+					{
+						lw_error_addf(err, "no suitable public IPv6 found");
+						conRet = -1;
+					}
+					else
+					{
+						WSAMSG msg;
+						msg.name = addr->info->ai_addr;
+						msg.namelen = (int)addr->info->ai_addrlen;
+						msg.lpBuffers = &b;
+						msg.dwBufferCount = 1;
+						msg.Control.buf = (CHAR*)cmsg;
+						msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
+						msg.dwFlags = 0;
+
+						DWORD sentCount;
+						conRet = wsaSendMsg(ctx->socket, (LPWSAMSG)&msg, 0, &sentCount, NULL, NULL);
+					}
+					free(cmsg);
+				}
+			}
+		}
+
+		if (conRet == -1 && WSAGetLastError() == WSAEWOULDBLOCK)
+		{
+			// 0.5 second timeout
+			struct timeval t;
+			t.tv_sec = 0;
+			t.tv_usec = (long)(0.5 * 1000000);
+			fd_set fdset;
+			fdset.fd_count = 1;
+			fdset.fd_array[0] = sock;
+			conRet = select(-1, NULL, &fdset, NULL, &t);
+			// if conRet == 0, connect timeout - which we ignore
+
+			// these errors are OK! Refused connection mean we got there, hopefully.
+			if (conRet == -1 &&
+				WSAGetLastError() != WSAETIMEDOUT &&
+				WSAGetLastError() != ERROR_CONNECTION_REFUSED && WSAGetLastError() != ERROR_SEM_TIMEOUT)
+			{
+				lw_error_add(err, WSAGetLastError());
+				lw_error_addf(err, "connect/send on hole punch likely failed");
+				broke = lw_true;
+			}
+		}
+		else if (conRet == -1)
+		{
+			lw_error_add(err, WSAGetLastError());
+			lw_error_addf(err, "connect/send on hole punch failed");
+			broke = lw_true;
+		}
+		// else successful start of connect - since non-blocking, not actual connect done yet
+
+		if (local_port == 0)
+		{
+			// TODO: lwp_socket_port(sock) equiv?
+			int socklen = (int)sizeof(s);
+			if (getsockname(sock, (struct sockaddr*)&s, &socklen) == -1)
+			{
+				lw_error_add(err, WSAGetLastError());
+				lw_error_addf(err, "Couldn't get auto-port");
+			}
+			else
+			{
+				local_port = ntohs(((struct sockaddr_in6*)&s)->sin6_port);
+				lw_error_addf(err, "auto-assigned port %hu", local_port);
+			}
+		}
+		else
+			lw_error_addf(err, "sendTo on hole punch, local port %hu should be OK; you can now host", local_port);
+
+		// If TCP connection is active, end it fast without trying to push through (disable lingering)
+		if (broke && type == lw_addr_type_tcp)
+		{
+			struct linger sl = { 0 };
+			lwp_setsockopt(sock, SOL_SOCKET, SO_LINGER, (char *)&sl, sizeof(sl));
+		}
+
+		closesocket(sock);
+	} while (++type != lw_addr_type_udp + 1);
+
+	// In debug, always report
+#ifdef _DEBUG
+	broke = lw_true;
+#endif
+	if (broke && ctx->on_error)
+		ctx->on_error(ctx, err);
+	lw_error_delete(err);
+	lw_addr_delete(addr);
+	return local_port;
 }
 
 void lw_server_set_tag (lw_server ctx, void * tag)
@@ -493,10 +671,10 @@ lw_bool lw_server_load_sys_cert (lw_server ctx,
 	HCERTSTORE cert_store = CertOpenStore
 	(
 		(LPCSTR) 9, /* CERT_STORE_PROV_SYSTEM_A */
-	  0,
 		0,
-	  location_id | CERT_STORE_READONLY_FLAG,
-	 store_name
+		0,
+		location_id | CERT_STORE_READONLY_FLAG,
+		store_name
 	);
 
 	if (!cert_store)
@@ -680,7 +858,7 @@ static lw_error read_cert_file(CRYPT_DATA_BLOB * res, const char* filenameUTF8, 
 		if (textual == lw_false)
 			break;
 
-		DWORD expDERSize;
+		DWORD expDERSize = 0;
 		if (!CryptStringToBinaryA(res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
 			NULL, &expDERSize, NULL, NULL))
 		{
@@ -980,6 +1158,8 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 
 				// PFXImportCertStore is Unicode only
 				wchar_t * passphrase_wchar = passphrase ? lw_char_to_wchar(passphrase, -1) : NULL;
+				// despite SAL annotation, PFXImportCertStore docs allow null passphrase
+				#pragma warning (suppress: 6387) 
 				cert_store = PFXImportCertStore(&pfx, passphrase_wchar, 0);
 				if (passphrase_wchar)
 				{

@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -12,11 +12,18 @@
 #include "address.h"
 #include <ctype.h>
 
-static int resolver (lw_addr);
+#ifndef _WIN32
+#define __stdcall /* hm */
+#endif
+static int __stdcall resolver(lw_addr);
 
 void lwp_addr_init (lw_addr ctx, const char * hostname,
 					const char * service, int hints)
 {
+	// Cause the caller to finish initing and return null addr
+	if (!ctx)
+		return;
+	
 	char * it;
 
 	memset (ctx, 0, sizeof (*ctx));
@@ -32,6 +39,8 @@ void lwp_addr_init (lw_addr ctx, const char * hostname,
 	while (isspace (ctx->hostname [strlen (ctx->hostname) - 1]))
 		ctx->hostname [strlen (ctx->hostname) - 1] = 0;
 
+	// If IPv6, format may be [a:b:c]:port, or just a:b:c, and we assume no port
+	lw_bool ipv6 = lw_false;
 	for (it = ctx->hostname; *it; ++ it)
 	{
 		if (it [0] == ':' && it [1] == '/' && it [2] == '/')
@@ -42,12 +51,23 @@ void lwp_addr_init (lw_addr ctx, const char * hostname,
 			ctx->hostname = it + 3;
 		}
 
-		if (*it == ':')
+		// If IPv6, format may be []:port
+		if (*it == '[')
+		{
+			ipv6 = lw_true;
+			ctx->hostname = it + 1; // skip past [
+			ctx->hints |= lw_addr_hint_ipv6;
+		}
+
+		if (*it == ':' && (!ipv6 || *(it - 1) == ']'))
 		{
 			/* an explicit port overrides the service name */
 
-			service = it + 1;
-			*it = 0;
+			service = it + 1; // read past :
+			if (ipv6)
+				*(it - 1) = 0; // block the ]:port from being read
+			else
+				*it = 0; // block :port from being read
 		}
 	}
 
@@ -124,13 +144,13 @@ void lwp_addr_set_sockaddr (lw_addr ctx, struct sockaddr * sockaddr)
 	if (!ctx->info)
 	{
 		ctx->info = ctx->info_to_free =
-			(struct addrinfo *) calloc (sizeof (*ctx->info), 1);
+			(struct addrinfo *) lw_calloc_or_exit (sizeof (*ctx->info), 1);
 	}
 
 	ctx->info->ai_family = sockaddr->sa_family;
 
 	free (ctx->info->ai_addr);
-	ctx->info->ai_addr = (struct sockaddr *) malloc (sizeof (struct sockaddr_storage));
+	ctx->info->ai_addr = (struct sockaddr *) lw_malloc_or_exit (sizeof (struct sockaddr_storage));
 
 	switch (sockaddr->sa_family)
 	{
@@ -144,6 +164,9 @@ void lwp_addr_set_sockaddr (lw_addr ctx, struct sockaddr * sockaddr)
 			memcpy (ctx->info->ai_addr, sockaddr, sizeof (struct sockaddr_in6));
 			break;
 	};
+
+	// clear to_string
+	ctx->buffer[0] = '\0';
 }
 
 lw_addr lw_addr_clone (lw_addr ctx)
@@ -168,18 +191,30 @@ lw_addr lw_addr_clone (lw_addr ctx)
 	}
 
 	addr->info = addr->info_to_free = (struct addrinfo *) malloc (sizeof (*addr->info));
+	if (!addr->info)
+	{
+		lw_addr_delete(addr); // deletes thread too
+		return 0;
+	}
+
 	memcpy (addr->info, ctx->info, sizeof (*addr->info));
 
 	addr->info->ai_addrlen = ctx->info->ai_addrlen;
 
 	addr->info->ai_next = 0;
 	addr->info->ai_addr = (struct sockaddr *) malloc (addr->info->ai_addrlen);
+	if (!addr->info->ai_addr)
+	{
+		lw_addr_delete(addr); // deletes thread too
+		return 0;
+	}
 
 	memcpy (addr->info->ai_addr, ctx->info->ai_addr, addr->info->ai_addrlen);
 
 	memcpy (addr->service, ctx->service, sizeof (ctx->service));
 
 	addr->hostname = addr->hostname_to_free = ctx->hostname ? strdup(ctx->hostname) : NULL;
+	addr->hints = ctx->hints;
 
 	return addr;
 }
@@ -293,7 +328,7 @@ struct in6_addr lw_addr_toin6_addr (lw_addr ctx)
 	return v4;
 }
 
-int resolver (lw_addr ctx)
+int __stdcall resolver(lw_addr ctx)
 {
 	struct addrinfo hints;
 	int result;

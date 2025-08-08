@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -68,6 +68,8 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 	static char error2[256];
 	lw_ui32 errorCode = 0;
 #define data_remove_prefix(i) data += i; size -= i;
+
+	// use a do loop so we can break out for errors
 	do {
 		// Minimum packet size - fin/opcode byte, mask + content len byte, 4-byte mask key
 		if (size < 1 + 1 + 4)
@@ -180,9 +182,14 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 
 		// Unmask the packet
 		unmaskedData = (char *)malloc(size);
+		if (unmaskedData == NULL)
+		{
+			error = "out of memory";
+			errorCode = 1002;
+			break;
+		}
 		for (size_t i = 0; i < size; i++)
 			unmaskedData[i] = data[i] ^ ((char *)&mask)[i % 4];
-		data = unmaskedData;
 
 		// If we've started a disconnect (!= -1), we'll ignore everything except an acknowledging close response.
 		// (if the client is dodgy and won't acknowledge, they'll get timed out anyway)
@@ -310,7 +317,7 @@ lw_ws lw_ws_new (lw_pump pump)
 	ctx->timeout = 5; // time to respond to first request
 	ctx->websocket = lw_false;
 
-	ctx->timer = lw_timer_new (ctx->pump);
+	ctx->timer = lw_timer_new (ctx->pump, "webserver timer");
 	lw_timer_set_tag (ctx->timer, ctx);
 	lw_timer_on_tick (ctx->timer, on_timer_tick);
 

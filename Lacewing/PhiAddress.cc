@@ -1,13 +1,18 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * Copyright (C) 2017-2022 Darkwire Software.
+ * Copyright (C) 2017-2025 Darkwire Software.
  * All rights reserved.
  *
  * https://opensource.org/licenses/mit-license.php
 */
 
 #include "Lacewing.h"
+#ifdef _MSC_VER
+	// suppress complaints about utf8proc C enums not being C++ enum classes
+	#pragma warning (push)
+	#pragma warning (disable: 26812)
+#endif
 
 // Comments for all the below functions can be found in the header file.
 // IntelliSense should display them anyway.
@@ -326,3 +331,7 @@ void LacewingFatalErrorMsgBox2(const char * const func, const char * const file,
 	assert(false && "Fatal error. Attach debugger and view output variable.");
 #endif
 }
+
+#ifdef _MSC_VER
+	#pragma warning (pop)
+#endif

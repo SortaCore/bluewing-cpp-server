@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * https://opensource.org/licenses/mit-license.php
@@ -11,6 +11,7 @@
 #include "FrameBuilder.h"
 #include "FrameReader.h"
 #include "MessageReader.h"
+#include "src/common.h" // lwp_trace
 #include <vector>
 #include <algorithm>
 
@@ -52,9 +53,7 @@ namespace lacewing
 		static void udphellotick(lacewing::timer timer);
 		void		udphellotick();
 
-		/// <summary> searches for the first channel by id number. </summary>
-		/// <param name="id"> id to look up. </param>
-		/// <returns> null if it fails, else the matching channel. </returns>
+		// Searches for the first channel by id number, null if no match
 		std::shared_ptr<relayclient::channel> findchannelbyid(lw_ui16 id);
 
 		// message: used by lacewing internal (e.g. automatic ping response)
@@ -63,7 +62,7 @@ namespace lacewing
 
 		std::vector<std::shared_ptr<relayclient::channellisting>> channellist;
 
-		/// <summary> Empties the channel list. </summary>
+		// Empties the channel list.
 		void clearchannellist()
 		{
 			lacewing::writelock wl = client.lock.createWriteLock();
@@ -73,7 +72,7 @@ namespace lacewing
 		void clear();
 
 		std::string name;
-		lw_ui16 id = 0xFFFF;
+		lw_ui16 id = 0xFFFF, local_port = 0;
 		std::string welcomemessage;
 		// Indicates connected on a Lacewing level; full Lacewing TCP/UDP handshake finished
 		bool connected = false;
@@ -135,9 +134,6 @@ namespace lacewing
 		}
 	}
 
-	/// <summary> searches for the first channel by id number. </summary>
-	/// <param name="id"> id to look up. </param>
-	/// <returns> null if it fails, else the matching channel. </returns>
 	std::shared_ptr<relayclient::channel> relayclientinternal::findchannelbyid(lw_ui16 id)
 	{
 		lacewing::readlock rl = this->client.lock.createReadLock();
@@ -264,11 +260,28 @@ namespace lacewing
 		wl.lw_unlock();
 	}
 
-	void relayclient::connect(const char * host, lw_ui16 port)
+	void relayclient::connect(const char * host, lw_ui16 remote_port)
 	{
 		lacewing::writelock wl = this->lock.createWriteLock();
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
-		internal.socket->connect(host, port);
+		internal.socket->connect(host, remote_port);
+		if (internal.local_port)
+		{
+			address addr = internal.socket->server_address();
+			const lw_bool makeAddr = addr == nullptr;
+			if (makeAddr)
+				addr = lacewing::address_new(host, remote_port);
+
+			// Host early for UDP hole punch message - which must be sent closely with TCP connect
+			internal.udp->host(addr, internal.local_port);
+
+			// UDPHello with an ignored ID 0xFFFF, which will be ignored by server,
+			// but its reception at all will cause hole punch success
+			internal.udp->send(addr, "\xa0\xFF\xFF", 3);
+			internal.local_port = 0;
+			if (makeAddr)
+				lacewing::address_delete(addr);
+		}
 	}
 
 	void relayclient::connect(address address)
@@ -280,10 +293,22 @@ namespace lacewing
 		// Socket will fuss if we're connecting/connected already, so don't bother checking.
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
 		internal.socket->connect(address);
+		// Host early for possible UDP hole punch
+		internal.udp->host(internal.socket->server_address(), internal.local_port);
+		// UDPHello, although we probably won't receive response in time for it to be processed
+		internal.udp->send(internal.socket->server_address(), "\xa0\xFF\xFF", 3);
+		internal.local_port = 0;
+	}
+
+	void relayclient::setlocalport(lw_ui16 port)
+	{
+		relayclientinternal& internal = *((relayclientinternal*)internaltag);
+		internal.local_port = port;
+		internal.socket->setlocalport(port);
 	}
 
 	void relayclient::disconnect()
-	{
+	{ 
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
 
 		// If you run relayclient::disconnect() while a connection/connect attempt isn't pending,
@@ -425,6 +450,12 @@ namespace lacewing
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
 		framebuilder &message = internal.messageMF;
 
+		if (data.size() > relay_max_udp_payload)
+		{
+			lwp_trace("UDP message too large, discarded");
+			return;
+		}
+
 		lacewing::writelock wl = lock.createWriteLock();
 
 		message.addheader (1, variant, true, internal.id); /* binaryservermessage */
@@ -463,6 +494,12 @@ namespace lacewing
 		if (peers.empty() || _readonly)
 			return;
 
+		if (data.size() > relay_max_udp_payload)
+		{
+			lwp_trace("UDP message too large, discarded");
+			return;
+		}
+
 		relayclientinternal &clientinternal = client;
 		framebuilder &message = clientinternal.messageMF;
 		lacewing::writelock wl = lock.createWriteLock();
@@ -497,6 +534,12 @@ namespace lacewing
 	{
 		if (_readonly)
 			return;
+
+		if (data.size() > relay_max_udp_payload)
+		{
+			lwp_trace("UDP message too large, discarded");
+			return;
+		}
 
 		relayclientinternal &internal = channel.client;
 		framebuilder &message = internal.messageMF;
@@ -615,6 +658,17 @@ namespace lacewing
 		{
 		case 0: /* response */
 		{
+			// Client received the initial null byte from a client side, probably from
+			// a bad hole punch doing client -> client instead of server -> client
+			if (size == 0 && !connected)
+			{
+				lacewing::error errorholepunch = error_new();
+				errorholepunch->add("Got the start of a connection from a client side (bad hole punch?)");
+				this->handler_error(client, errorholepunch);
+				error_delete(errorholepunch);
+				return false;
+			}
+
 			lw_ui8  responsetype = reader.get <lw_ui8>();
 			bool	succeeded	= reader.get <lw_ui8>() != 0;
 
@@ -656,7 +710,8 @@ namespace lacewing
 						break;
 					}
 
-					udp->host(srvAddress);
+					if (!udp->hosting())
+						udp->host(srvAddress);
 					udphellotick();
 
 					udphellotimer->start(500); // see udphellotick
@@ -890,7 +945,8 @@ namespace lacewing
 			default:
 			{
 				lacewing::error error = error_new();
-				error->add("Unrecognised response message received. Response type ID was %i, but expected response type IDs 0-4. Discarding message.");
+				error->add("Unrecognised response message received. Response type ID was %hhu, but "
+					"expected response type IDs 0-4. Discarding message.", responsetype);
 				this->handler_error(client, error);
 				error_delete(error);
 				return true;
@@ -1190,6 +1246,13 @@ namespace lacewing
 				break;
 			}
 
+			// UDP connection completed before TCP, possibly from bad use of hole punch.
+			if (!socket->connected())
+			{
+				lw_trace("Swallowing UDPWelcome at message address %p, TCP is not ready.", message);
+				break;
+			}
+
 			lw_trace("UDPWelcome received for message address %p, now connected.", message);
 
 			udphellotimer->stop();
@@ -1205,6 +1268,14 @@ namespace lacewing
 			auto relayCliWriteLock = client.lock.createWriteLock();
 			if (blasted)
 			{
+				// Hole punch connections send ping messages, as they can be received before or after connection
+				// Continuing here is bad as server_address() is not guaranteed to be set
+				if (!connected)
+				{
+					always_log("Swallowing early UDP ping (assuming it was a hole punch).\n");
+					break;
+				}
+
 				this->message.addheader(9, 0, true, id); /* pong */
 				this->message.send(this->udp, this->socket->server_address());
 			}
@@ -1277,7 +1348,7 @@ namespace lacewing
 
 	relayclientinternal::relayclientinternal(relayclient &_client, pump _eventpump) :
 		client(_client), socket(nullptr), udp(udp_new(_eventpump)),
-		udphellotimer(timer_new(_eventpump)),
+		udphellotimer(timer_new(_eventpump, "udphello")),
 		message(true), messageMF(true)
 	{
 		initsocket(_eventpump);
@@ -1370,9 +1441,6 @@ namespace lacewing
 		_ischannelmaster = false;
 	}
 
-	/// <summary> searches for the first peer by id number. </summary>
-	/// <param name="id"> id to look up. </param>
-	/// <returns> null if it fails, else the matching peer. </returns>
 	std::shared_ptr<relayclient::channel::peer> relayclient::channel::findpeerbyid(lw_ui16 id)
 	{
 		if (!lock.checkHoldsRead(false) && !lock.checkHoldsWrite(false))
@@ -1383,12 +1451,6 @@ namespace lacewing
 		return (i == peers.cend() ? nullptr : *i);
 	}
 
-	/// <summary> Adds a new peer. </summary>
-	/// <param name="peerid"> ID number for the peer. </param>
-	/// <param name="flags"> The flags of the peer connect/channel join message.
-	/// 					 0x1 = master. other flags are not accepted. </param>
-	/// <param name="name"> The name. Cannot be null or blank. </param>
-	/// <returns> null if it fails, else a relayclientinternal::peer *. </returns>
 	std::shared_ptr<relayclient::channel::peer> relayclient::channel::addnewpeer(lw_ui16 peerid, lw_ui8 flags, std::string_view name)
 	{
 		auto p = std::make_shared<relayclient::channel::peer>(*this, peerid, flags, name);

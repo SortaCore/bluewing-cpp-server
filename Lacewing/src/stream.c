@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -10,6 +10,12 @@
 
 #include "common.h"
 #include "stream.h"
+
+#ifdef _MSC_VER
+	// Disable warning about use of alloca over _malloca
+	#pragma warning (push)
+	#pragma warning (disable: 6255)
+#endif
 
 void lwp_stream_init (lw_stream ctx, const lw_streamdef * def, lw_pump pump)
 {
@@ -474,7 +480,7 @@ void lwp_stream_write_stream (lw_stream ctx, lw_stream source,
 
 	assert (ctx->graph == source->graph);
 
-	lwp_streamgraph_link link = (lwp_streamgraph_link) calloc (sizeof (*link), 1);
+	lwp_streamgraph_link link = (lwp_streamgraph_link) lw_calloc_or_exit (sizeof (*link), 1);
 
 	link->from = source;
 	link->to = ctx;
@@ -511,7 +517,7 @@ void lw_stream_add_filter_upstream (lw_stream ctx, lw_stream filter,
 									lw_bool delete_with_stream,
 									lw_bool close_together)
 {
-	lwp_stream_filterspec spec = (lwp_stream_filterspec) malloc (sizeof (*spec));
+	lwp_stream_filterspec spec = (lwp_stream_filterspec) lw_malloc_or_exit (sizeof (*spec));
 
 	spec->stream = ctx;
 	spec->filter = filter;
@@ -538,7 +544,7 @@ void lw_stream_add_filter_downstream (lw_stream ctx, lw_stream filter,
 										lw_bool delete_with_stream,
 										lw_bool close_together)
 {
-	lwp_stream_filterspec spec = (lwp_stream_filterspec) malloc (sizeof (*spec));
+	lwp_stream_filterspec spec = (lwp_stream_filterspec) lw_malloc_or_exit (sizeof (*spec));
 
 	spec->stream = ctx;
 	spec->filter = filter;
@@ -1262,3 +1268,7 @@ lw_pump lw_stream_pump (lw_stream ctx)
 {
 	return ctx->pump;
 }
+
+#ifdef _MSC_VER
+	#pragma warning (pop)
+#endif

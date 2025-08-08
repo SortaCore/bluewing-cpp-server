@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * https://opensource.org/licenses/mit-license.php
@@ -65,7 +65,8 @@ struct relayserverinternal
 	relayserver::handler_nameset		  handlernameset;
 
 	relayserverinternal(relayserver &_server, pump pump) noexcept
-		: server(_server), pingtimer(lacewing::timer_new(pump)), actiontimer(lacewing::timer_new(pump))
+		: server(_server), pingtimer(lacewing::timer_new(pump, "relayserver ping timer")),
+		actiontimer(lacewing::timer_new(pump, "relayserver action timer"))
 	{
 		handlerconnect			= 0;
 		handlerdisconnect		= 0;
@@ -124,6 +125,7 @@ struct relayserverinternal
 		auto serverCliListWriteLock = server.lock_clientlist.createWriteLock();
 		auto serverChListWriteLock = server.lock_channellist.createWriteLock();
 		auto serverUDPWriteLock = server.lock_udp.createWriteLock();
+		auto actionWriteTimer = lock_queueaction.createWriteLock();
 
 		// TODO: Will this ever be non-empty?
 		for (auto& c : clients)
@@ -144,6 +146,9 @@ struct relayserverinternal
 
 		lacewing::timer_delete(pingtimer);
 		pingtimer = nullptr;
+
+		lacewing::timer_delete(actiontimer);
+		actiontimer = nullptr;
 	}
 
 	IDPool clientids;
@@ -172,20 +177,20 @@ struct relayserverinternal
 	long actionThreadMS;
 	std::size_t numActionsPerTick;
 
-	/// <summary> Lacewing timer function for pinging and inactivity tests. </summary>
-	///	<remarks> There are three things this function does:
-	///			  1) If the client has not sent a TCP message within tcpPingMS milliseconds, send a ping request.
-	///			  -> If client still hasn't responded after another tcpPingMS, notify server via error handler,
-	///				 and disconnect client.
-	///			  2) If the client has not sent a UDP message within udpKeepAliveMS milliseconds, send a ping request.
-	///			  -> UDP ping response is not checked for by this function; one-way UDP activity is enough to keep the
-	///				 UDP psuedo-connection alive in routers.
-	///				 Note that using default timings, three UDP messages will be sent before routers are likely to close connection.
-	///			  3) If the client has only replied to pings, and not sent any channel, peer, or server messages besides,
-	///				 within a period of maxInactivityMS, then the client will be messaged and disconnected, and the server notified
-	///				 via error handler.
-	///				 Worth noting channel messages when there is no other peers, and serve messages when there is no server message
-	///				 handler, and channel join/leave requests as well as other messages, do not qualify as activity. </remarks>
+	/** Lacewing server timer function for client pinging and inactivity tests.
+		@remarks There are three things this function does:
+				  1) If the client has not sent a TCP message within tcpPingMS milliseconds, send a ping request.
+				  -> If client still hasn't responded after another tcpPingMS, notify server via error handler,
+					 and disconnect client.
+				  2) If the client has not sent a UDP message within udpKeepAliveMS milliseconds, send a ping request.
+				  -> UDP ping response is not checked for by this function; one-way UDP activity is enough to keep the
+					 UDP psuedo-connection alive in routers.
+					 Note that using default timings, three UDP messages will be sent before routers are likely to close connection.
+				  3) If the client has only replied to pings, and not sent any channel, peer, or server messages besides,
+					 within a period of maxInactivityMS, then the client will be messaged and disconnected, and the server notified
+					 via error handler.
+					 Worth noting channel messages when there is no other peers, and serve messages when there is no server message
+					 handler, and channel join/leave requests as well as other messages, do not qualify as activity. */
 	void pingtimertick()
 	{
 		std::vector<std::shared_ptr<relayserver::client>> pingUnresponsivesToDisconnect;
@@ -454,8 +459,8 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 	if (data.size() < (1 + sizeof(unsigned short)))
 		return;
 
-	lw_ui8 type = *(lw_ui8 *)data.data();
-	lw_ui16 id = *(lw_ui16 *)(data.data() + 1);
+	const lw_ui8 type = *(lw_ui8 *)data.data();
+	const lw_ui16 id = *(lw_ui16 *)(data.data() + 1);
 
 	if (id == 0xFFFF)
 		return; // this is a placeholder number, and normally indicates error with client
@@ -468,18 +473,61 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 		if (clientsocket->_id == id)
 		{
 			serverClientListReadLock.lw_unlock();
-			// Pay close attention to this * here. You can do
-			// lacewing::address == lacewing::_address, but
-			// not any other combo.
+
+			// Note the dereference here. You can do lacewing::address == lacewing::_address,
+			// but not any other combo.
+			// This compares IP only, ignoring ports.
 			if (*clientsocket->udpaddress != address)
 			{
-				// A client ID was used by the wrong IP... hack attempt?
-				// Can occasionally occur during legitimate disconnects, but rarely (?)
+				// A client ID was used by the wrong IPv4... hack attempt, or IP is behind double-NAT,
+				// such as T-Mobile CG-NAT, and the TCP + UDP have different IPs.
+				// As a UDP impersonator will result in the real TCP user disconnecting from UDP handshake failing,
+				// it's not a massive security risk, but it is potentially possible to prevent incoming connections
+				// to a server.
+				// 
+				// TODO: The fix would be to pass a secret to the TCP side on connection approval, which must be
+				// echoed back to the UDP side; but Relay wouldn't support that. When we kill Relay compatibility,
+				// that's the method to fix this security issue.
+				//
+				// IPv6 doesn't use NAT, so in theory there should never be an IPv6 difference.
+				// Note that IPv6+4 server sockets always report their IPv4 clients as IPv6 addresses
+				// (mapped to IPv4), so we can't use address->ipv6().
+				const struct in6_addr addrIn6 = address->toin6_addr();
+				if (clientsocket->lockedUDPAddress || !IN6_IS_ADDR_V4MAPPED(&addrIn6))
+				{
+					// To prevent log slowing the server down, we don't report UDP impersonation.
+					// Code to reply with ICMP unreachable is in the #if 0 later.
+					#ifdef _lacewing_debug
+					error error = error_new();
+					error->add("Dropping message");
+					error->add("locked = %s, ipv6 = %s, v4 mapped = %s", clientsocket->lockedUDPAddress ? "yes" : "no",
+						address->ipv6() ? "yes" : "no", IN6_IS_ADDR_V4MAPPED(&addrIn6) ? "yes" : "no"
+					);
+					error->add("Message IP \"%s\", client IP \"%s\".", address->tostring(), clientsocket->udpaddress->tostring());
+					error->add("Received a UDP message (supposedly) from Client ID %i, but message doesn't have that client's IP.", id);
+					handlerudperror(udp, error);
+					error_delete(error);
+					#endif // _lacewing_debug
+					return;
+				}
+
+				// Not meant to get UDP from here
+				if (clientsocket->pseudoUDP)
+					return;
+
+				// Got a UDP address for this client
+				lwp_trace("Locked UDP address for client ID %hu, from \"%s\" to \"%s\".", clientsocket->id(),
+					clientsocket->udpaddress->tostring(), address->tostring());
+				auto clientWriteLock = clientsocket->lock.createWriteLock();
+				lacewing::address_delete(clientsocket->udpaddress);
+				clientsocket->udpaddress = lacewing::address_new(address);
+				clientsocket->lockedUDPAddress = true;
+
 #if false
 
 				// faulty clients can use ID 0xFFFF and 0x0000
 
-				auto rl = lock.createReadLock();
+				serverClientListReadLock.lw_relock();
 
 				std::shared_ptr<relayserver::client> realSender = nullptr;
 				for (const auto& cs : clients)
@@ -492,35 +540,44 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 				}
 
 				error error = error_new();
-				error->add("Received a UDP message (supposedly) from Client ID %i, but message doesn't have that client's IP. ", id);
+				error->add("Dropping message");
 				if (realSender)
 				{
-					error->add("Message ACTUALLY originated from client ID %i, on IP %s. Disconnecting client for impersonation attempt. ",
-						realSender->id, realSender->address);
+					error->add("Message ACTUALLY originated from client ID %hu, on IP %s. Disconnecting client for impersonation attempt. ",
+						realSender->id(), realSender->address);
 					realSender->socket->close();
 				}
-				error->add("Dropping message");
+				error->add("Message IP \"%s\", client IP \"%s\".", address->tostring(), clientsocket->udpaddress->tostring());
+				error->add("Received a UDP message (supposedly) from Client ID %i, but message doesn't have that client's IP.", id);
 				handlerudperror(udp, error);
 				error_delete(error);
+				return;
 #endif
+			}
+			// IP matches, but port does not; the remote port used by a client on UDP often differs from TCP
+			else if (!clientsocket->lockedUDPAddress && clientsocket->udpaddress->port() != address->port())
+			{
+				lwp_trace("Locked UDP address (port-only) for client ID %hu, from \"%s\" to \"%s\".", clientsocket->id(),
+					clientsocket->udpaddress->tostring(), address->tostring());
+
+				auto clientWriteLock = clientsocket->lock.createWriteLock();
+				clientsocket->udpaddress->port(address->port());
+				clientsocket->lockedUDPAddress = true;
+			}
+
+			// A client ID is set to only have "fake UDP" but used real UDP.
+			// Pseudo setting is wrong, but IP is correct?
+			if (clientsocket->pseudoUDP)
+			{
+				lacewing::error error = lacewing::error_new();
+				error->add("Client ID %i is set to pseudo-UDP, but received a real UDP packet"
+					" on matching address. Ignoring packet.", id);
+				handlerudperror(udp, error);
+				lacewing::error_delete(error);
 				return;
 			}
 
-			if (clientsocket->pseudoUDP)
-			{
-				// A client ID is set to only have "fake UDP" but used real UDP.
-				// Pseudo setting is wrong, which means server didn't init client properly, not good.
-				lacewing::error error = lacewing::error_new();
-				error->add("Client ID %i is set to pseudo-UDP, but received a real UDP packet"
-					" on matching address. Correcting pseudo-UDP; please check your config.", id);
-				lacewing::handlerudperror(udp, error);
-				lacewing::error_delete(error);
-				clientsocket->pseudoUDP = false;
-			}
-
-			clientsocket->udpaddress->port(address->port());
 			client_messagehandler(clientsocket, type, data, true);
-
 			return;
 		}
 	}
@@ -663,8 +720,8 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 	// If it IS a deliberate attack, there won't even necesssarily BE any Lacewing clients with that IP.
 	// Again, UDP is connection-less, so the format of messages (Lacewing or not) is irrelevant - the OS
 	// will deliver it to this function here.
-	std::vector<relayserver::client *> todrop;
-	for (const auto& clientsocket : internal.clients)
+	std::vector<std::shared_ptr<relayserver::client> > todrop;
+	for (const auto& clientsocket : clients)
 	{
 		if (*clientsocket->udpaddress == address)
 			todrop.push_back(clientsocket);
@@ -681,12 +738,12 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 	for (const auto& c : todrop)
 	{
 		try {
-			error->add("Dropping client ID %hu due to shared IP", c->id);
+			error->add("Dropping client ID %hu due to shared IP", c->id());
 			c->socket->close();
 		}
 		catch (...)
 		{
-			lw_trace("Dropping failed for ID %hu.", c->id);
+			lw_trace("Dropping failed for ID %hu.", c->id());
 		}
 	}
 
@@ -1429,6 +1486,16 @@ void relayserver::host(lw_ui16 port)
 {
 	lacewing::filter filter = lacewing::filter_new();
 	filter->local_port(port);
+	
+	// If hole punch is used, the socket we're about to host from should be reused
+	// as it was initially used for a hole punch connect call
+	if (hole_punch_used)
+	{
+		filter->reuse(true);
+		// TODO: When 1:1 server-client hole punching is removed, note this line
+		// that allows server sockets to inherit from the hole puncher socket
+		hole_punch_used = false;
+	}
 
 	host(filter);
 	filter_delete(filter);
@@ -1498,6 +1565,12 @@ void relayserver::host_websocket(lacewing::filter& filterNonSecure, lacewing::fi
 	serverInternal->actiontimer->start(serverInternal->actionThreadMS);
 }
 
+void relayserver::hole_punch(const char* ip, lw_ui16 local_port)
+{
+	socket->hole_punch(ip, local_port);
+	hole_punch_used = true;
+}
+
 void relayserver::unhost()
 {
 	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
@@ -1508,7 +1581,10 @@ void relayserver::unhost()
 	// flash only points to regular server, so it has no client list itself
 	const bool isWebSocketActive = websocket->hosting() || websocket->hosting_secure();
 	if (!isWebSocketActive)
+	{
 		serverInternal->pingtimer->stop();
+		serverInternal->actiontimer->stop();
+	}
 
 	// This will drop all clients, by doing so drop all channels
 	// and both of those will free the IDs
@@ -1540,7 +1616,7 @@ void relayserver::unhost_websocket(bool insecure, bool secure)
 	if (!insecure && !secure)
 		return;
 
-	const char serverMask = (insecure ? 2 : 0) | (secure ? 4 : 0);
+	const char serverMask = (insecure ? '\x2' : '\x0') | (secure ? '\x4' : '\x0');
 	relayserverinternal* serverInternal = (relayserverinternal*)internaltag;
 	if (serverInternal->queue_or_run_action(false, relayserverinternal::action::type::unhost, nullptr, nullptr, std::string_view(&serverMask, 1)))
 		return;
@@ -1549,7 +1625,10 @@ void relayserver::unhost_websocket(bool insecure, bool secure)
 	// If we've got a different server up (and we're not about to unhost it here), then keep ping timer running
 	const bool isOtherHosting = socket->hosting() || (!insecure && websocket->hosting()) || (!secure && websocket->hosting_secure());
 	if (!isOtherHosting)
+	{
 		serverInternal->pingtimer->stop();
+		serverInternal->actiontimer->stop();
+	}
 
 	// We'll set the leavers all as readonly before closing channels, so peer leave messages aren't sent to leavers
 	// as the clients leave their channels
@@ -1604,8 +1683,8 @@ lw_ui16 relayserver::port()
 	return (lw_ui16) socket->port();
 }
 
-/// <summary> Gracefully closes the channel, including deleting memory, removing channel
-/// 		  from server list, and messaging clients. </summary>
+// Gracefully closes the channel, including deleting memory, removing channel
+// from server list, and messaging clients.
 void relayserverinternal::close_channel(std::shared_ptr<relayserver::channel> channel)
 {
 	auto channelWriteLock = channel->lock.createWriteLock();
@@ -2780,6 +2859,12 @@ void relayserver::client::send(lw_ui8 subchannel, std::string_view message, lw_u
 
 void relayserver::client::blast(lw_ui8 subchannel, std::string_view message, lw_ui8 variant)
 {
+	if (message.size() > relay_max_udp_payload)
+	{
+		lwp_trace("UDP message too large, discarded");
+		return;
+	}
+
 	framebuilder builder(false);
 
 	builder.addheader(1, variant, true); /* binaryservermessage */
@@ -2824,6 +2909,12 @@ void relayserver::channel::send(lw_ui8 subchannel, std::string_view message, lw_
 
 void relayserver::channel::blast(lw_ui8 subchannel, std::string_view message, lw_ui8 variant)
 {
+	if (message.size() > relay_max_udp_payload)
+	{
+		lwp_trace("UDP message too large, discarded");
+		return;
+	}
+
 	framebuilder builder(false);
 
 	builder.addheader (4, variant, true); /* binaryserverchannelmessage */
@@ -2856,7 +2947,7 @@ void relayserver::channel::blast(lw_ui8 subchannel, std::string_view message, lw
 	}
 }
 
-/// <summary> Throw all clients off this channel, sending Leave Request Success. </summary>
+// Throw all clients off this channel, sending Leave Request Success.
 void relayserver::channel::close()
 {
 	auto serverChannelListReadLock = server.server.lock_channellist.createReadLock();
@@ -3229,10 +3320,10 @@ std::shared_ptr<relayserver::channel> relayserver::createchannel(std::string_vie
 	return channel;
 }
 
-/// <summary> Responds to a connect request. Pass null for deny reason if approving.
-/// 		  You MUST run this event even if denying, or you will have a connection open and a memory leak. </summary>
-/// <param name="client">	  [in] The client. Deleted if not approved. </param>
-/// <param name="denyReason"> The deny reason. If null, request is approved. </param>
+/** Responds to a connect request. Pass empty for deny reason if approving.
+	You MUST run this event even if denying, or you will have a connection open and a memory leak.
+	@param client [in] The client. Deleted if not approved.
+	@param denyReason The deny reason. If empty, request is approved. */
 void relayserver::connect_response(
 	std::shared_ptr<relayserver::client> client, std::string_view passedDenyReason)
 {
@@ -3309,7 +3400,7 @@ void relayserver::connect_response(
 	}
 }
 
-// Validates the StringView, or replaces it with the given other one.
+// Validates the string_view, or replaces it with the given other one.
 static void validateorreplacestringview(std::string_view toValidate,
 	std::string_view &writeTo,
 	std::string_view replaceWith,
@@ -3331,15 +3422,13 @@ static void validateorreplacestringview(std::string_view toValidate,
 	lacewing::error_delete(error);
 	writeTo = replaceWith;
 }
-/// <summary> Approves or sends a deny response to channel join request. Pass null for deny reason if approving.
-/// 		  Even if you're denying, you still MUST call this event, or you will have a memory leak.
-/// 		  For new channels, this will add them to server's channel list if approved, or delete them. </summary>
-/// <param name="channel">				[in] The channel. Name is as originally requested. </param>
-/// <param name="passedNewChannelName"> Name of the passed channel. If null, original request name is approved.
-/// 									If non-null, must be 1-255 chars, or the channel join is denied entirely. </param>
-/// <param name="client">				[in] The client joining/creating the channel. </param>
-/// <param name="denyReason">			The deny reason. If null, the channel is approved (if new channel name is legal).
-/// 									If non-null, channel join deny is sent, and channel is cleaned up as needed. </param>
+/** Approves or sends a deny response to channel join request. Pass empty for deny reason if approving.
+ *	Even if you're denying, you still MUST call this event, or you will have a memory leak.
+ *	For new channels, this will add them to server's channel list if approved, or delete them.
+ *	@param channel		[in] The channel. Name is as originally requested.
+ *	@param client		[in] The client joining/creating the channel.
+ *	@param denyReason	[in] The deny reason. If empty, the channel is approved.
+ *	 					If non-empty, channel join deny is sent, and channel is cleaned up as needed. */
 void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> channel,
 	std::shared_ptr<relayserver::client> client, std::string_view denyReason)
 {
@@ -3437,12 +3526,12 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 	serverinternal.channel_addclient(channel, client);
 }
 
-/// <summary> Approves or sends a deny response to channel leave request. Pass null for deny reason if approving.
-/// 		  Even if you're denying, you still MUST call this event, or you will have a memory leak. </summary>
-/// <param name="channel">		[in] The channel.  </param>
-/// <param name="client">		[in] The client leaving the channel. </param>
-/// <param name="denyReason">	The deny reason. If null, the channel is approved (if new channel name is legal).
-/// 							If non-null, channel join deny is sent, and channel is cleaned up as needed. </param>
+/** Approves or sends a deny response to channel leave request. Pass null for deny reason if approving.
+	Even if you're denying, you still MUST call this event, or you will have a memory leak.
+	@param channel	  [in] The channel.
+	@param client	  [in] The client leaving the channel.
+	@param denyReason The deny reason. If empty, the channel is approved (if new channel name is legal).
+					  If non-empty , channel join deny is sent, and channel is cleaned up as needed. */
 void relayserver::leavechannel_response(std::shared_ptr<relayserver::channel> channel,
 	std::shared_ptr<relayserver::client> client, std::string_view denyReason)
 {
@@ -3477,8 +3566,8 @@ void relayserver::leavechannel_response(std::shared_ptr<relayserver::channel> ch
 	serverinternal.channel_removeclient(channel, client);
 }
 
-/// <summary> Finishes the channel closing event, clearing the peer list and sending the leave messages.
-///			  Should only be called after a false-returning channel close handler. </summary>
+// Finishes the channel closing event, clearing the peer list and sending the leave messages.
+// Should only be called after a false-returning channel close handler.
 void relayserver::closechannel_finish(std::shared_ptr<lacewing::relayserver::channel> channel)
 {
 	// The channel should already be closed, with this event only updating the peer list and closing.
@@ -3486,7 +3575,8 @@ void relayserver::closechannel_finish(std::shared_ptr<lacewing::relayserver::cha
 		throw std::runtime_error("Channel was not previously closed.");
 
 	// channel->close() will check for channel in server list, but we don't have it there
-	((relayserverinternal*)internaltag)->queue_or_run_action(false, relayserverinternal::action::type::closechannelfinish, channel, nullptr, std::string_view());
+	if (!((relayserverinternal*)internaltag)->queue_or_run_action(false, relayserverinternal::action::type::closechannelfinish, channel, nullptr, std::string_view()))
+		((relayserverinternal*)internaltag)->close_channel(channel);
 }
 
 // These two functions allow access to internal transmissions: PeerToChannel, PeerToPeer.

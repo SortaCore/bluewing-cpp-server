@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -25,7 +25,7 @@ static void lwp_error_add (lw_error ctx, const char * buffer)
 	size_t length = strlen (buffer);
 
 	if ((ctx->begin - length) < ctx->buffer)
-	  return;
+		return;
 
 	ctx->begin -= length;
 	memcpy (ctx->begin, buffer, length);
@@ -36,11 +36,11 @@ void lw_error_addv (lw_error ctx, const char * format, va_list args)
 	++ ctx->size;
 
 	if (*ctx->begin)
-	  lwp_error_add (ctx, " - ");
+		lwp_error_add (ctx, " - ");
 
-	char * buffer = (char *) malloc (sizeof (ctx->buffer) + 1);
+	char * buffer = (char *) lw_malloc_or_exit (sizeof (ctx->buffer) + 1);
 
-	assert(buffer != NULL && format != NULL);
+	assert(format != NULL);
 	vsnprintf (buffer, sizeof (ctx->buffer), format, args);
 	lwp_error_add (ctx, buffer);
 
@@ -52,7 +52,7 @@ lw_error lw_error_new ()
 	lw_error ctx = (lw_error) malloc (sizeof (*ctx));
 
 	if (!ctx)
-	  return 0;
+		return 0;
 
 	*(ctx->begin = ctx->buffer + sizeof (ctx->buffer) - 1) = 0;
 
@@ -65,7 +65,7 @@ lw_error lw_error_new ()
 void lw_error_delete (lw_error ctx)
 {
 	if (!ctx)
-	  return;
+		return;
 
 	free (ctx);
 }
@@ -80,7 +80,7 @@ lw_error lw_error_clone (lw_error ctx)
 	lw_error error = (lw_error) malloc (sizeof (*error));
 
 	if (!error)
-	  return 0;
+		return 0;
 
 	memcpy (error, ctx, sizeof (*error));
 
@@ -158,4 +158,3 @@ void * lw_error_tag (lw_error ctx)
 {
 	return ctx->tag;
 }
-

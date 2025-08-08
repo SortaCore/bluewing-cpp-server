@@ -1,7 +1,7 @@
-/* vim: set et ts=4 sw=4 sts=4 ft=cpp:
+/* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * Copyright (C) 2012 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -30,9 +30,9 @@ void _udp::host (lacewing::filter filter)
 	lw_udp_host_filter ((lw_udp) this, (lw_filter) filter);
 }
 
-void _udp::host (lacewing::address address)
+void _udp::host (lacewing::address address, lw_ui16 local_port)
 {
-	lw_udp_host_addr ((lw_udp) this, (lw_addr) address);
+	lw_udp_host_addr ((lw_udp) this, (lw_addr) address, local_port);
 }
 
 bool _udp::hosting ()

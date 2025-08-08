@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011-2013 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -24,6 +24,8 @@ struct _lw_filter
 lw_filter lw_filter_new ()
 {
 	lw_filter ctx = (lw_filter) malloc (sizeof (*ctx));
+	if (!ctx)
+		return NULL;
 
 	ctx->local_port = 0;
 	ctx->remote_port = 0;
@@ -306,6 +308,12 @@ lwp_socket lwp_create_server_socket (lw_filter filter, int type,
 	  }
 	}
 
+	
+	#ifdef _WIN32
+		#pragma warning (suppress: 6385) // No, it's not over-reading
+	#endif
+
+	// always bind local address; either to wildcard, or to specific
 	if (bind (s, (struct sockaddr *) &addr, (socklen_t) addr_len) == -1)
 	{
 	  lw_error_add (error, lwp_last_socket_error);

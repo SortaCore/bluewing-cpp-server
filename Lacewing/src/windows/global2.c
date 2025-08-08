@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -19,7 +19,13 @@ void lwp_init ()
 	if (++init_called != 1)
 		return;
 
-	WSAStartup (MAKEWORD (2, 2), &winsock_data);
+	int err = WSAStartup(MAKEWORD(2, 2), &winsock_data);
+	if (err != 0 || winsock_data.wVersion < MAKEWORD(2, 2))
+	{
+		always_log("Couldn't startup WinSock v2.2, got error %d, ver %d.%d", err, HIBYTE(winsock_data.wVersion), LOBYTE(winsock_data.wVersion));
+		exit(WSAVERNOTSUPPORTED);
+		return;
+	}
 }
 void lwp_deinit()
 {

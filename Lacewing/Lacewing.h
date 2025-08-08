@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -408,7 +408,7 @@ typedef lw_i8 lw_bool;
 
 	/* Timer */
 
-	lw_import		lw_timer  lw_timer_new			(lw_pump);
+	lw_import		lw_timer  lw_timer_new			(lw_pump, const char * timer_name);
 	lw_import			void  lw_timer_delete		(lw_timer);
 	lw_import			void  lw_timer_start		(lw_timer, long milliseconds);
 	lw_import		 lw_bool  lw_timer_started		(lw_timer);
@@ -462,6 +462,7 @@ typedef lw_i8 lw_bool;
 	lw_import			void  lw_client_connect_addr		(lw_client, lw_addr);
 	lw_import			void  lw_client_connect_secure		(lw_client, const char * host, lw_ui16 port);
 	lw_import			void  lw_client_connect_addr_secure	(lw_client, lw_addr);
+	lw_import			void  lw_client_set_local_port		(lw_client, lw_ui16 localport);
 	lw_import			void  lw_client_disconnect			(lw_client);
 	lw_import		 lw_bool  lw_client_connected			(lw_client);
 	lw_import		 lw_bool  lw_client_connecting			(lw_client);
@@ -502,6 +503,7 @@ typedef lw_i8 lw_bool;
 	lw_import	lw_server_client  lw_server_client_next		(lw_server_client);
 	lw_import			  void *  lw_server_tag				(lw_server);
 	lw_import				void  lw_server_set_tag			(lw_server, void *);
+	lw_import			 lw_ui16  lw_server_hole_punch		(lw_server, const char * remote_ip_and_port, lw_ui16 local_port);
 
 	typedef void (lw_callback * lw_server_hook_connect) (lw_server, lw_server_client);
 	lw_import void lw_server_on_connect (lw_server, lw_server_hook_connect);
@@ -521,7 +523,7 @@ typedef lw_i8 lw_bool;
 	lw_import		void  lw_udp_delete		 (lw_udp);
 	lw_import		void  lw_udp_host		 (lw_udp, lw_ui16 port);
 	lw_import		void  lw_udp_host_filter (lw_udp, lw_filter);
-	lw_import		void  lw_udp_host_addr	 (lw_udp, lw_addr);
+	lw_import		void  lw_udp_host_addr	 (lw_udp, lw_addr, lw_ui16 local_port);
 	lw_import	 lw_bool  lw_udp_hosting	 (lw_udp);
 	lw_import		void  lw_udp_unhost		 (lw_udp);
 	lw_import	 lw_ui16  lw_udp_port		 (lw_udp);
@@ -662,12 +664,14 @@ typedef lw_i8 lw_bool;
 	typedef void (lw_callback * lw_ws_hook_upload_post) (lw_ws, lw_ws_req, lw_ws_upload uploads [], size_t num_uploads);
 	lw_import void lw_ws_on_upload_post (lw_ws, lw_ws_hook_upload_post);
 
-	typedef void (lw_callback* lw_ws_hook_websocket_message) (lw_ws, lw_ws_req, const char * buffer, size_t size);
+	typedef void (lw_callback * lw_ws_hook_websocket_message) (lw_ws, lw_ws_req, const char * buffer, size_t size);
 	lw_import void lw_ws_on_websocket_message (lw_ws, lw_ws_hook_websocket_message);
 
+	void * lw_malloc_or_exit (const size_t size);
+	void * lw_calloc_or_exit (const size_t count, const size_t size);
+	void * lw_realloc_or_exit (void * origptr, size_t newsize);
 
 #ifdef __cplusplus
-
 } /* extern "C" */
 
 #ifdef _lacewing_wrap_cxx
@@ -681,51 +685,49 @@ typedef lw_i8 lw_bool;
 	#define lw_sprintf_s sprintf
 #endif // _MSC_VER
 
-#pragma region Phi stuff
-
 // Every Unicode library decomposes into 4-byte chars, probably for the x86 nativeness, and
 // for one code unit per code point.
 // For platform compatibility, we use a third-party library; this one is actually used in Julia.
 #include "deps/utf8proc.h"
 
-/// <summary> Converts a IPv4-mapped-IPv6 address to IPv4, stripping ports.
-/// 		  If the address is IPv4 or unmapped IPv6, copies it without port. </summary>
+// Converts a IPv4-mapped-IPv6 address to IPv4, stripping ports.
+// If the address is IPv4 or unmapped IPv6, copies it without the port.
 void lw_addr_prettystring(const char * input, char * const output, size_t outputSize);
 
-/// <summary> Compares if two strings match, returns true if so. Does a size check, then does flat buffer comparison;
-///			  make sure if you're passing UTF-8, both args are valid, normalized UTF-8 strings.
-///			  Does not validate or check strings' content. </summary>
+// Compares if two strings match, returns true if so. Does a size check, then does flat buffer comparison;
+// make sure if you're passing UTF-8, both args are valid, normalized UTF-8 strings.
+// Does not validate or check strings' content.
 bool lw_sv_cmp(const std::string_view first, const std::string_view second);
 
-/// <summary> Compares if two strings match, returns true if so. Case insensitive. Does a size check.
-///			  Expects both are valid UTF-8 strings, non-destructively simplified.
-///			  Also see lw_sv_cmp(). </summary>
+// Compares if two strings match, returns true if so. Case insensitive. Does a size check.
+// Expects both are valid UTF-8 strings, non-destructively simplified.
+// See lw_sv_cmp().
 bool lw_u8str_icmp(const std::string_view first, const std::string_view second);
 
-/// <summary> Validates a UTF-8 std::string as having valid UTF-8 codepoints.
-///			  Does not ensure strings are normalized; empty strings return true. </summary>
+// Validates a UTF-8 std::string as having valid UTF-8 codepoints.
+// Does not ensure strings are normalized. Empty strings return true.
 bool lw_u8str_validate(const std::string_view toValidate);
 
-/// <summary> Normalizes the passed std::string to its least-bytes equivalent (using NFC), and returns true.
-///			  Empty = true. Handles invalid UTF-8 strings by returning false. </summary>
+// Normalizes the passed std::string to its least-bytes equivalent (using NFC), and returns true.
+// Empty = true. Handles invalid UTF-8 strings by returning false.
 bool lw_u8str_normalize(std::string & input);
 
-/// <summary> Returns a NFC/NKFC, case-folded, stripped-down version of
-///			  passed string. Used for easier searching, and to prevent similar names as an exploit.
-///			  Handles invalid UTF-8 string by returning blank. </summary>
-/// <param name="destructive"> If true, converts to lowercase, and lumps some things together with UTF8PROC lumping.
-///							   Use false to check if two strings (after the simplifying) differ by case alone. </param>
-/// <param name="extralumping"> Replaces lookalike characters (e.g. 0 and O to o). </param>
+/** Returns a NFC/NKFC, case-folded, stripped-down version of the passed string.
+	Used for easier searching, and to prevent similar names as an exploit.
+	Handles invalid UTF-8 string by returning blank.
+	@param destructive If true, converts to lowercase, and lumps some things together with UTF8PROC lumping.
+					   Use false to check if two strings (after the simplifying) differ by case alone.
+	@param extralumping Replaces lookalike characters (e.g. 0 and O to o). */
 std::string lw_u8str_simplify(const std::string_view first, bool destructive = true, bool extralumping = true);
 
-/// <summary> Removes whitespace, control, and strange code points from both beginning and end of string,
-///			  and returns the result. Stricter on the beginning. Ignores the middle of the string.
-///			  Handles invalid UTF-8 strings by returning blank. </summary>
-/// <param name="abortIfTrimNeeded"> If abort is specified, at the first code point needed to be trimmed,
-///									 the function aborts and returns an empty string_view instead. </param>
-/// <remarks> The front of the string must be letters, numbers, punctuation in Unicode category.
-///			  The end of the string is like the start, but also allows marks and symbols.
-///			  Both control and whitespace category will always be removed. </remarks>
+/** Removes whitespace, control, and strange code points from both beginning and end of string,
+	and returns the result. Stricter on the beginning. Ignores the middle of the string.
+	Handles invalid UTF-8 strings by returning blank.
+	@param abortIfTrimNeeded If abort is specified, at the first code point needed to be trimmed,
+							 the function aborts and returns an empty string_view instead.
+	@remarks The front of the string must be letters, numbers, punctuation in Unicode category.
+			 The end of the string is like the start, but also allows marks and symbols.
+			 Both control and whitespace category will always be removed. */
 std::string_view lw_u8str_trim(std::string_view toTrim, bool abortOnTrimNeeded = false);
 
 #if defined(_WIN32)
@@ -733,9 +735,6 @@ std::string_view lw_u8str_trim(std::string_view toTrim, bool abortOnTrimNeeded =
 // Returns null or a wide-converted version of the U8 string passed. Free it with free(). Pass size -1 for null-terminated strings.
 extern "C" lw_import wchar_t * lw_char_to_wchar(const char * u8str, int size);
 #endif
-
-// to preserve namespace
-#pragma endregion
 
 namespace lacewing
 {
@@ -896,7 +895,7 @@ struct _timer
 	lw_import void * tag ();
 };
 
-lw_import timer timer_new (pump);
+lw_import timer timer_new (pump, const char *);
 lw_import void timer_delete (timer);
 
 
@@ -1121,8 +1120,9 @@ struct _client : public _fdstream
 {
 	lw_class_wraps (client);
 
-	lw_import void connect (const char * host, lw_ui16 port);
+	lw_import void connect (const char * host, lw_ui16 remote_port);
 	lw_import void connect (address);
+	lw_import void setlocalport (lw_ui16 port);
 
 	lw_import bool connected ();
 	lw_import bool connecting ();
@@ -1177,6 +1177,8 @@ struct _server
 	lw_import size_t num_clients ();
 	lw_import server_client client_first ();
 
+	lw_import lw_ui16 hole_punch (const char * ip_and_remote_port, lw_ui16 local_port);
+
 	typedef void (lw_callback * hook_connect) (server, server_client);
 	typedef void (lw_callback * hook_disconnect) (server, server_client);
 
@@ -1221,7 +1223,7 @@ struct _udp
 
 	lw_import void host (lw_ui16 port);
 	lw_import void host (filter);
-	lw_import void host (address);
+	lw_import void host (address, lw_ui16 local_port = 0);
 
 	lw_import bool hosting ();
 	lw_import void unhost ();
@@ -1537,6 +1539,13 @@ lw_import void flashpolicy_delete (flashpolicy);
 // Make sure you also add UDP keep-alive. Routers close connection otherwise.
 // Make sure you also fix the timer issue in unix.
 
+
+// Maximum size of a UDP datagram is 65535, minus IP(v4/v6) header, minus Lacewing Relay UDP header,
+// with some extra margin, due to WebSocket psuedo.
+// It's probably fragmented beyond 1400 bytes anyway, due to Ethernet MTU.
+// UDP exceeding this size will be silently dropped.
+const static lw_ui16 relay_max_udp_payload = UINT16_MAX - 40 - 20;
+
 struct readlock;
 struct writelock;
 struct readwritelock
@@ -1698,7 +1707,7 @@ struct relayclientinternal;
 struct relayclient
 {
 public:
-	const static int buildnum = 104;
+	const static int buildnum = 105;
 
 	void * internaltag = nullptr, *tag = nullptr;
 
@@ -1707,6 +1716,8 @@ public:
 
 	void connect(const char * host, lw_ui16 port = 6121);
 	void connect(lacewing::address);
+	// For pinholing connections, set before connect()
+	void setlocalport(lw_ui16 port);
 
 	bool connecting();
 	bool connected();
@@ -1772,18 +1783,14 @@ public:
 		std::atomic<bool> _readonly = false;
 		std::vector<std::shared_ptr<relayclient::channel::peer>> peers;
 
-
-		/// <summary> searches for the first peer by id number. </summary>
-		/// <param name="id"> id to look up. </param>
-		/// <returns> null if it fails, else the matching peer. </returns>
+		// Searches for the first peer by id number, returns null if not found
 		std::shared_ptr<relayclient::channel::peer> findpeerbyid(lw_ui16 id);
 
-		/// <summary> Adds a new peer. </summary>
-		/// <param name="peerid"> ID number for the peer. </param>
-		/// <param name="flags"> The flags of the peer connect/channel join message.
-		/// 					 0x1 = master. other flags are not accepted. </param>
-		/// <param name="name"> The name. Cannot be null or blank. </param>
-		/// <returns> null if it fails, else a relayclientinternal::peer *. </returns>
+		/** Adds a new peer.
+		 * @param peerid ID number for the peer.
+		 * @param flags  The flags of the peer connect/channel join message.
+		 *				 0x1 = master. Other flags are not accepted.
+		 * @param name   The peer name. Must not be null or blank. */
 		std::shared_ptr<relayclient::channel::peer> addnewpeer(lw_ui16 peerid, lw_ui8 flags, std::string_view name);
 
 	public:
@@ -1922,7 +1929,7 @@ struct codepointsallowlist {
 struct relayserverinternal;
 struct relayserver
 {
-	static const int buildnum = 38;
+	static const int buildnum = 39;
 
 	void * internaltag, * tag = nullptr;
 
@@ -1930,6 +1937,7 @@ struct relayserver
 	lacewing::webserver websocket;
 	lacewing::udp udp;
 	lacewing::flashpolicy flash;
+	bool hole_punch_used = false;
 
 	relayserver(pump) noexcept;
 	~relayserver() noexcept;
@@ -1941,6 +1949,7 @@ struct relayserver
 	void unhost();
 	// This works with clients of regular server, so you should use this instead of websocket->unhost/unhost_secure
 	void unhost_websocket(bool insecure, bool secure);
+	void hole_punch(const char* ip, lw_ui16 local_port);
 
 	bool hosting();
 	lw_ui16 port();
@@ -1963,18 +1972,18 @@ struct relayserver
 
 		std::shared_ptr<client> channelmaster() const;
 
-		/// <summary> Reads a copy of the channel name. Automatically read-locks the channel. </summary>
+		// Reads a copy of the channel name. Automatically read-locks the channel.
 		std::string name() const;
-		/// <summary> Reads a simplified copy of the channel name. Automatically read-locks the channel. </summary>
+		// Reads a simplified copy of the channel name. Automatically read-locks the channel.
 		std::string nameSimplified() const;
-		/// <summary> Sets the channel name. </summary>
+		// Sets the channel name.
 		void name(std::string_view str);
 
 		bool hidden() const;
 		bool autocloseenabled() const;
 		bool readonly() const;
 
-		/// <summary> Throw all clients off this channel, sending Leave Request Success. </summary>
+		// Throw all clients off this channel, sending Leave Request Success.
 		void close();
 
 		void send(lw_ui8 subchannel, std::string_view message, lw_ui8 variant = 0);
@@ -2115,6 +2124,8 @@ struct relayserver
 		// Has a TCP ping request been sent by server, and was replied to.
 		// If false, next ping timer tick will consider a failed ping and kick the client, so it is true by default.
 		bool pongedOnTCP = true;
+		// Has a UDP message received, confirming its UDP address. Implies psuedoUDP is false.
+		bool lockedUDPAddress = false;
 
 		lacewing::address udpaddress;
 

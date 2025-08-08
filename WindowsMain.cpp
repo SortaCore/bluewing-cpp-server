@@ -231,9 +231,8 @@ int main()
 
 	globalpump = lacewing::eventpump_new();
 	globalserver = new lacewing::relayserver(globalpump);
-	globalmsgrecvcounttimer = lacewing::timer_new(globalpump);
+	globalmsgrecvcounttimer = lacewing::timer_new(globalpump, "global message receiving tick-over");
 	lacewing::error error = nullptr;
-
 
 	{
 		char message[256];

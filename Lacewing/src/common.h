@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -29,10 +29,16 @@
 	  #define _CRT_NONSTDC_NO_WARNINGS
 	#endif
 
+	// These deprecation warnings are functionally useless
+	#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+	  #define _WINSOCK_DEPRECATED_NO_WARNINGS
+	#endif
+
 	#ifdef HAVE_CONFIG_H
 	  #include "../config.h"
 	#endif
 	#include <tchar.h>
+	#include <inttypes.h>
 #else
 
 	#ifndef _GNU_SOURCE
@@ -162,7 +168,7 @@ void lwp_deinit ();
 #if defined(_lacewing_debug) || defined(_lacewing_debug_output)
 	#define lwp_trace lw_trace
 #else
-	#define lwp_trace(x, ...)
+	#define lwp_trace(x, ...) (void)0
 #endif
 
 /* TODO : find the optimal value for this?  make adjustable? */
@@ -203,6 +209,11 @@ extern const char * const lwp_months [];
 time_t lwp_parse_time (const char *);
 
 lwp_socket lwp_create_server_socket (lw_filter, int type, int protocol, lw_error);
+
+extern struct in6_addr lwp_ipv6_public_fixed_addr;
+extern int lwp_ipv6_public_fixed_interface_index;
+extern void lwp_trigger_public_address_hunt (lw_bool block);
+extern lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg);
 
 #ifdef __cplusplus
 

@@ -1,7 +1,7 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2022 Darkwire Software.
+ * Copyright (C) 2012-2025 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
@@ -365,6 +365,10 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		if (!compat_GetFileSizeEx () (ctx->fd, &size))
 			return;
 
+		// If GetFileSizeEx returned true, this was set, so suppress the uninited var warning
+		#ifdef _MSC_VER
+			#pragma warning (suppress: 6001)
+		#endif
 		ctx->size = (size_t) size.QuadPart;
 
 		assert (ctx->size != -1);
@@ -418,12 +422,15 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 
 	/* TODO : Pre-allocate a bunch of these and reuse them? */
 
-	fdstream_overlapped overlapped = (fdstream_overlapped)
-	malloc (sizeof (*overlapped) + size);
+	fdstream_overlapped overlapped = (fdstream_overlapped)malloc (sizeof (*overlapped) + size);
 
 	if (!overlapped)
 		return size;
 
+#ifdef _MSC_VER
+	// this can't be an overrun
+	#pragma warning (suppress: 6386)
+#endif
 	memset (overlapped, 0, sizeof (*overlapped));
 	overlapped->type = overlapped_type_write;
 
@@ -611,18 +618,9 @@ static lw_bool def_close (lw_stream _ctx, lw_bool immediate)
 	{
 		ctx->flags |= lwp_fdstream_flag_close_asap;
 		shutdown((SOCKET)ctx->fd, SD_RECEIVE);
-		// CancelIoEx is Vista+
-#if WINVER >= 0x0600
-		CancelIoEx(ctx->fd, (OVERLAPPED *)&ctx->read_overlapped);
-#else
-		typedef BOOL(WINAPI * CancelIoExLike)(
-			__in HANDLE hFile,
-			__in_opt LPOVERLAPPED lpOverlapped
-		);
-		CancelIoExLike cancelIoEx = (CancelIoExLike)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CancelIoEx");
-		if (cancelIoEx != NULL)
-			cancelIoEx(ctx->fd, (OVERLAPPED *)&ctx->read_overlapped);
-#endif
+
+		if (compat_CancelIoEx())
+			compat_CancelIoEx()(ctx->fd, &ctx->read_overlapped.overlapped);
 		return lw_false;
 	}
 }
