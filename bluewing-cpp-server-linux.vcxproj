@@ -90,6 +90,9 @@
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
     <ValidateArchitecture>false</ValidateArchitecture>
     <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
+    <RemoteCCompileToolExe>arm-linux-gnueabihf-gcc</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>arm-linux-gnueabihf-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>arm-linux-gnueabihf-g++</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -99,6 +102,9 @@
     <ProjectPublicIncludePath>$(ProjectDir)Lacewing;$(ProjectPublicIncludePath)</ProjectPublicIncludePath>
     <ValidateArchitecture>false</ValidateArchitecture>
     <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
+    <RemoteCCompileToolExe>arm-linux-gnueabihf-gcc</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>arm-linux-gnueabihf-g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>arm-linux-gnueabihf-g++</RemoteLdToolExe>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <OutDir>$(ProjectDir)Linux\$(Platform)\$(Configuration)\</OutDir>
@@ -326,24 +332,27 @@
     <ClCompile>
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-Wno-unknown-pragmas -pthread %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
+      <PositionIndependentCode>true</PositionIndependentCode>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto;dl;atomic</LibraryDependencies>
+      <LibraryDependencies>ssl;crypto;dl;atomic</LibraryDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>-pthread %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
       <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
-      <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>-Wno-unknown-pragmas -pthread %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto;dl;atomic</LibraryDependencies>
+      <LibraryDependencies>ssl;crypto;dl;atomic</LibraryDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>-pthread %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -388,6 +397,7 @@
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
+      <PositionIndependentCode>true</PositionIndependentCode>
     </ClCompile>
     <Link>
       <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
