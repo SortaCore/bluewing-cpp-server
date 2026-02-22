@@ -286,6 +286,13 @@
     <ClInclude Include="Lacewing\src\windows\ssl\serverssl.h" />
     <ClInclude Include="Lacewing\src\windows\ssl\ssl.h" />
     <ClInclude Include="Lacewing\src\windows\typeof.h" />
+    <ClInclude Include="Resource.h" />
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="WindowsIcon.ico" />
+  </ItemGroup>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

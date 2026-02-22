@@ -368,5 +368,18 @@
     <ClInclude Include="Lacewing\src\windows\ssl\ssl.h">
       <Filter>Header Files\Lacewing\src\windows\ssl</Filter>
     </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="WindowsIcon.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
   </ItemGroup>
 </Project>
