@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -43,7 +43,7 @@ static int on_header_field (http_parser * parser, const char * buffer,
 
 		lwp_snprintf (version, sizeof (version), "HTTP/%d.%d",
 			(int) parser->http_major, (int) parser->http_minor);
-	  
+
 		#ifdef _MSC_VER
 			// HTTP version is always 2 digits, so this is always space for zero-terminated
 			#pragma warning (suppress: 6053)

@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * Copyright (C) 2011 James McLaughlin.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "MessageBuilder.h"
@@ -148,7 +148,11 @@ public:
 
 	inline void addheader(lw_ui8 type, lw_ui8 variant, bool forudp = false, int udpclientid = -1)
 	{
+		if (threadOwner != std::this_thread::get_id())
+			LacewingFatalErrorMsgBox();
+
 		assert(size == 0 && "lacewing framebuilder.addheader() error: adding header to message that already has one.");
+		assert(type <= 0xF && variant <= 0xF);
 
 		if (!forudp)
 		{
@@ -170,6 +174,8 @@ public:
 
 	inline void send(lacewing::server_client client, bool clear = true)
 	{
+		if (threadOwner != std::this_thread::get_id())
+			LacewingFatalErrorMsgBox();
 		if (wasWebLast == -1 || client->is_websocket() != wasWebLast)
 		{
 			wasWebLast = client->is_websocket();
@@ -188,6 +194,8 @@ public:
 
 	inline void send(lacewing::client client, bool clear = true)
 	{
+		if (threadOwner != std::this_thread::get_id())
+			LacewingFatalErrorMsgBox();
 		preparefortransmission(false);
 		client->write(tosend, tosendsize);
 
@@ -201,9 +209,11 @@ public:
 		tosendsize = 0;
 	}
 
-	inline void send(lacewing::udp udp, lacewing::address address, bool clear = true)
+	inline void send(lacewing::udp udp, lacewing::address from, lw_ui32 ifidx, lacewing::address to, bool clear = true)
 	{
-		udp->send(address, &buffer[isudpclient ? 5 : 7], size - (isudpclient ? 5 : 7));
+		if (threadOwner != std::this_thread::get_id())
+			LacewingFatalErrorMsgBox();
+		udp->send (from, ifidx, to, &buffer[isudpclient ? 5 : 7], size - (isudpclient ? 5 : 7));
 
 		if (clear)
 			framereset();

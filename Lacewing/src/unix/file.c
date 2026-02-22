@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -124,7 +124,7 @@ lw_bool lw_file_open (lw_file ctx,
 		return lw_false;
 	}
 
-	lw_fdstream_set_fd ((lw_fdstream) ctx, fd, 0, lw_true, lw_false);
+	lw_fdstream_set_fd ((lw_fdstream) ctx, fd, lw_true, lw_false);
 
 	if (lw_fdstream_valid ((lw_fdstream) ctx))
 	{

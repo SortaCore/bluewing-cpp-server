@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -223,7 +223,7 @@ size_t proc_handshake_data (lwp_winsslclient ctx, const char * buffer, size_t si
 					ctx->Server.Handlers.Error (ctx->Server.Public, Error);
 
 					ctx->Public.Disconnect(); */
-				
+
 				return size;
 			}
 

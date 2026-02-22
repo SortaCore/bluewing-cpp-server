@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -30,7 +30,7 @@ struct _lw_timer
 	long interval;
 
 	lw_thread timer_thread;
-	
+
 	char * timer_name;
 };
 
@@ -76,13 +76,14 @@ lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
 	ctx->stop_event = lw_event_new ();
 	ctx->timer_name = strdup (timer_name);
 
-	char threadName[128];
-	lwp_snprintf (threadName, sizeof(threadName), "lw_thread for lw_timer \"%s\" (0x%" PRIXPTR ")", timer_name, (uintptr_t)ctx);
-	ctx->timer_thread = lw_thread_new (threadName, (void *)timer_thread);
+	char buffer[128];
+	lwp_snprintf (buffer, sizeof(buffer), "lw_thread for lw_timer \"%s\" (0x%" PRIXPTR ")", timer_name, (uintptr_t)ctx);
+	ctx->timer_thread = lw_thread_new (buffer, (void *)timer_thread);
 
 	#ifdef _lacewing_use_timerfd
+		lwp_snprintf(buffer, sizeof(buffer), "lw_timer %s", timer_name);
 		ctx->fd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK);
-		ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, ctx, (lw_pump_callback) timer_tick, 0, lw_true);
+		ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, buffer, ctx, (lw_pump_callback)timer_tick, 0, lw_true);
 	#endif
 
 	return ctx;
@@ -90,12 +91,14 @@ lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
 
 void lw_timer_delete (lw_timer ctx)
 {
+	if (!ctx)
+		return;
 	lw_timer_stop (ctx);
 	lw_event_delete (ctx->stop_event);
 
 	#ifdef _lacewing_use_timerfd
 		close (ctx->fd);
-		lw_pump_remove(ctx->pump, ctx->pump_watch);
+		lw_pump_remove(ctx->pump, ctx->pump_watch, "lw_timer delete");
 	#endif
 
 	lw_thread_delete (ctx->timer_thread);

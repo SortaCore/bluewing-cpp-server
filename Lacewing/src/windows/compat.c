@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -40,6 +40,16 @@ static void * KERNEL32 (const char * fn)
 	return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
 }
 
+static void * IPHlp32 (const char * fn)
+{
+	static HINSTANCE DLL = 0;
+
+	if (!DLL)
+		DLL = LoadLibraryA ("iphlpapi.dll");
+
+	return DLL ? (void *) GetProcAddress (DLL, fn) : 0;
+}
+
 fn_getaddrinfo compat_getaddrinfo ()
 {
 	static fn_getaddrinfo fn = 0;
@@ -62,6 +72,21 @@ fn_WSASendMsg compat_WSASendMsg()
 	   https://learn.microsoft.com/en-us/windows/win32/winsock/provider-specific-extension-mechanism-2
 	   WSASendMsg is only available in Vista+ anyway, so we will look up directly. */
 	return fn ? fn : (fn = (fn_WSASendMsg) WS2_32 ("WSASendMsg"));
+}
+
+fn_WSARecvMsg compat_WSARecvMsg(SOCKET s)
+{
+	fn_WSARecvMsg fn = 0;
+
+	GUID ID = WSAID_WSARECVMSG;
+	DWORD bytes = 0;
+
+	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,
+		&ID, sizeof(ID), &fn, sizeof(fn),
+		&bytes, 0, 0);
+
+	assert(fn);
+	return fn;
 }
 
 fn_mkgmtime64 compat_mkgmtime64 ()
@@ -90,6 +115,19 @@ fn_SetThreadDescription compat_SetThreadDescription ()
 	static fn_SetThreadDescription fn = 0;
 
 	return fn ? fn : (fn = (fn_SetThreadDescription) KERNEL32 ("SetThreadDescription"));
+}
+
+fn_NotifyIpInterfaceChange compat_NotifyIpInterfaceChange ()
+{
+	static fn_NotifyIpInterfaceChange fn = 0;
+
+	return fn ? fn : (fn = (fn_NotifyIpInterfaceChange)IPHlp32("NotifyIpInterfaceChange"));
+}
+fn_CancelMibChangeNotify2 compat_CancelMibChangeNotify2 ()
+{
+	static fn_CancelMibChangeNotify2 fn = 0;
+
+	return fn ? fn : (fn = (fn_CancelMibChangeNotify2)IPHlp32("CancelMibChangeNotify2"));
 }
 
 #if defined(_WIN32)

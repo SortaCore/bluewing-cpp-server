@@ -1,17 +1,19 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "common.h"
+#include "address.h"
 
 void lwp_make_nonblocking(lwp_socket fd)
 {
+	// In Win32, use an overlapped socket
 #ifndef _WIN32
 	int orig = fcntl(fd, F_GETFL, 0);
 	int e = errno;
@@ -19,7 +21,7 @@ void lwp_make_nonblocking(lwp_socket fd)
 	assert(orig != -1);
 	// Don't set to non-blocking if it is already. Gets OS upset.
 	if (orig & O_NONBLOCK)
-		lw_trace("Not setting socket/FD %d to non-blocking, already set to that.", fd);
+		lwp_trace("Not setting socket/FD %d to non-blocking, already set to that.", fd);
 	else
 	{
 		int newVal = fcntl(fd, F_SETFL, orig | O_NONBLOCK);
@@ -33,7 +35,12 @@ void lwp_setsockopt2(lwp_socket fd, int level, int option, const char * optName,
 {
 	if (setsockopt(fd, level, option, value, value_length) != 0)
 	{
-		always_log("setsockopt for option %s failed with error %d, continuing", optName, errno);
+#ifdef _WIN32
+		int err = WSAGetLastError();
+#else
+		int err = errno;
+#endif
+		always_log("setsockopt for option %s failed with error %d, continuing", optName, err);
 	}
 }
 
@@ -52,8 +59,17 @@ struct sockaddr_storage lwp_socket_addr (lwp_socket socket)
 
 	if (socket != -1)
 	{
-		addr_len = sizeof (addr);
-		getsockname (socket, (struct sockaddr *) &addr, &addr_len);
+		addr_len = sizeof (struct sockaddr_in6);
+		if (getsockname(socket, (struct sockaddr*)&addr, &addr_len) == -1)
+		{
+			always_log("getsockname reported error %i from socket %i.\n",
+#ifdef _WIN32
+				WSAGetLastError(),
+#else
+				errno,
+#endif
+				socket);
+		}
 	}
 
 	return addr;
@@ -138,6 +154,15 @@ lw_bool lwp_find_char (const char ** str, size_t * len, char c)
 	}
 
 	return lw_false;
+}
+
+// Replaces memcmp with something that has a useful return index
+lw_ui32 lw_memcmp_diff_index (const lw_ui8* const a, const lw_ui8* const b, const lw_ui32 size)
+{
+	for (lw_ui32 i = 0; i < size; ++i)
+		if (a[i] != b[i])
+			return i;
+	return -1;
 }
 
 void lwp_close_socket (lwp_socket socket)
@@ -436,6 +461,71 @@ static DWORD WINAPI publicFixedIPv6AddressHunterThread(LPVOID data)
 	free(addr);
 	return 0;
 }
+lw_ui32 lwp_get_ifidx(struct sockaddr_storage* ss)
+{
+	PIP_ADAPTER_ADDRESSES addr = (PIP_ADAPTER_ADDRESSES)malloc(16 * 1024);
+	if (!addr)
+		return -2;
+
+	struct sockaddr_in fake = { 0 };
+	if (ss->ss_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)ss)->sin6_addr))
+	{
+		fake.sin_port = ((struct sockaddr_in6*)ss)->sin6_port;
+		fake.sin_family = AF_INET;
+		fake.sin_addr.S_un.S_addr = ((lw_ui32*)&((struct sockaddr_in6*)ss)->sin6_addr)[3];
+		ss = (struct sockaddr_storage *)&fake;
+	}
+
+	if ((ss->ss_family == AF_INET && ((struct sockaddr_in*)ss)->sin_addr.s_addr == INADDR_ANY) ||
+		(ss->ss_family == AF_INET6 && !memcmp(&((struct sockaddr_in6*)ss)->sin6_addr, &in6addr_any, sizeof(struct in6_addr))))
+		return -1;
+
+	ULONG size = 16 * 1024; // recommended
+	DWORD errcode = (DWORD)GetAdaptersAddresses(ss->ss_family,
+		GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+		NULL, (PIP_ADAPTER_ADDRESSES)addr, &size);
+
+	if (errcode != ERROR_SUCCESS)
+	{
+		free(addr);
+		return -2;
+	}
+
+	lw_ui32 ret = -1;
+	lw_addr curAddr = 0, passedAddr = lwp_addr_new_sockaddr((struct sockaddr*)ss);
+	for (PIP_ADAPTER_ADDRESSES addrL = addr; addrL; addrL = addrL->Next)
+	{
+		for (PIP_ADAPTER_UNICAST_ADDRESS unicast = addrL->FirstUnicastAddress; unicast; unicast = unicast->Next)
+		{
+			if (unicast->Address.lpSockaddr->sa_family != ss->ss_family)
+				continue;
+
+			lw_addr_delete(curAddr);
+			curAddr = lwp_addr_new_sockaddr((struct sockaddr*)unicast->Address.lpSockaddr);
+			if (lwp_sockaddr_equal((struct sockaddr *)ss, (struct sockaddr*)unicast->Address.lpSockaddr))
+			{
+				ret = ss->ss_family == AF_INET6 ? addrL->Ipv6IfIndex : addrL->IfIndex;
+				break;
+			}
+
+			lw_log_if_debug("Difference in addresses: \"%s\" does not match \"%s\".\n",
+				lw_addr_tostring(curAddr, lw_addr_tostring_flag_remove_port),
+				lw_addr_tostring(passedAddr, lw_addr_tostring_flag_remove_port));
+		}
+	}
+	if (ret == -1)
+	{
+		lw_log_if_debug("Could not find any matching interface for \"%s\".\n",
+			lw_addr_tostring(passedAddr, lw_addr_tostring_flag_remove_port));
+		LacewingFatalErrorMsgBox();
+	}
+	lw_addr_delete(curAddr);
+	lw_addr_delete(passedAddr);
+
+	free(addr);
+	return ret;
+}
+
 
 #else // not _WIN32
 #include <sys/types.h>
@@ -785,10 +875,403 @@ static void * publicFixedIPv6AddressHunterThread(void * data)
 	return 0;
 }
 
+lw_ui32 lwp_get_ifidx(struct sockaddr_storage* ss)
+{
+	if (ss->ss_family != AF_INET && ss->ss_family != AF_INET6)
+		return -2;
+
+	struct ifaddrs* ifaddr = NULL, * ifa;
+
+	// Android SDK may target too early, in which case OS libc has getifaddrs,
+	// but we can't link to it at build time
+	getifaddrs_func my_getifaddrs = NULL, my_getifaddrs2 = NULL;
+	freeifaddrs_func my_freeifaddrs = NULL, my_freeifaddrs2 = NULL;
+	void* libc = NULL;
+#if !defined(__APPLE__) || (defined(__ANDROID__) && __ANDROID_API__ < 24)
+	my_getifaddrs2 = netlink_getifaddrs;
+	my_freeifaddrs2 = netlink_freeifaddrs;
+#endif
+#if !defined(__ANDROID__) || __ANDROID_API__ >= 24
+	// iOS, Mac, Linux, and Android SDK 24+: link getifaddrs directly
+	my_getifaddrs = getifaddrs;
+	my_freeifaddrs = freeifaddrs;
+#else
+	libc = dlopen("libc.so", RTLD_LAZY);
+	if (!libc) {
+		lwp_trace("Couldn't read IPv6 remote address from adapters (getifaddrs). SO file could not be dynamically opened. Error %d.", errno);
+	}
+	else
+	{
+		my_getifaddrs = (getifaddrs_func)dlsym(libc, "getifaddrs");
+		my_freeifaddrs = (freeifaddrs_func)dlsym(libc, "freeifaddrs");
+
+		if (!my_getifaddrs || !my_freeifaddrs)
+		{
+			lwp_trace("Couldn't read IPv6 remote address from adapters (getifaddrs). Function could not be dynamically linked. Error %d.", errno);
+			dlclose(libc);
+			libc = NULL;
+		}
+	}
+#endif
+
+	if (!my_getifaddrs || my_getifaddrs(&ifaddr) == -1)
+	{
+		if (my_getifaddrs) {
+			lwp_trace("getifaddrs failed with error %d", errno);
+		}
+		if (libc)
+		{
+			dlclose(libc);
+			libc = NULL;
+		}
+
+		if (!my_getifaddrs2)
+			return -2;
+
+		if (my_getifaddrs2(&ifaddr) == -1)
+		{
+			lwp_trace("netlink_getifaddrs also failed with error %d", errno);
+			return -2;
+		}
+
+		my_freeifaddrs = my_freeifaddrs2;
+	}
+
+	struct sockaddr_in fake = { 0 };
+	if (ss->ss_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)ss)->sin6_addr))
+	{
+		fake.sin_port = ((struct sockaddr_in6*)ss)->sin6_port;
+		fake.sin_family = AF_INET;
+		fake.sin_addr.s_addr = ((lw_ui32*)&((struct sockaddr_in6*)ss)->sin6_addr)[3];
+		ss = (struct sockaddr_storage*)&fake;
+	}
+
+	if ((ss->ss_family == AF_INET && ((struct sockaddr_in*)ss)->sin_addr.s_addr == INADDR_ANY) ||
+		(ss->ss_family == AF_INET6 && !memcmp(&((struct sockaddr_in6*)ss)->sin6_addr, &in6addr_any, sizeof(struct in6_addr))))
+		return -1;
+
+	lw_ui32 ret = -1;
+	lw_addr curAddr = 0, netAddr = 0, passedAddr = lwp_addr_new_sockaddr((struct sockaddr*)ss);
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+	{
+		if (!ifa->ifa_addr || ss->ss_family != ifa->ifa_addr->sa_family)
+			continue;
+
+		if (!curAddr)
+		{
+			curAddr = lwp_addr_new_sockaddr(ifa->ifa_addr);
+			netAddr = lwp_addr_new_sockaddr(ifa->ifa_netmask);
+		}
+		else
+		{
+			lwp_addr_set_sockaddr(curAddr, ifa->ifa_addr);
+			lwp_addr_set_sockaddr(curAddr, ifa->ifa_netmask);
+		}
+		
+		lwp_trace("Difference in addresses: \"%s\" does not match \"%s\". Netmask: \"%s\".",
+			lw_addr_tostring(curAddr, lw_addr_tostring_flag_remove_port),
+			lw_addr_tostring(passedAddr, lw_addr_tostring_flag_remove_port),
+			lw_addr_tostring(netAddr, lw_addr_tostring_flag_remove_port));
+		if (lwp_sockaddr_equal_netmask((struct sockaddr *)ss, ifa->ifa_addr, ifa->ifa_netmask))
+		{
+			ret = if_nametoindex(ifa->ifa_name);
+			break;
+		}
+	}
+
+	if (ret == -1)
+	{
+		always_log("Could not find any matching interface for \"%s\".",
+			lw_addr_tostring(passedAddr, lw_addr_tostring_flag_remove_port));
+		LacewingFatalErrorMsgBox();
+	}
+	lw_addr_delete(curAddr);
+	lw_addr_delete(netAddr);
+	lw_addr_delete(passedAddr);
+
+	my_freeifaddrs(ifaddr);
+	if (libc)
+		dlclose(libc);
+	return ret;
+}
+
 // restore sign conversion complaints
 #pragma GCC diagnostic pop
 
 #endif // _WIN32
+
+// checksum for ICMP (16-bit ones' complement)
+static unsigned short checksum(const void* b, int len, unsigned char* c, int len2) {
+	const unsigned short* buf = b;
+	unsigned int sum = 0;
+	while (len > 1) {
+		sum += *buf++;
+		len -= 2;
+	}
+	if (len == 1) {
+		if (c == NULL)
+			sum += *(unsigned char*)buf;
+		else
+		{
+			sum += ((*(unsigned char*)buf) << 8) | *c;
+			++c;
+			--len2;
+		}
+	}
+	if (len2)
+	{
+		buf = (unsigned short *)c;
+		while (len2 > 1) {
+			sum += *buf++;
+			len2 -= 2;
+		}
+		if (len == 1) {
+			sum += *(unsigned char*)buf;
+		}
+	}
+	// fold 32-bit to 16-bit
+	while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
+	return (unsigned short)(~sum);
+}
+
+struct sockaddr_in lwp_in6_to_in4(struct sockaddr_in6* from)
+{
+	// At end of in6_addr is unwrapped IPv4
+	assert(IN6_IS_ADDR_V4MAPPED(&from->sin6_addr));
+	struct sockaddr_in ret = {
+		.sin_zero = {0},
+		.sin_addr = *(struct in_addr*)(&((lw_i16*)&from->sin6_addr)[6]),
+		.sin_port = from->sin6_port,
+		.sin_family = AF_INET
+	};
+	return ret;
+}
+
+lw_error lwp_send_icmp_unreachable(lwp_socket icmp, int proto, lw_addr local, lw_ui32 ifidx, lw_addr remote,
+	const char* data, lw_ui32 datasize)
+{
+	struct sockaddr_in remoteIn4;
+	struct sockaddr_in* remoteAsIPv4 = (struct sockaddr_in*)remote->info->ai_addr;
+
+	lw_bool ipv6 = lw_addr_ipv6(remote);
+	// Remote address is IPv6, and local is IPv4. So remote must be mapped IPv4: ummap it,
+	// as we don't know local IPv6 with flow info etc to use.
+	if (ipv6 && !lw_addr_ipv6(local))
+	{
+		if (!IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)remote->info->ai_addr)->sin6_addr))
+		{
+			lw_error err = lw_error_new();
+			lw_error_addf(err, "Got a local IPv4, remote IPv6 (unmapped), cannot communicate.");
+			return err;
+		}
+
+		remoteIn4 = lwp_in6_to_in4((struct sockaddr_in6*)remote->info->ai_addr);
+		remoteAsIPv4 = &remoteIn4;
+		ipv6 = lw_false;
+	}
+
+	// ICMPv6 was hard failing on Linux with "invalid argument". Windows was fine, but not passing anything.
+	// For now we'll keep it off.
+	if (ipv6)
+		return NULL;
+
+	assert(lw_addr_ipv6(local) == ipv6);
+
+	//! ICMP packet structure.
+	typedef struct _icmpv4
+	{
+		// ICMP message type.
+		uint8_t icmp_type;
+		// ICMP operation code.
+		uint8_t icmp_code;
+		// ICMP checksum.
+		uint16_t icmp_chk;
+		// ICMP requires 8 bytes that are unused?
+		// https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol#Destination_unreachable
+		// https://en.wikipedia.org/wiki/ICMPv6#Checksum?
+		uint32_t icmp_unused;
+		// Optional length
+		//uint8_t icmp_length;
+	} icmpv4;
+
+	typedef struct _icmpv6
+	{
+		// ICMP message type.
+		uint8_t icmp_type;
+		// ICMP operation code.
+		uint8_t icmp_code;
+		// ICMP checksum.
+		uint16_t icmp_chk;
+		uint32_t icmp_unused;
+	} icmpv6;
+	
+	typedef struct _iphdrv4
+	  {
+		// IP version (4) + IP header length in 4-byte counts (min 5, i.e. 20 bytes)
+		uint8_t versionAndIHL;
+		// Differentiated Services Field (leave as 0)
+		uint8_t tos;
+		// Total length of packet, including IP header; see ihl
+		uint16_t tot_len;
+		// Packet number (0+)
+		uint16_t id;
+		// If fragmented, what offset (leave as 0)
+		uint16_t frag_off;
+		// Number of hops?
+		uint8_t ttl;
+		// Sub-protocol (e.g. IPPROTO_UDP)
+		uint8_t protocol;
+		// Checksum of IP, or 0 for disabled
+		uint16_t check;
+		// Source address (IPv4 4 byte)
+		struct in_addr saddr;
+		// Destination address (IPv4 4 byte)
+		struct in_addr daddr;
+		/*The options start here. */
+	  } iphdrv4;
+	static_assert(sizeof(iphdrv4) == 20, "!");
+
+	 typedef struct _ipv6hdr {
+		 uint8_t version : 4;
+		uint8_t priority : 8;
+		uint32_t flow : 20;
+		
+		uint16_t payload_len;
+		uint8_t nexthdr;
+		uint8_t hop_limit;
+		
+		struct in6_addr saddr;
+		struct in6_addr daddr;
+	} iphdrv6;
+	
+	typedef struct _fakeiphdr6
+	{
+		// Source address (IPv6 16 byte)
+		struct in6_addr saddr;
+		// Destination address (IPv6 16 byte)
+		struct in6_addr daddr;
+		// Length including IPv6 header
+		uint32_t len;
+		uint8_t zero[3];
+		// 58
+		uint8_t nextHeader;
+	} fakeiphdrv6;
+
+	typedef struct _udphdr
+	{
+		uint16_t srcport;
+		uint16_t dstport;
+		// These two do not need to be correct
+		uint16_t udplen;
+		uint16_t udpchk;
+	} udphdr;
+
+	int icmp_len;
+	if (ipv6)
+		icmp_len = (lw_ui16)(sizeof(icmpv6) + sizeof(iphdrv6) + sizeof(udphdr) + (lw_ui16)datasize);
+	else
+		icmp_len = sizeof(icmpv4) + sizeof(iphdrv4) + sizeof(udphdr);
+
+	// It's fine to reconstruct IPv4 header rather than as-is, as long as it contains src/dest IP + ports.
+	// IPv6 may be more iffy.
+	char* pkt = (char*)calloc(icmp_len, 1);
+
+	// ICMPv6 does not work - Wireshark shows nothing, and receiver does not get it.
+	// For localhost, Wireshark only shows all the data as under "data", and hasn't finished encoding it.
+	if (ipv6)
+	{
+		icmpv6* icmphdrS = (icmpv6*)(pkt);
+		icmphdrS->icmp_type = 1; // Destination Unreachable
+		icmphdrS->icmp_code = 4; // 3 Address Unreachable, 4 port unreachable
+
+		fakeiphdrv6 fake_ip = { 0 };
+		fake_ip.len = htons((uint16_t)(sizeof(iphdrv6) + sizeof(udphdr) + ((lw_ui16)datasize)));
+		fake_ip.nextHeader = 58;
+		// Note source is remote, dest is local
+		fake_ip.saddr = ((struct sockaddr_in6*)remote->info->ai_addr)->sin6_addr;
+		fake_ip.daddr = ((struct sockaddr_in6*)local->info->ai_addr)->sin6_addr;
+
+		// compute checksum over ICMP header, IP, UDP
+		icmphdrS->icmp_chk = checksum(&fake_ip, sizeof(fakeiphdrv6), (unsigned char*)icmphdrS, sizeof(icmpv6));
+
+		iphdrv6* orig_ip = (iphdrv6*)(pkt + sizeof(icmpv6));
+		orig_ip->payload_len = htons((uint16_t)(sizeof(iphdrv6) + sizeof(udphdr) + ((lw_ui16)datasize)));
+		orig_ip->version = 6;
+		//orig_ip->priority = 0;
+		//orig_ip->flow = 0x065698;
+		//orig_ip->flow = 0;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+		orig_ip->flow = ((struct sockaddr_in6*)remote->info->ai_addr)->sin6_flowinfo;
+#ifdef __clang__
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+		orig_ip->nexthdr = 17;
+		orig_ip->hop_limit = 128;
+		// Note source is remote, dest is local
+		orig_ip->saddr = ((struct sockaddr_in6 *)remote->info->ai_addr)->sin6_addr;
+		orig_ip->daddr = ((struct sockaddr_in6*)local->info->ai_addr)->sin6_addr;
+
+		udphdr* orig_udp = (udphdr*)(pkt + sizeof(icmpv6) + sizeof(iphdrv6));
+		orig_udp->srcport = ((struct sockaddr_in6*)remote->info->ai_addr)->sin6_port;
+		orig_udp->dstport = ((struct sockaddr_in6*)local->info->ai_addr)->sin6_port;
+		orig_udp->udplen = htons((uint16_t)(sizeof(udphdr) + ((lw_ui16)datasize)));
+		orig_udp->udpchk = 0; // checksum(orig_ip, sizeof(iphdrv4) + sizeof(udphdr));
+		memcpy(pkt + sizeof(icmpv6) + sizeof(iphdrv6) + sizeof(udphdr), data, datasize);
+	}
+	else
+	{
+		icmpv4* icmphdrS = (icmpv4*)(pkt);
+		icmphdrS->icmp_type = 3; // Destination Unreachable
+		icmphdrS->icmp_code = 3; // 1 Host Unreachable, 3 port unreachable
+
+		iphdrv4* orig_ip = (iphdrv4*)(pkt + sizeof(icmpv4));
+		orig_ip->versionAndIHL = 5 | (4 << 4); // 4 for IPv4, 20 byte header is len 5
+		orig_ip->tot_len = htons(sizeof(iphdrv4) + sizeof(udphdr));
+		orig_ip->protocol = IPPROTO_UDP;
+		orig_ip->ttl = 64; // num hops?
+		// Note source is remote, dest is local
+		orig_ip->saddr = remoteAsIPv4->sin_addr;
+		orig_ip->daddr = ((struct sockaddr_in*)local->info->ai_addr)->sin_addr;;
+		// Checksum must be calc'd last; it only includes the IP header, not the UDP internal
+		orig_ip->check = checksum(orig_ip, sizeof(iphdrv4), NULL, 0);
+
+		udphdr* orig_udp = (udphdr*)(pkt + sizeof(icmpv4) + sizeof(iphdrv4));
+		orig_udp->srcport = remoteAsIPv4->sin_port;
+		orig_udp->dstport = ((struct sockaddr_in*)local->info->ai_addr)->sin_port;
+		orig_udp->udplen = htons(sizeof(udphdr));
+		orig_udp->udpchk = 0; // checksum(orig_ip, sizeof(iphdrv4) + sizeof(udphdr));
+
+		// compute checksum over ICMP header, IP, UDP
+		icmphdrS->icmp_chk = checksum(pkt, icmp_len, NULL, 0);
+	}
+	lw_i32 sent = (lw_i32)sendto(icmp, pkt, icmp_len, 0, (struct sockaddr*)remote->info->ai_addr, (socklen_t) remote->info->ai_addrlen);
+	if (sent < 0) {
+		lw_error err = lw_error_new();
+#ifdef _WIN32
+		if (WSAGetLastError() == WSAEACCES)
+			lw_error_addf(err, "Forbidden to access; are you running as admin?", WSAGetLastError());
+		else
+			lw_error_add(err, WSAGetLastError());
+#else
+		lw_error_add(err, errno);
+#endif
+		lw_error_addf(err, "ICMP send failed");
+		free(pkt);
+		return err;
+	}
+	free(pkt);
+	lw_error err = lw_error_new();
+	lw_error_addf(err, "(not an error) Sent %zd bytes ICMP Unreachable to \"%s\"", sent, lw_addr_tostring(remote, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_unmap_ipv6));
+	return err;
+}
 
 // Attempts to populate lwp_ipv6_public_fixed_interface_index + lwp_ipv6_public_fixed_addr
 void lwp_trigger_public_address_hunt(lw_bool block)

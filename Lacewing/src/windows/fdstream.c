@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -58,7 +58,7 @@ static void completion (void * tag, OVERLAPPED * _overlapped,
 
 		read_completed (ctx);
 
-		if (error == ERROR_OPERATION_ABORTED)
+		if (error == ERROR_OPERATION_ABORTED || error == ERROR_HANDLES_CLOSED)
 			break;
 
 		if (ctx->stream.flags & lwp_stream_flag_dead)
@@ -158,47 +158,37 @@ static void close_fd (lw_fdstream ctx)
 		ctx->transmit_file_to = 0;
 	}
 
-	// No need to run CancelIoEx(), closesocket() will run it internally
-
-	if (ctx->flags & lwp_fdstream_flag_auto_close)
+	if (ctx->flags & lwp_fdstream_flag_is_socket)
 	{
-		if (ctx->flags & lwp_fdstream_flag_is_socket)
+		shutdown((SOCKET)ctx->fd, SD_BOTH);
+
+		// No need to run CancelIoEx(), closesocket() will run it internally
+		if (closesocket ((SOCKET) ctx->fd) == SOCKET_ERROR)
 		{
-			shutdown((SOCKET)ctx->fd, SD_BOTH);
-
-			if (closesocket ((SOCKET) ctx->fd) == SOCKET_ERROR)
-			{
-				// There's no error reporting function here, and it's not worth killing the app over.
-				#ifdef _lacewing_debug
-
-				lw_error err = lw_error_new();
-				lw_error_add(err, WSAGetLastError());
-				lwp_trace("closesocket() returned %s", lw_error_tostring(err));
-				lw_error_delete(err);
-
-				#endif
-			}
-			else
-				ctx->fd = INVALID_HANDLE_VALUE;
+			// TODO: There's no error reporting function here, what do?
+			// see below as well
+			lw_error err = lw_error_new();
+			lw_error_add(err, WSAGetLastError());
+			always_log("closesocket() returned %s", lw_error_tostring(err));
+			lw_error_delete(err);
 		}
 		else
-		{
-			if (CloseHandle(ctx->fd) == FALSE)
-			{
-				// There's no error reporting function here, and it's not worth killing the app over.
-				#ifdef _lacewing_debug
-
-				lw_error err = lw_error_new();
-				lw_error_add(err, GetLastError());
-				lwp_trace("CloseHandle() returned %s", lw_error_tostring(err));
-				lw_error_delete(err);
-
-				#endif
-			}
-			else
-				ctx->fd = INVALID_HANDLE_VALUE;
-		}
+			ctx->fd = INVALID_HANDLE_VALUE;
 	}
+	else
+	{
+		if (CloseHandle(ctx->fd) == FALSE)
+		{
+			lw_error err = lw_error_new();
+			lw_error_add(err, GetLastError());
+			always_log("CloseHandle() returned %s", lw_error_tostring(err));
+			lw_error_delete(err);
+		}
+		else
+			ctx->fd = INVALID_HANDLE_VALUE;
+	}
+
+	ctx->flags &= ~lwp_fdstream_flag_close_asap;
 
 	//list_clear(ctx->pending_writes);
 }
@@ -298,10 +288,12 @@ static void def_cleanup (lw_stream _ctx)
 }
 
 void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
-						lw_pump_watch watch, lw_bool auto_close, lw_bool is_socket)
+						lw_bool auto_close, lw_bool is_socket)
 {
+	assert(ctx->fd == INVALID_HANDLE_VALUE || ctx->fd == fd);
 	lwp_trace ("FDStream %p : set FD to %d, auto_close %d, is_socket %d", ctx, fd, (int) auto_close, (int) is_socket);
 
+	/*
 	if (ctx->stream.watch)
 	{
 		// Occasionally triggers during a disconnect/reconnect spam.
@@ -310,6 +302,10 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		// TODO: The client is unstable at that point, and will not properly disconnect from original connection
 		// nor acknowledge the server on the new connection, resulting in ping disconnect.
 		// Thankfully, after a ping disconnect, it should be back to functional again.
+		// 
+		// Phi note 16th Dec 2025: This situation may have been fixed by adding the lw_stream_close call in first_time_write_ready
+		// connect error handling; at same time I also made disconnects immediate during the mid-connecting stage in relayclient::disconnect,
+		// and added a closing flag check there, which also makes a race less likely
 		assert(!"disconnecting and reconnecting too fast, now unstable.");
 
 		// These following lines prevent an issue where the old callbacks/pump are sent to new callback,
@@ -318,7 +314,7 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		lw_pump_update_callbacks(pump, ctx->stream.watch, NULL, NULL);
 		lw_pump_post_remove(pump, ctx->stream.watch);
 		ctx->stream.watch = NULL;
-	}
+	}*/
 
 	ctx->fd = fd;
 
@@ -374,17 +370,15 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		assert (ctx->size != -1);
 	}
 
-	if (watch)
+	if (ctx->stream.watch)
 	{
-		ctx->stream.watch = watch;
-
 		lw_pump_update_callbacks (lw_stream_pump ((lw_stream) ctx),
-								watch, ctx, completion);
+								ctx->stream.watch, "lw_fdstream_set_fd", ctx, completion);
 	}
 	else
 	{
 		ctx->stream.watch = lw_pump_add (lw_stream_pump ((lw_stream) ctx),
-								fd, ctx, completion);
+								fd, "lw_fdstream_set_fd", ctx, completion);
 	}
 
 	if (ctx->reading_size != 0)

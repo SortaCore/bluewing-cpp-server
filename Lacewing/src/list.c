@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "list.h"
@@ -54,7 +54,7 @@ void _list_push (list_head ** p_list, size_t value_size, void * value)
 	++ list->length;
 
 	list_element * elem = (list_element *)
-		lw_malloc_or_exit (sizeof (*elem) + value_size);
+		lw_calloc_or_exit (sizeof (*elem) + value_size, 1);
 
 	memset (elem, 0, sizeof (*elem));
 	memcpy (get_value_ptr (elem), value, value_size);

@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "common.h"
@@ -188,7 +188,7 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 			errorCode = 1002;
 			break;
 		}
-		for (size_t i = 0; i < size; i++)
+		for (size_t i = 0; i < size; ++i)
 			unmaskedData[i] = data[i] ^ ((char *)&mask)[i % 4];
 
 		// If we've started a disconnect (!= -1), we'll ignore everything except an acknowledging close response.
@@ -256,7 +256,9 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 	if (error != NULL)
 	{
 		lw_error err = lw_error_new();
-		lw_error_addf(err, "Disconnecting client %s due to %s.", lw_addr_tostring(lw_server_client_addr(client->client.socket)), error);
+		lw_error_addf(err, "Disconnecting client %s due to %s.",
+			lw_addr_tostring(lw_server_client_remote_addr(client->client.socket), lw_addr_tostring_flags_default),
+			error);
 		if (webserver->on_error)
 			webserver->on_error(webserver, err);
 		lw_error_delete(err);

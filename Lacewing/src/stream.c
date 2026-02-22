@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "common.h"
@@ -168,9 +168,11 @@ void lw_stream_delete (lw_stream ctx)
 
 	if (ctx->watch)
 	{
-		lw_pump_post_remove(ctx->pump, ctx->watch);
+		lw_pump_remove(ctx->pump, ctx->watch, "lw_stream_delete");
 		ctx->watch = NULL;
 	}
+	else
+		assert(lw_false);
 
 	/*	This matches the lwp_retain in lw_stream_new, allowing the refcount to
 		become 0 and the stream to be destroyed. */

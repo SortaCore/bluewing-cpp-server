@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=c:
  *
  * Copyright (C) 2011, 2012, 2013 James McLaughlin et al.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "common.h"
@@ -478,7 +478,7 @@ void lwp_ws_req_respond (lw_ws_req ctx)
 
 lw_addr lw_ws_req_addr (lw_ws_req ctx)
 {
-	return lw_server_client_addr (ctx->client->socket);
+	return lw_server_client_remote_addr (ctx->client->socket);
 }
 
 void lw_ws_req_disconnect (lw_ws_req ctx, unsigned int websocket_exit_reason)

@@ -1,11 +1,11 @@
 /* vim: set noet ts=4 sw=4 sts=4 ft=cpp:
  *
  * Copyright (C) 2012 James McLaughlin.
- * Copyright (C) 2012-2025 Darkwire Software.
+ * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
  *
  * liblacewing and Lacewing Relay/Blue source code are available under MIT license.
- * https://opensource.org/licenses/mit-license.php
+ * https://opensource.org/license/mit
 */
 
 #include "../common.h"
@@ -15,9 +15,10 @@ udp lacewing::udp_new (lacewing::pump pump)
 	return (udp) lw_udp_new ((lw_pump) pump);
 }
 
-void lacewing::udp_delete (lacewing::udp udp)
+void lacewing::udp_delete (lacewing::udp &udp)
 {
 	lw_udp_delete ((lw_udp) udp);
+	udp = nullptr;
 }
 
 void _udp::host (lw_ui16 port)
@@ -50,9 +51,14 @@ lw_ui16 _udp::port ()
 	return lw_udp_port ((lw_udp) this);
 }
 
-void _udp::send (lacewing::address address, const char * data, size_t size)
+void _udp::send (lacewing::address from, lw_ui32 ifidx, lacewing::address to, const char * data, size_t size)
 {
-	lw_udp_send ((lw_udp) this, (lw_addr) address, data, size);
+	lw_udp_send ((lw_udp) this, (lw_addr) from, ifidx, (lw_addr) to, data, size);
+}
+
+void _udp::send_unreachable (lacewing::address from, lw_ui32 ifidx, lacewing::address to, const char * data, size_t size)
+{
+	lw_udp_send_unreachable ((lw_udp) this, (lw_addr) from, ifidx, (lw_addr) to, data, (lw_ui32) size);
 }
 
 void _udp::on_data (_udp::hook_data hook)
