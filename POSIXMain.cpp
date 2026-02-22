@@ -18,6 +18,9 @@
 #include <sys/stat.h>   // stat
 #include <stdbool.h>    // bool type
 #include <limits.h>
+#include <sys/ioctl.h>	// console width
+#include <unistd.h>
+#include <cmath>
 
 using namespace std::string_view_literals;
 
@@ -48,6 +51,8 @@ static int websocketNonSecure = 80, websocketSecure = 443;
 
 // Declarations - Lacewing handlers
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
+void OnChannelJoin(lacewing::relayserver& server, std::shared_ptr<lacewing::relayserver::client> client, std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool hidden, bool autoclose);
 void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client);
 void OnTimerTick(lacewing::timer timer);
 void OnError(lacewing::relayserver &server, lacewing::error error);
@@ -72,7 +77,7 @@ lacewing::timer globalmsgrecvcounttimer;
 lacewing::relayserver * globalserver;
 std::string flashpolicypath;
 bool deleteFlashPolicyAtEndOfApp;
-static char timeBuffer[10];
+char timeBuffer[12];
 
 // In case of idiocy
 struct BanEntry
@@ -81,10 +86,11 @@ struct BanEntry
 	int disconnects;
 	std::string reason;
 	std::string chListAtDisconnect;
-	time_t resetAt;
+	time_t resetAt, nextLogLine;
 	BanEntry(const std::string_view ip, const int disconnects, const std::string_view reason,
 		const std::string_view chListAtDisconnect, const time_t resetAt) :
-		ip(ip), disconnects(disconnects), reason(reason), chListAtDisconnect(chListAtDisconnect), resetAt(resetAt)
+		ip(ip), disconnects(disconnects), reason(reason), chListAtDisconnect(chListAtDisconnect), resetAt(resetAt),
+		nextLogLine(time(NULL))
 	{
 		// yay
 	}
@@ -135,10 +141,11 @@ static termios oldt;
 
 const char * sslPathCertChain = "./fullchain.pem";
 const char * sslPathPrivKey = "./privkey.pem";
-void AddBanEntry(const clientstats &c, const char * const addr, const std::string_view msg, const time_t tim)
+void AddBanEntry(const clientstats &c, const std::string_view & addr, const std::string_view msg, const time_t tim)
 {
 	std::stringstream chList;
-	auto writeLock = c.c->lock.createWriteLock();
+	// Using read lock here seems to create a deadlock as a write lock is held higher
+	auto readLock = c.c->lock.createReadLock();
 	for (auto p : c.c->getchannels())
 		chList << '[' << p->name() << "], "sv;
 
@@ -148,6 +155,22 @@ void AddBanEntry(const clientstats &c, const char * const addr, const std::strin
 	else
 		chListAtDisconnect = "(empty)"sv;
 	banIPList.push_back(BanEntry(addr, 1, msg, chListAtDisconnect, tim));
+}
+
+std::stringstream lastTimeSS;
+std::string lastTime;
+void reprinttime()
+{
+	std::cout << blue << lastTime << white;
+	std::cout.flush();
+}
+// Inserts commas as thousand separators
+std::string bignum(const std::uint64_t n)
+{
+	std::string output = std::to_string(n);
+	for (std::size_t i = 1, e = (std::size_t)std::ceil((float)output.size() / 3.f); i < e; ++i)
+		output.insert(output.cend() - (i * 4) + 1, ',');
+	return output;
 }
 
 int main()
@@ -205,6 +228,7 @@ int main()
 
 	// Initialise hooks
 	globalserver->onconnect(OnConnectRequest);
+	globalserver->onchannel_join(OnChannelJoin);
 	globalserver->ondisconnect(OnDisconnect);
 	globalserver->onmessage_server(OnServerMessage);
 	globalserver->onmessage_channel(OnChannelMessage);
@@ -299,7 +323,7 @@ int main()
 #endif
 
 	if (error)
-		std::cout << red << "\r\n"sv << timeBuffer << " | Error occurred in pump: "sv << error->tostring() << "\r\n"sv;
+		std::cout << red << "\r\n"sv << timeBuffer << "Error occurred in pump: "sv << error->tostring() << "\r\n"sv;
 
 	cleanup:
 	// Cleanup time
@@ -309,7 +333,7 @@ int main()
 	globalserver->flash->unhost();
 	globalserver->unhost_websocket(true, true);
 	delete globalserver;
-	lacewing::pump_delete(globalpump);
+	lacewing::eventpump_delete(globalpump);
 
 	if (!flashpolicypath.empty() && deleteFlashPolicyAtEndOfApp)
 		remove(flashpolicypath.c_str());
@@ -322,12 +346,12 @@ int main()
 	lw_sync_delete(lw_trace_sync);
 #endif
 
-	std::cout << green << timeBuffer << " | Program completed.\r\n"sv;
-	std::cout << timeBuffer << " | Total bytes: "sv << serverdata.in.total.bytes << " in, "sv << serverdata.out.total.bytes << " out.\r\n"sv;
-	std::cout << timeBuffer << " | Total msgs: "sv << serverdata.in.total.msg << " in, "sv << serverdata.out.total.msg << " out.\r\n"sv;
-	std::cout << timeBuffer << " | Max msgs in 1 sec: "sv << serverdata.in.highestSec.msg << " in, "sv << serverdata.out.highestSec.msg << " out (may be diff seconds).\r\n"sv;
-	std::cout << timeBuffer << " | Max bytes in 1 sec: "sv << serverdata.in.highestSec.bytes << " in, "sv << serverdata.out.highestSec.bytes << " out.\r\n"sv;
-	std::cout << timeBuffer << " | Press any key to exit.\r\n"sv;
+	std::cout << green << timeBuffer << "Program completed.\r\n"sv;
+	std::cout << timeBuffer << "Total bytes: "sv << bignum(serverdata.in.total.bytes) << " in, "sv << bignum(serverdata.out.total.bytes) << " out.\r\n"sv;
+	std::cout << timeBuffer << "Total msgs: "sv << bignum(serverdata.in.total.msg) << " in, "sv << bignum(serverdata.out.total.msg) << " out.\r\n"sv;
+	std::cout << timeBuffer << "Max msgs in 1 sec: "sv << bignum(serverdata.in.highestSec.msg) << " in, "sv << bignum(serverdata.out.highestSec.msg) << " out (may be diff seconds).\r\n"sv;
+	std::cout << timeBuffer << "Max bytes in 1 sec: "sv << bignum(serverdata.in.highestSec.bytes) << " in, "sv << bignum(serverdata.out.highestSec.bytes) << " out.\r\n"sv;
+	std::cout << timeBuffer << "Press any key to exit.\r\n"sv;
 
 	// Clear any keypress the user did before we waited
 	std::cin.clear();
@@ -360,33 +384,37 @@ void UpdateTitle(std::size_t clientCount)
 }
 
 // Trusted IPs can ask for statistics and unban any IP, and cannot be banned themselves
-static bool IsIPTrusted(const char* addr)
+static bool IsIPTrusted(const std::string_view addr)
 {
 	// Allow only from LAN addresses, and Darkwire
-	return (!strncmp(addr, "10.", sizeof("10.") - 1) || // class A private
+	return (!strncmp(addr.data(), "10.", sizeof("10.") - 1) || // class A private
 		// Class B private is subsection of 172.16.x.x and excluded
-		!strncmp(addr, "192.168.1.", sizeof("192.168.1.") - 1) || // class C private
-		!strcmp(addr, "127.0.0.1") || // localhost
-		!strcmp(addr, "80.229.219.2")); // Darkwire
+		!strncmp(addr.data(), "192.168.1.", sizeof("192.168.1.") - 1) || // class C private
+		!strcmp(addr.data(), "127.0.0.1") || // localhost
+		!strcmp(addr.data(), "80.229.219.2")); // Darkwire
 }
 
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
-	char addr[64];
-	lw_addr_prettystring(client->getaddress().data(), addr, sizeof(addr));
+	const std::string_view addr = client->getaddress();
 
 	auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 	if (banEntry != banIPList.end())
 	{
+		time_t now = time(NULL);
 		if (banEntry->resetAt < time(NULL))
 			banIPList.erase(banEntry);
 		else if (banEntry->disconnects > 3)
 		{
-			banEntry->resetAt = time(NULL) + (time_t)(((long long)(banEntry->disconnects++ << 2)) * 60 * 60);
-
-			std::cout << green << '\r' << timeBuffer << " | Blocked connection attempt from IP "sv << addr << ", banned due to "sv
-				<< banEntry->reason << '.'
-				<< std::string(45, ' ') << "\r\n"sv << yellow;
+			banEntry->resetAt = now + (time_t)(((long long)(banEntry->disconnects++ << 2)) * 60 * 60);
+			if (banEntry->nextLogLine < now)
+			{
+				std::cout << green << '\r' << timeBuffer << "Blocked connection attempt from IP "sv << addr << ", banned due to "sv
+					<< banEntry->reason << '.'
+					<< std::string(45, ' ') << "\r\n"sv << yellow;
+				reprinttime();
+			}
+			banEntry->nextLogLine = now + 60;
 			return server.connect_response(client, banEntry->reason.c_str());
 		}
 	}
@@ -394,42 +422,53 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 	server.connect_response(client, std::string_view());
 	UpdateTitle(server.clientcount());
 
-	std::cout << green << '\r' << timeBuffer << " | New client ID "sv << client->id() << ", IP "sv << addr << " connected."sv
+	std::cout << green << '\r' << timeBuffer << "New client ID "sv << client->id() << ", IP "sv << addr << " connected."sv
 		<< std::string(45, ' ') << "\r\n"sv << yellow;
+	reprinttime();
 	clientdata.push_back(std::make_unique<clientstats>(client));
 }
 
+void OnChannelJoin(lacewing::relayserver& server, std::shared_ptr<lacewing::relayserver::client> client, std::shared_ptr<lacewing::relayserver::channel> channel,
+	bool hidden, bool autoclose)
+{
+	if (!strncmp(channel->name().c_str(), "Bonetale", sizeof("Bonetale") - 1) ||
+		!strncmp(channel->name().c_str(), "bntlmp_", sizeof("bntlmp_") - 1))
+		return server.joinchannel_response(channel, client, "Bonetale is blocked on this server due to heavy usage and refusal to contact Darkwire. Get those idiots to contact Darkwire Software."sv);
+	server.joinchannel_response(channel, client, std::string_view());
+}
 void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
 	UpdateTitle(server.clientcount());
 	std::string name = client->name();
 	name = !name.empty() ? name : "[unset]"sv;
-	char addr[64];
-	lw_addr_prettystring(client->getaddress().data(), addr, sizeof(addr));
+	const std::string_view addr = client->getaddress().data();
 	const auto a = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto &c) {
 		return c->c == client; }
 	);
 
-	std::cout << green << '\r' << timeBuffer << " | Client ID "sv << client->id() << ", name "sv << name << ", IP "sv << addr << " disconnected."sv;
+	std::cout << green << '\r' << timeBuffer << "Client ID "sv << client->id() << ", name "sv << name << ", IP "sv << addr << " disconnected."sv;
 	if (a != clientdata.cend())
-		std::cout << " Uploaded "sv << (**a).total.bytes << " bytes in "sv << (**a).total.msg << " msgs total."sv;
+		std::cout << " Uploaded "sv << bignum((**a).total.bytes) << " bytes in "sv << bignum((**a).total.msg) << " msgs total."sv;
 	else
 		std::cout << std::string(25, ' ');
 	std::cout << "\r\n"sv << yellow;
+	reprinttime();
 
 	if (!client->istrusted() && !IsIPTrusted(addr))
 	{
 		auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry & b) { return b.ip == addr; });
 		if (banEntry == banIPList.end())
 		{
-			std::cout << yellow << '\r' << timeBuffer << " | Due to malformed protocol usage, created a IP ban entry."sv << std::string(25, ' ')
+			std::cout << yellow << '\r' << timeBuffer << "Due to malformed protocol usage, created a IP ban entry."sv << std::string(25, ' ')
 				<< "\r\n"sv << yellow;
+			reprinttime();
 			AddBanEntry(**a, addr, "Broken Lacewing protocol", (time(NULL) + 30 * 60));
 		}
 		else
 		{
-			std::cout << yellow << '\r' << timeBuffer << " | Due to malformed protocol usage, increased their ban likelihood."sv << std::string(25, ' ')
+			std::cout << yellow << '\r' << timeBuffer << "Due to malformed protocol usage, increased their ban likelihood."sv << std::string(25, ' ')
 				<< "\r\n"sv << yellow;
+			reprinttime();
 			++banEntry->disconnects;
 		}
 	}
@@ -443,9 +482,9 @@ void OnTimerTick(lacewing::timer timer)
 	std::time(&rawtime);
 	std::tm * timeinfo = localtime(&rawtime);
 	if (timeinfo)
-		std::strftime(timeBuffer, sizeof(timeBuffer), "%T", timeinfo);
+		std::strftime(timeBuffer, sizeof(timeBuffer), "%T | ", timeinfo);
 	else
-		strcpy(timeBuffer, "XX:XX:XX");
+		strcpy(timeBuffer, "XX:XX:XX | ");
 
 	serverdata.in.highestSec.SetToMaxOfCurrentAndThis(serverdata.in.cur);
 	serverdata.out.highestSec.SetToMaxOfCurrentAndThis(serverdata.out.cur);
@@ -455,10 +494,13 @@ void OnTimerTick(lacewing::timer timer)
 	serverdata.out.lastSec = serverdata.out.cur;
 	serverdata.in.cur = serverdata.out.cur = { 0, 0 };
 
-	std::cout << timeBuffer << " | Last sec received "sv << serverdata.in.lastSec.msg << " messages ("sv << serverdata.in.lastSec.bytes
-		<< " bytes), forwarded "sv << serverdata.out.lastSec.msg << " ("sv << serverdata.out.lastSec.bytes << " bytes)."sv
-		<< std::string(15, ' ') << '\r' << white;
-	std::cout.flush();
+	lastTimeSS << timeBuffer << "Last sec received "sv << bignum(serverdata.in.lastSec.msg) << " messages ("sv << bignum(serverdata.in.lastSec.bytes)
+		<< " bytes), forwarded "sv << bignum(serverdata.out.lastSec.msg) << " ("sv << bignum(serverdata.out.lastSec.bytes) << " bytes)."sv
+		<< std::string(15, ' ') << '\r';
+	lastTime = lastTimeSS.str();
+	lastTimeSS.clear();
+	lastTimeSS.str(std::string());
+	reprinttime();
 
 	for (auto& c : clientdata)
 	{
@@ -472,13 +514,13 @@ void OnTimerTick(lacewing::timer timer)
 	}
 
 #ifdef TCP_CLIENT_UPLOAD_CAP
+	std::string_view addr;
 	// open clientdata as shared owner, or disconnect handler's erase may invalidate it while TimerTick is still using it
 	for (auto c : clientdata)
 	{
 		if (!c->exceeded)
 			continue;
-		char addr[64];
-		lw_addr_prettystring(c->c->getaddress().data(), addr, sizeof(addr));
+		addr = c->c->getaddress();
 
 		auto banEntry = std::find_if(banIPList.begin(), banIPList.end(), [&](const BanEntry &b) { return b.ip == addr; });
 		if (banEntry == banIPList.end())
@@ -486,8 +528,8 @@ void OnTimerTick(lacewing::timer timer)
 		else
 			++banEntry->disconnects;
 
-		std::cout << red << '\r' << timeBuffer << " | Client ID "sv << c->c->id() << ", IP "sv << addr <<
-			" dropped for heavy TCP upload ("sv << c->cur.bytes << " bytes in "sv << c->cur.msg << " msgs)"sv << yellow << "\r\n"sv;
+		std::cout << red << '\r' << timeBuffer << "Client ID "sv << c->c->id() << ", IP "sv << addr <<
+			" dropped for heavy TCP upload ("sv << bignum(c->cur.bytes) << " bytes in "sv << bignum(c->cur.msg) << " msgs)"sv << yellow << "\r\n"sv;
 		c->c->send(1, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
 		c->c->send(0, "You have exceeded the TCP upload limit. Contact Phi on Clickteam Discord."sv, 0);
 		c->c->disconnect();
@@ -521,8 +563,9 @@ void OnError(lacewing::relayserver &server, lacewing::error error)
 	std::string_view err = error->tostring();
 	if (err.back() == '.')
 		err.remove_suffix(1);
-	std::cout << red << '\r' << timeBuffer << " | Error occured: "sv << err << ". Execution continues."sv
+	std::cout << red << '\r' << timeBuffer << "Error occured: "sv << err << ". Execution continues."sv
 		<< std::string(25, ' ') << "\r\n"sv << yellow;
+	reprinttime();
 }
 
 void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
@@ -535,19 +578,19 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 		std::string name = senderclient->name();
 		name = !name.empty() ? name : "[unset]"sv;
 
-		std::cout << white << '\r' << timeBuffer << " | Message from client ID "sv << senderclient->id() << ", name "sv << name
+		std::cout << white << '\r' << timeBuffer << "Message from client ID "sv << senderclient->id() << ", name "sv << name
 			<< ":"sv << std::string(35, ' ') << "\r\n"sv
 			<< data << "\r\n"sv << white;
-		std::cout << white << '\r' << timeBuffer << " | blasted = "sv << (blasted ? "yes"sv : "no"sv)
+		std::cout << white << '\r' << timeBuffer << "blasted = "sv << (blasted ? "yes"sv : "no"sv)
 			<< ", subchannel = "sv << subchannel << ", variant = "sv << variant
 			<< ".\r\n"sv << white;
+		reprinttime();
 	}
 
 	if (blasted || variant != 0 || subchannel != 0)
 	{
-		char addr[64];
-		lw_addr_prettystring(senderclient->getaddress().data(), addr, sizeof(addr));
-		std::cout << red << '\r' << timeBuffer << " | Dropped server message from IP "sv << addr << ", invalid type."sv
+		const std::string_view addr = senderclient->getaddress();
+		std::cout << red << '\r' << timeBuffer << "Dropped server message from IP "sv << addr << ", invalid type."sv
 			<< std::string(35, ' ') << "\r\n"sv << yellow;
 		const auto cd = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto &b) { return b->c == senderclient; });
 		if (cd != clientdata.end())
@@ -573,8 +616,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	// report channel and server usage
 	if (data == "send report"sv || (data.size() > 6 && data.substr(0, 6) == "unban "sv))
 	{
-		char addr[64];
-		lw_addr_prettystring(senderclient->getaddress().data(), addr, sizeof(addr));
+		std::string_view addr = senderclient->getaddress();
 
 		if (IsIPTrusted(addr))
 		{
@@ -611,7 +653,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 						const auto& clients = globalserver->getclients();
 						for (auto& c : clients)
 						{
-							lw_addr_prettystring(c->getaddress().data(), addr, 64);
+							addr = c->getaddress();
 							str << "\u2022 Client \""sv << c->name() << "\", ID "sv << c->id() << ", address \""sv << addr << "\".\n"sv;
 							{
 								const auto cd = std::find_if(clientdata.cbegin(), clientdata.cend(), [&](const auto& b) { return b->c == c; });
@@ -663,8 +705,9 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 					{
 						ptm = std::gmtime(&b.resetAt);
 						// Format: Mo, 15.06.2009 20:20:00
-						std::strftime(addr, sizeof(addr), "%d/%m/%Y %H:%M:%S", ptm);
-						str << "\u2022 "sv << b.ip << " : banned until "sv << addr << " GMT, due to \""sv << b.reason
+						char time[64];
+						std::strftime(time, sizeof(time), "%d/%m/%Y %H:%M:%S", ptm);
+						str << "\u2022 "sv << b.ip << " : banned until "sv << time << " GMT, due to \""sv << b.reason
 							<< "\", num disconnects "sv << b.disconnects << ". Channel list at disconnect: "sv << b.chListAtDisconnect << ".\n"sv;
 					}
 				}
@@ -698,9 +741,10 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	std::string name = senderclient->name();
 	name = !name.empty() ? name : "[unset]"sv;
 
-	std::cout << white << '\r' << timeBuffer << " | Message from client ID "sv << senderclient->id() << ", name "sv << name
+	std::cout << white << '\r' << timeBuffer << "Message from client ID "sv << senderclient->id() << ", name "sv << name
 		<< ":"sv << std::string(35, ' ') << "\r\n"sv
 		<< data << "\r\n"sv << yellow;
+	reprinttime();
 }
 bool IncrementClient(std::shared_ptr<lacewing::relayserver::client> client, std::size_t size, bool blasted)
 {
@@ -777,7 +821,29 @@ extern "C" void always_log(const char* c, ...)
 	int numChars = vsprintf(output, c, v);
 	if (numChars <= 0)
 		std::abort();
-	std::cout << yellow << '\r' << timeBuffer << " | "sv << output << std::string(35, ' ') << "\r\n"sv;
+
+	// Strip newline, we're adding it ourselves
+	// This prevents any missing \n in a trace/always log call messing up console display
+	if (output[numChars - 1] == '\n')
+		output[--numChars] = 0;
+	if (output[numChars - 1] == '\r')
+		output[--numChars] = 0;
+	//if (output[numChars - 1] != '\n')
+	//	output[numChars++] = '\n';
+
+	// Print blank to cover up last line
+	struct winsize w;
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+	int consoleSize = w.ws_col;
+	consoleSize -= 2;
+	numChars += 9; // timeBuffer
+
+	// We're writing more than one line, no need to blank
+	if (numChars > consoleSize)
+		numChars = consoleSize;
+
+	std::cout << yellow << '\r' << timeBuffer << ""sv << output << std::string(std::max(consoleSize - numChars, 0), ' ') << "\r\n"sv;
+	reprinttime();
 	va_end(v);
 }
 
@@ -844,7 +910,7 @@ void GenerateFlashPolicy(int port)
 
 void CloseHandler(int sig)
 {
-	std::cout << red << '\r' << timeBuffer << " | "sv;
+	std::cout << red << '\r' << timeBuffer << ""sv;
 
 	// Catch exceptions
 	switch (sig)
@@ -873,14 +939,14 @@ void CloseHandler(int sig)
 
 	if (!shutdowned)
 	{
-		std::cout << red << '\r' << timeBuffer << " | Got Ctrl-C or Close, ending the app."sv << std::string(30, ' ') << "\r\n"sv << yellow;
+		std::cout << red << '\r' << timeBuffer << "Got Ctrl-C or Close, ending the app."sv << std::string(30, ' ') << "\r\n"sv << yellow;
 		Shutdown();
 	}
 
 	// Every other command will likely kill the program after end of this handler
 	if (sig != SIGINT)
 	{
-		std::cout << red << '\r' << timeBuffer << " | Aborting instantly from signal "sv << sig << '.' << std::string(40, ' ') << "\r\n"sv;
+		std::cout << red << '\r' << timeBuffer << "Aborting instantly from signal "sv << sig << '.' << std::string(40, ' ') << "\r\n"sv;
 		std::cout << "\x1B[0m"; // reset console color
 
 		tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // restore console input mode
@@ -895,7 +961,7 @@ void CloseHandler(int sig)
 		globalserver->flash->unhost();
 		globalserver->unhost_websocket(true, true);
 		delete globalserver;
-		lacewing::pump_delete(globalpump);
+		lacewing::eventpump_delete(globalpump);
 
 		exit(EXIT_FAILURE);
 	}
