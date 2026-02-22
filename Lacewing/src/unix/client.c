@@ -69,7 +69,7 @@ lw_client lw_client_new (lw_pump pump)
 {
 	lw_client ctx = (lw_client)calloc (sizeof (*ctx), 1);
 
-	ctx->ifidx = -1;
+	ctx->ifidx = UINT32_MAX;
 
 	lwp_init ();
 
@@ -96,7 +96,7 @@ void lw_client_delete (lw_client ctx)
 	ctx->local_address = NULL;
 	lw_addr_delete(ctx->remote_address);
 	ctx->remote_address = NULL;
-	ctx->ifidx = -1;
+	ctx->ifidx = UINT32_MAX;
 
 	lwp_deinit();
 	free (ctx);

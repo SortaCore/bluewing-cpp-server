@@ -173,6 +173,9 @@
     <SourcesToCopyRemotelyOverride>@(SourcesToCopyRemotely);@(DataFilesToCopyRemotely);$(ProjectDir)Linux\$(Platform)\libssl.a;$(ProjectDir)Linux\$(Platform)\libcrypto.a</SourcesToCopyRemotelyOverride>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="GenericConsole.cpp">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="Lacewing\CodePointAllowList.cpp" />
     <ClCompile Include="Lacewing\deps\http-parser\http_parser.c" />
     <ClCompile Include="Lacewing\deps\multipart-parser\multipart_parser.c" />
@@ -234,10 +237,10 @@
     <ClCompile Include="Lacewing\src\webserver\sessions.c" />
     <ClCompile Include="Lacewing\src\webserver\upload.c" />
     <ClCompile Include="Lacewing\src\webserver\webserver.c" />
-    <ClCompile Include="POSIXMain.cpp" />
+    <ClCompile Include="LinuxConsole.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConsoleColors.hpp" />
+    <ClInclude Include="GenericConsole.hpp" />
     <ClInclude Include="Lacewing\deps\http-parser\http_parser.h" />
     <ClInclude Include="Lacewing\deps\multipart-parser\multipart_parser.h" />
     <ClInclude Include="Lacewing\deps\utf8proc.h" />
@@ -327,6 +330,7 @@
     <ClInclude Include="Lacewing\src\webserver\common.h" />
     <ClInclude Include="Lacewing\src\webserver\http\http.h" />
     <ClInclude Include="Lacewing\src\webserver\multipart.h" />
+    <ClInclude Include="LinuxConsole.hpp" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
@@ -375,7 +379,7 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl;</LibraryDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -400,13 +404,13 @@
       <PositionIndependentCode>true</PositionIndependentCode>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl;</LibraryDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;_lacewing_debug;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -424,7 +428,7 @@
       <CLanguageStandard>c11</CLanguageStandard>
     </ClCompile>
     <Link>
-      <LibraryDependencies>pthread;ssl;crypto;dl</LibraryDependencies>
+      <LibraryDependencies>pthread;ssl;crypto;dl;</LibraryDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)Linux/$(Platform);%(Link.AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

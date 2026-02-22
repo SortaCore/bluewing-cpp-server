@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<PropertyGroup>
+		<!-- If displayed in VS -->
+		<_PropertySheetDisplayName>Generic to Specific prop</_PropertySheetDisplayName>
+		<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+	</PropertyGroup>
+
+	<!-- This CS script file parses and converts the Generic cpp file to platform-specific cpp files.
+		 https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-roslyncodetaskfactory?view=visualstudio
+		 For more info, see the PrebuildScript_GenericToSpecific.cs file itself. -->
+	<UsingTask TaskName="GenericToSpecificParser"
+			TaskFactory="RoslynCodeTaskFactory"
+			AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<InputPath ParameterType="System.String" Required="true" />
+			<OutputPath ParameterType="System.String" Required="true" />
+			<TargetPlat ParameterType="System.String" Required="true" />
+			<UTF8 ParameterType="System.Boolean" Required="true" />
+			<Wide ParameterType="System.Boolean" Required="true" />
+			<DebugOutput ParameterType="System.Boolean" />
+		</ParameterGroup>
+		<Task>
+			<Reference Include="Microsoft.Build.Framework" />
+			<Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)- Docs and Scripts/PrebuildScript_GenericToSpecific.cs" />
+		</Task>
+	</UsingTask>
+
+	<!-- Converts Generic CPP file to specific CPP files. ClCompile for Windows, _ValidateSources for Linux. -->
+	<Target Name="GenericToSpecific" BeforeTargets="ClCompile;_ValidateSources"
+		Inputs="GenericConsole.cpp;Directory.Build.props"
+		Outputs="LinuxConsole.cpp;WindowsWideConsole.cpp;WindowsUTF8Console.cpp">
+
+		<Message Text="Converting Generic to UTF-8..." Importance="High" />
+		<GenericToSpecificParser TargetPlat="Windows" UTF8="true" Wide="false"
+			InputPath="$(MSBuildThisFileDirectory)GenericConsole.cpp"
+			OutputPath="$(MSBuildThisFileDirectory)WindowsUTF8Console.cpp" />
+		<GenericToSpecificParser TargetPlat="Linux" UTF8="true" Wide="false"
+			InputPath="$(MSBuildThisFileDirectory)GenericConsole.cpp"
+			OutputPath="$(MSBuildThisFileDirectory)LinuxConsole.cpp" />
+		
+		<Message Text="Converting Generic to Wide..." Importance="High" />
+		<GenericToSpecificParser TargetPlat="Windows" UTF8="false" Wide="true"
+			InputPath="$(MSBuildThisFileDirectory)GenericConsole.cpp"
+			OutputPath="$(MSBuildThisFileDirectory)WindowsWideConsole.cpp" />
+	</Target>
+
+	<!-- We build with GCC 7 for max compatibility. But this has an ARM ABI breaking change due to
+		 fixing a bug introduced in GCC 5.2, specifically triggered by our functions that pass
+		 vector iterators.
+		 The ABI change implies C++ libraries built with GCC 6 or below will break if called by 7+.
+		 You can ignore it if all your libraries are built by GCC 7+, and Lacewing and
+		 its OpenSSL dependencies are indeed built with GCC 7+.
+		 The warning message was removed in GCC 14.x.
+		 This content checks GCC version is 7.x to 13.x, and if so, turns off the warning message.
+		 See: https://stackoverflow.com/a/48149400 -->
+	<PropertyGroup>
+		<GCCVersion>1.0.0</GCCVersion>
+		<GCCMajorVersion>$(GCCVersion.Substring(0, $(GCCVersion.IndexOf('.'))))</GCCMajorVersion>
+	</PropertyGroup>
+
+	<!-- Run this around the same time as RemotePreBuildEvent -->
+	<Target Name="GetRemoteGCCVer" BeforeTargets="RemotePreBuildEvent"
+		Condition="'$(TargetPlatformIdentifier)|$(Platform)'=='Linux|ARM'"
+		DependsOnTargets="_ResolveRemoteTarget;ResolveRemoteDir;_RequiresRemoteConnection">
+
+		<!-- ParseOutput only makes Execute not try to read the remote stdout at all.
+			 There is no way to get the Execute stdout directly; we have to use a remote
+			 output file that we then copy back.
+			 It's likely possible to reimplement a derived MSBuild Task class that
+			 inherits from Execute task, but that would be a lot of text for very little savings.
+			 Execute task is within Microsoft.Build.Linux.Tasks.dll, referenced by Linux.targets.
+			 mkdir is neccessary for initial builds. -->
+		<Execute
+			Condition="!Exists('$(IntDir)gcppversion.txt') and $(TargetName)!='Clean'"
+			Command="mkdir -p $(_ResolvedRemoteIntermediateDir) &amp;&amp; $(RemoteCppCompileToolExe) -dumpfullversion -dumpversion > $(_ResolvedRemoteIntermediateDir)/gcppversion.txt"
+			RemoteFilesToCopyLocallyMapping="$(_ResolvedRemoteIntermediateDir)/gcppversion.txt:=$(IntDir)gcppversion.txt"
+			ParseOutput="false"
+			RemoteTarget="$(ResolvedRemoteTarget)"
+			ProjectDir="$(ProjectDir)"
+			RemoteProjectDir="$(_ResolvedRemoteProjectDir)"
+			IntermediateDir="$(IntDir)"
+			OutputDir="$(OutDir)"
+			RemoteOutputDir="$(_ResolvedRemoteOutputDir)"
+			RemoteIntermediateDir="$(_ResolvedRemoteIntermediateDir)"
+			Timeout="$(RemoteExecuteTimeout)"
+			RequireRemoteConnection="$(RequireRemoteConnection)"
+			StandardOutputImportance="low"
+			StandardOutputLoggingImportance="low" />
+		<PropertyGroup>
+			<GCPPVersion>1.0.0</GCPPVersion>
+			<GCPPVersion Condition="Exists('$(IntDir)gcppversion.txt')">$([System.IO.File]::ReadAllText('$(IntDir)gcppversion.txt').Trim())</GCPPVersion>
+			<GCPPMajorVersion>$(GCPPVersion.Substring(0, $(GCPPVersion.IndexOf('.'))))</GCPPMajorVersion>
+		</PropertyGroup>
+		<Message Importance="Low" Text="Got ARM G++ version $(GCPPVersion)." />
+		<ItemGroup>
+			<ClCompile>
+				<AdditionalOptions Condition="$(GCPPMajorVersion)&gt;=7 and $(GCPPMajorVersion)&lt;=13">%(AdditionalOptions) -Wno-psabi</AdditionalOptions>
+			</ClCompile>
+		</ItemGroup>
+	</Target>
+</Project>

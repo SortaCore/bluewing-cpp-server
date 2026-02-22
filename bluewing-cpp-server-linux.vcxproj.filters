@@ -145,9 +145,6 @@
     <ClCompile Include="Lacewing\deps\utf8proc_data.c">
       <Filter>Source Files\Lacewing\deps</Filter>
     </ClCompile>
-    <ClCompile Include="POSIXMain.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Lacewing\src\unix\global2.c">
       <Filter>Source Files\Lacewing\src\unix</Filter>
     </ClCompile>
@@ -187,6 +184,8 @@
     <ClCompile Include="Lacewing\deps\multipart-parser\multipart_parser.c">
       <Filter>Source Files\Lacewing\deps\multipart-parser</Filter>
     </ClCompile>
+    <ClCompile Include="GenericConsole.cpp" />
+    <ClCompile Include="LinuxConsole.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
@@ -266,9 +265,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConsoleColors.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Lacewing\FrameBuilder.h">
       <Filter>Header Files\Lacewing</Filter>
     </ClInclude>
@@ -535,6 +531,12 @@
     </ClInclude>
     <ClInclude Include="Lacewing\openssl\x509err.h">
       <Filter>Header Files\Lacewing\openssl</Filter>
+    </ClInclude>
+    <ClInclude Include="GenericConsole.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LinuxConsole.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -162,7 +162,7 @@ lw_ui32 lw_memcmp_diff_index (const lw_ui8* const a, const lw_ui8* const b, cons
 	for (lw_ui32 i = 0; i < size; ++i)
 		if (a[i] != b[i])
 			return i;
-	return -1;
+	return UINT32_MAX;
 }
 
 void lwp_close_socket (lwp_socket socket)

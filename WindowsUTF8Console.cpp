@@ -9,7 +9,7 @@
 */
 
 // Includes OS-specific headers
-#include "LinuxConsole.hpp"
+#include "WindowsConsole.hpp"
 
 // Includes all global variables and headers that both Windows wchar_t and non-Windows char use.
 #include "GenericConsole.hpp"
@@ -92,14 +92,13 @@ static lw_string GetConsoleLine(bool password = false)
 	std::cout << userresponsecolor;
 
 	// Turn off echo of input to output
-	std::cout << u8"\033 7"sv;
-	termios oldt, newt;
-	if (password)
+	DWORD conMode;
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(hStdOut, &csbi);
+	if (password &&
+		(!GetConsoleMode(hStdOut, &conMode) || !SetConsoleMode(hStdOut, conMode & ~ENABLE_ECHO_INPUT)))
 	{
-		tcgetattr(STDIN_FILENO, &oldt);
-		newt = oldt;
-		newt.c_lflag &= ~ECHO;
-		tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+		std::abort();
 	}
 
 	lw_string consoleInputLine;
@@ -111,12 +110,13 @@ static lw_string GetConsoleLine(bool password = false)
 
 	// restore cursor pos to previous line if no input to show
 	if (consoleInputLine.empty())
-		std::cout << u8"\033 8"sv;
+		SetConsoleCursorPosition(hStdOut, csbi.dwCursorPosition);
 
 	// restore echo and generate random asterisk for password
 	if (password)
 	{
-		tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+		SetConsoleMode(hStdOut, conMode);
+		SetConsoleCursorPosition(hStdOut, csbi.dwCursorPosition);
 		std::cout << lw_string(consoleInputLine.empty() ? 10 + (rand() % 20) : consoleInputLine.size(), u8'*') << u8'\n';
 	}
 	else if (consoleInputLine.empty())
@@ -130,7 +130,13 @@ static void GuessCertPath()
 		return;
 
 	// Search app directory for matching files
-
+	// Windows: PFX file that should have both private and public key
+	if (lw_file_exists("./tlscert.pfx"))
+	{
+		wsPrivKeyPath = wsFullChainPath = "./tlscert.pfx"s;
+		std::cout << green << u8"Auto-set cert file to tlscert.pfx from current directory."sv << lineEnd();
+		return;
+	}
 	if (lw_file_exists("./fullchain.pem") && lw_file_exists("./privkey.pem"))
 	{
 		wsPrivKeyPath = "./privkey.pem"s;
@@ -142,7 +148,7 @@ static void GuessCertPath()
 	if (websocketNonSecurePort)
 	{
 		std::cout << yellow << u8"Couldn't auto-find TLS certficate files - expecting "sv;
-
+		std::cout << u8"either \"tlscert.pfx\" OR "sv;
 		std::cout << u8"\"fullchain.pem\" and \"privkey.pem\" in app folder."sv << lineEnd();
 	}
 }
@@ -231,8 +237,8 @@ lw_string fulltimetostring(std::time_t timepoint)
 {
 	lw_string buffer(100, u8'\0');
 	std::tm timeinfo = { 0 };
-	if (localtime_r(&timepoint, &timeinfo))
-		std::strftime(buffer.data(), buffer.size(), u8"%I:%M:%S%p %x", &timeinfo);
+	if (!localtime_s(&timeinfo, &timepoint))
+		std::_tcsftime(buffer.data(), buffer.size(), u8"%I:%M:%S%p %x", &timeinfo);
 	return buffer;
 }
 
@@ -288,66 +294,36 @@ int main(const int argcf, lw_char* argv[])
 	// If true, cmdline is set to require admin
 	bool requireAdmin = false;
 	
-	// GDB sometimes takes a while to link to stdout
 #ifdef _DEBUG
-	std::cout << std::flush;
-	std::cerr << std::flush;
-	std::this_thread::sleep_for(3s);
-#endif
+	// Enable memory tracking (does nothing in Release)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
-	// Handle user and OS interrupts.
-	// 
-	// This is the other entry point from OS -> program. OS will pick a thread that has a handler
-	// to call CloseHandler on. We only use one thread in this app.
-	// 
-	// Registering no handler will result in default OS handling behavior, which may be
-	// an instant app terminate, a terminate after dumping RAM to a file in a system folder,
-	// or letting program continue as normal.
-	// Returning from some signal handlers will result in the signal being called again
-	// with default handler, so CloseHandler stalls to allow main thread to exit cleanly
-	// when it can.
-	// 
-	// All but SIGKILL and SIGSTOP can be intercepted.
-	struct sigaction act = { };
-	act.sa_handler = CloseHandler;
-	sigemptyset(&act.sa_mask);
+	// If running in debugger, clear the console window
+	if (IsDebuggerPresent())
+		system("cls");
+#endif // _DEBUG
 
-	// SIGINT is a more "friendly" signal caused by Ctrl-C. It is also raised if your code hits a debugger-set breakpoint.
-	sigaddset(&act.sa_mask, SIGINT);
-
-	// SIGQUIT is caused by Ctrl-\, which closes your app and dumps the running state,
-	// basically requesting exit with a dump of all files your app is currently using.
-	// Returning from handler is instant app close.
-	sigaddset(&act.sa_mask, SIGQUIT);
-
-	// SIGABRT is caused by abort(), generally raised by internal CRT code for serious issues such as corrupt heap.
-	// Returning from handler usually causes abort() to reset the handler to OS default and raise it again,
-	// which causes instant app close.
-	sigaddset(&act.sa_mask, SIGABRT);
-
-	// These are caused by bad memory access (SIGSEGV), unaligned memory access (SIGBUS), or illegal CPU instructions (SIGILL).
-	// Returning from handler is likely going to crash the app and cause instant app close.
-	sigaddset(&act.sa_mask, SIGILL);
-	sigaddset(&act.sa_mask, SIGSEGV);
-	sigaddset(&act.sa_mask, SIGBUS);
-
-	// SIGFPE is floating-point exception, e.g. dividing by zero, float overflow, etc. It can be ignored,
-	// although it leads the running code in undefined state, so we close down in response.
-	// Returning from handler is instant app close.
-	//sigaddset(&act.sa_mask, SIGFPE);
-
-	// SIGPIPE is writing to a pipe that no longer exists.
-	// Returning from handler is instant app close.
-	sigaddset(&act.sa_mask, SIGPIPE);
-
-	// SIGTERM is when OS is requesting app to instantly close. It is "gentle" compared to SIGKILL,
-	// which is not raised in processes and cannot be intercepted.
-	// Returning from handler is instant app close.
-	// On system shutdown, SIGTERM is sent; apps have usually 5s to close down before SIGKILL.
-	sigaddset(&act.sa_mask, SIGTERM);
-	if (sigaction(SIGINT, &act, NULL))
+	// UTF-8 console requires Windows 10, 1903+
 	{
-		std::cout << u8"Could not set console close handler, error "sv << errno << u8".\n"sv;
+		OSVERSIONINFO osvi = {};
+		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&osvi);
+		if (osvi.dwMajorVersion < 10 || (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber < 1903))
+		{
+			std::cout << u8"UTF-8 Windows requires Windows 10, 1903 or later. Run the wide-char version of this program.\n"sv;
+			return ENOTSUP;
+		}
+	}
+
+	// Handle closing nicely - Ctrl-C, Ctrl-Break, and pressing the X on console window.
+	// Registering no handler will result in default behavior, which normally means OS will instantly terminate app.
+	//
+	// This is another entry point from OS -> program; OS will start up a thread in this app to call CloseHandler.
+	// Note that returning from some handlers will lead OS to instantly terminate app anyway,
+	// as some handlers are more for OS notifying a program to quit, rather than a user notification.
+	if (!SetConsoleCtrlHandler(CloseHandler, TRUE))
+	{
+		std::cout << u8"Could not set console close handler, error "sv << GetLastError() << u8".\n"sv;
 		return ENOTSUP;
 	}
 
@@ -360,6 +336,20 @@ int main(const int argcf, lw_char* argv[])
 	std::ios_base::sync_with_stdio(false);
 #endif // !_DEBUG
 
+	// For Unicode text format
+	if (!SetConsoleCP(CP_UTF8) || !SetConsoleOutputCP(CP_UTF8))
+	{
+		std::cout << u8"UTF-8 console not permitted. Run the wide-char version of this program.\n";
+		return ENOTSUP;
+	}
+
+	// Get access to console
+	hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+
+	// If running under debugger, we may not care to ask for settings
+	if (IsDebuggerPresent())
+		requestUserInput = requestUserInputUnderDebugger;
 
 	// Update timeBuffer for startup output
 	OnTimerTick(nullptr);
@@ -368,32 +358,66 @@ int main(const int argcf, lw_char* argv[])
 	// argv[0] may contain relative path, so it shouldn't be relied on.
 	{
 		lw_string filenameBuf;
-		filenameBuf.resize(256);
-		// Get full path of app, including filename + ext.
-		for (ssize_t pathLen; true;)
+#ifdef _MSC_VER
+		// MSVC provide a shortcut to get current running app path, but not all compilers have it.
+		TCHAR* filePath = NULL;
+		if (_get_tpgmptr(&filePath) == 0)
+			filenameBuf = filePath;
+#endif // _MSC_VER
+		DWORD pathLen;
+		// Fall back on manual lookup of EXE path
+		if (filenameBuf.empty())
 		{
-			pathLen = ::readlink("/proc/self/exe", filenameBuf.data(), filenameBuf.size());
-			// Sometimes, the OS hasn't made the symlink yet, and returns nothing. Sleep until it's ready.
-			if (pathLen == 0)
+			// We can't get path size via passing null, so we have to repeat with increasing buffer
+			filenameBuf.resize(1024);
+			while (true)
 			{
-				std::this_thread::sleep_for(50ms);
-				continue;
-			}
-			if (pathLen == -1)
-			{
-				std::cout << u8"Looking up current app folder failed 2, error "sv << errno << u8".\n"sv;
-				return EINVAL;
-			}
-			// Enough written
-			if ((size_t)pathLen < filenameBuf.size())
-			{
-				filenameBuf.resize(pathLen);
-				break;
-			}
+				// Get full path of EXE, including EXE filename + ext.
+				pathLen = GetModuleFileName(NULL, filenameBuf.data(), (DWORD)filenameBuf.size());
+				if (pathLen == 0)
+				{
+					// Extend the buffer to next power of 2
+					if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+					{
+						filenameBuf.resize(filenameBuf.size() << 1);
+						continue;
+					}
 
-			// Extend the buffer to next power of 2, try again
-			filenameBuf.resize(filenameBuf.size() << 1);
+					// Some other error, give up
+					std::cout << red << u8"Looking up app directory failed. Error "sv << GetLastError() << u8'.' << lineEnd();
+					goto cleanup;
+				}
+				// If success, trim to number of bytes actually written
+				if (pathLen < filenameBuf.size())
+				{
+					// Null terminator is not guaranteed, remove if exists
+					if (filenameBuf[pathLen - 1] == _T('\0'))
+						--pathLen;
+					filenameBuf.resize(pathLen);
+					break;
+				}
+			} while (true);
 		}
+
+		// Both methods use whatever native used to run this app, so it may be DOS-style 8.3 path or a long path.
+		// We'll convert it to a long path, which may be a no-op.
+		pathLen = GetLongPathName(filenameBuf.data(), NULL, 0);
+		if (pathLen == 0)
+		{
+			std::cout << red << u8"Looking up app directory failed. Error "sv << GetLastError() << u8'.' << lineEnd();
+			goto cleanup;
+		}
+		filenameBuf.resize(pathLen);
+
+		// Reusing same buffer for short and long path is explicitly allowed
+		// Writing to std::string null terminator with another null is fine in C++17, undefined behavior earlier
+		pathLen = GetLongPathName(filenameBuf.data(), filenameBuf.data(), (DWORD)filenameBuf.size());
+		if (pathLen == 0)
+		{
+			std::cout << red << u8"Looking up app directory failed. Error "sv << GetLastError() << u8'.' << lineEnd();
+			goto cleanup;
+		}
+		filenameBuf.resize(pathLen); // return if success does not include null terminator
 
 		// Trim to last slash.
 		const std::size_t lastSlash = filenameBuf.find_last_of(u8"\\/"sv);
@@ -555,7 +579,7 @@ int main(const int argcf, lw_char* argv[])
 						bad = true;
 						break;
 					}
-					if (!strcasecmp(argv[i], "tcpClientUploadCap"))
+					if (!_stricmp(argv[i], u8"tcpClientUploadCap"))
 						tcpClientUploadCap = (std::size_t)capBytes;
 					else
 						totalUploadCap = (std::size_t)capBytes;
@@ -608,16 +632,43 @@ int main(const int argcf, lw_char* argv[])
 	}
 
 	// Backup current console config for restoring
-	// A TTY is a normal console; if this is false, not console output (e.g. redirected stdout to file)
-	isConsoleOutput = regularOutputEnabled && isatty(fileno(stdout));
+	// GetConsoleMode fails if not console (e.g. redirected stdout to file)
+	isConsoleOutput = regularOutputEnabled && GetConsoleMode(hStdOut, &conOrigOutputMode);
 
 	if (isConsoleOutput)
 	{
-		// We restore origTerminalSettings if isConsoleOutput is true, so it must be valid.
-		if (tcgetattr(STDIN_FILENO, &origTerminalSettings) != 0)
+		// Save the console details for restoring at end of app
+		GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &conOrigInputMode);
+		CONSOLE_SCREEN_BUFFER_INFO csbi;
+		GetConsoleScreenBufferInfo(hStdOut, &csbi);
+		conOrigTextAttributes = csbi.wAttributes;
+		GetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
+
+		// Enable ANSI console commands - only supported on Windows consoles that also support UTF-8.
+		// Allows coloring, cursor hiding, etc, in a cross-platform way.
+		// For reading: https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
+		if (!SetConsoleMode(hStdOut, conOrigOutputMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT))
 		{
-			std::cout << red << u8"Failed to get terminal settings (error "sv << errno << u8"). Aborting server start."sv << lineEnd();
-			return -1;
+			isConsoleOutput = false;
+			std::cout << u8"Error setting console mode: "sv << GetLastError() << u8'\n';
+			goto cleanup;
+		}
+
+		// Set console icon
+		{
+			// GetConsoleWindow() and undoc'd Kernel32 func SetConsoleIcon() doesn't work in Win 11,
+			// presumably due to psuedoconsole.
+			// GetForegroundWindow() will grab any app's foreground window, not just this one.
+			consoleWin = GetActiveWindow();
+			int width = GetSystemMetrics(SM_CXSMICON), height = GetSystemMetrics(SM_CYSMICON);
+			conSmallIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON,
+				width, height, LR_LOADTRANSPARENT | LR_COLOR | LR_COPYFROMRESOURCE);
+			conOrigSmallIcon = (HICON)SendMessageW(consoleWin, WM_SETICON, ICON_SMALL, (LPARAM)conSmallIcon);
+			width = GetSystemMetrics(SM_CXICON);
+			height = GetSystemMetrics(SM_CYICON);
+			conBigIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON,
+				width, height, LR_LOADTRANSPARENT | LR_COLOR | LR_COPYFROMRESOURCE);
+			conOrigBigIcon = (HICON)SendMessageW(consoleWin, WM_SETICON, ICON_BIG, (LPARAM)conBigIcon);
 		}
 
 		// Same as outputting gray but without time buffer
@@ -627,31 +678,18 @@ int main(const int argcf, lw_char* argv[])
 	// Check for admin membership, required for ICMP raw sockets, which are used for UDP error replies
 	// Blue Server does not *require* ICMP replies though; it will silently ignore bad UDP (e.g. from an unrecognised IP)
 	{
-		// Linux-based OSes also require net bind service permission if targeting ports below 1024.
-		// You can enable both of these by running server under root user, or by adding the perm:
-		// $ setcap 'cap_net_bind_service,cap_net_raw=+ep' /path/to/bluewing-cpp-server
-		// Noteably, the websocket server ports are by default port 80 and 443, flash policy 843.
-		// This perm check will assume admin permissions if it cannot check.
-		bool isAdmin = true;
-#if __has_include(<sys/capabilities.h>)
-		const cap_t current = cap_get_proc();
-		if (current == NULL)
+		BOOL isAdmin;
+		SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+		PSID AdministratorsGroup;
+		isAdmin = AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+			DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0,
+			&AdministratorsGroup);
+		if (isAdmin)
 		{
-			std::cout << red << u8"Warning: Failed to get process capabilities (error "sv << errno << u8"). Assuming raw socket + net bind capabilities are granted.\n"sv;
-			cap_flag_value_t on;
-			if (cap_get_flag(current, CAP_NET_BIND_SERVICE, CAP_PERMITTED, &on) != 0) {
-				std::cout << red << u8"Warning: Failed to check cap_net_bind_service value (error "sv << errno << u8"). Assuming it is granted.\n"sv;
-			}
-			isAdmin = on == 1;
-			if (cap_get_flag(current, CAP_NET_RAW, CAP_PERMITTED, &on) != 0) {
-				std::cout << red << u8"Warning: Failed to check cap_net_raw capability (error "sv << errno << u8"). Assuming it is granted.\n"sv;
-			}
-			isAdmin &= on == 1;
+			if (!CheckTokenMembership(NULL, AdministratorsGroup, &isAdmin))
+				isAdmin = FALSE;
+			FreeSid(AdministratorsGroup);
 		}
-#else // __has_include 0
-		std::cout << red << u8"Warning: Server was built without libcap-dev. Checking for raw socket/port bind privileges is not possible. Assuming they are granted.\n"sv;
-#endif // __has_include
-
 		if (!isAdmin)
 		{
 			if (requireAdmin)
@@ -706,31 +744,10 @@ int main(const int argcf, lw_char* argv[])
 	// This allows various "is input pending" functions to work on single keypress.
 	if (isConsoleOutput)
 	{
-		struct termios curTerminalSettings = origTerminalSettings;
-		curTerminalSettings.c_lflag &= ~(ECHO | ICANON);
-
-		// In Linux, Ctrl-Z results in SIGTSTP signal being raised.
-		// It is an old design to allow single-task terminal to swap between multiple foreground programs,
-		// by suspending with Ctrl-Z (raising SIGTSP), and resuming with fg command (raising SIGCONT).
-		// 
-		// As Bluewing is a real-time server, that's a bad idea.
-		// Having a SIGTSP signal handler won't stop the enclosing terminal from freezing the server
-		// anyway, so we instead tell terminal to disable Ctrl-Z handling and treat Ctrl-Z as a
-		// normal std::cin key, here.
-		// Ctrl-\ results in SIGQUIT, which is intended for app dump of all live data + exit.
-		// We prevent that as well.
-		curTerminalSettings.c_cc[VSUSP] =
-			curTerminalSettings.c_cc[VQUIT] = _POSIX_VDISABLE;
-
-		// A success return may be only partial success. Confirm all were set as we wanted.
-		if (tcsetattr(STDIN_FILENO, TCSANOW, &curTerminalSettings) != 0 ||
-			tcgetattr(STDIN_FILENO, &curTerminalSettings) != 0 ||
-			curTerminalSettings.c_cc[VSUSP] != _POSIX_VDISABLE ||
-			curTerminalSettings.c_cc[VQUIT] != _POSIX_VDISABLE ||
-			(curTerminalSettings.c_lflag & (ECHO | ICANON)) != 0)
+		if (SetConsoleMode(hStdIn, conOrigInputMode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT)) == FALSE)
 		{
-			std::cout << red << u8"Warning: Failed to set stdin terminal settings (error "sv << errno << u8"). "
-				"Server may malfunction if user leaves terminal or a special keybind is used."sv << lineEnd();
+			std::cout << red << u8"Failed to set stdin to character mode (error "sv << GetLastError() << u8"). "
+				"Server may not process console input keypresses."sv << lineEnd();
 		}
 	}
 
@@ -829,11 +846,7 @@ int main(const int argcf, lw_char* argv[])
 		std::cout << u8'.' << lineEnd(false);
 	}
 
-	// Enable the user's preferred date-time and large number format, using "" locale,
-	// instead of the "C" default.
-	// This sets big numbers to have thousand separators in statistics, and so on.
-	// We don't do it earlier as ports will be displayed wrong (e.g. as "6,121").
-	std::cout.imbue(std::locale(std::string()));
+
 	lastTimeAndStatsSS.imbue(std::locale(std::string()));
 	setlocale(LC_ALL, ""); // set user's locale for C functions like strftime
 
@@ -901,9 +914,15 @@ cleanup:
 	// If we generated a flash policy, delete it
 	if (!flashPolicyPath.empty() && deleteFlashPolicyAtEndOfApp)
 	{
-		remove(flashPolicyPath.c_str());
+		DeleteFile(flashPolicyPath.c_str());
 	}
 
+	// Lacewing uses a sync inside lw_trace, which is singleton and never freed.
+	// lw_trace() is a no-op if _lacewing_debug isn't defined.
+	// To let garbage collector not see it as a leak:
+#if defined(_CRTDBG_MAP_ALLOC) && defined(_lacewing_debug)
+	lw_sync_delete(lw_trace_sync);
+#endif // CRT + Debug
 
 	// If we inited properly, show the end app stats
 	if (goodInit)
@@ -927,7 +946,12 @@ cleanup:
 				std::cin.get();
 			std::cout << std::flush;
 
-
+			// Count programs attached to this console. If 1, server was run directly, e.g. by double-clicking EXE.
+			// If server was run indirectly, via cmd, it will be 2 (or if we made room, more)
+			// and we don't need to pause at end of app.
+			DWORD procIDs[2], maxCount = 2, result = GetConsoleProcessList((LPDWORD)procIDs, maxCount);
+			if (result == 1)
+				requestUserInput = false;
 		}
 		
 		// Erase current line to end, then set console cursor visible
@@ -941,8 +965,17 @@ cleanup:
 			std::cin.get();
 		}
 
-		// Restore terminal settings
-		tcsetattr(STDIN_FILENO, TCSANOW, &origTerminalSettings);
+		// Restore console modes
+		SetConsoleMode(hStdOut, conOrigOutputMode);
+		SetConsoleMode(hStdIn, conOrigInputMode);
+		SetConsoleTextAttribute(hStdOut, conOrigTextAttributes);
+		SetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
+
+		// Reset console icons
+		SendMessage(consoleWin, WM_SETICON, ICON_SMALL, (LPARAM)conOrigSmallIcon);
+		SendMessage(consoleWin, WM_SETICON, ICON_BIG, (LPARAM)conOrigBigIcon);
+		DestroyIcon(conOrigSmallIcon);
+		DestroyIcon(conOrigBigIcon);
 	}
 	std::cout << std::flush;
 
@@ -1077,8 +1110,8 @@ void OnTimerTick(lacewing::timer timer)
 	std::tm timeinfo = { 0 };
 	std::time(&rawtime);
 	// Gets time and separator. %T is locale-independent.
-	if (localtime_r(&rawtime, &timeinfo))
-		std::strftime(timeBuffer, std::size(timeBuffer), u8"%T | ", &timeinfo);
+	if (!localtime_s(&timeinfo, &rawtime))
+		std::_tcsftime(timeBuffer, std::size(timeBuffer), u8"%T | ", &timeinfo);
 
 	// We're in startup, and only want to update the time
 	if (!timer)
@@ -1110,13 +1143,7 @@ void OnTimerTick(lacewing::timer timer)
 		// Space key: write statistics
 		if (cinKey == u8' ')
 			statsDump = true;
-		// User pressed Ctrl-Z for SIGTSTP on Linux, which normally sends 0x1F & Z, displays as ^Z.
-		// or User pressed Ctrl-\ for SIGQUIT.
-		else if (cinKey == (0x1F & origTerminalSettings.c_cc[VSUSP]) ||
-			cinKey == (0x1F & origTerminalSettings.c_cc[VQUIT]))
-		{
-			statsDump = true;
-		}
+
 		else // Unrecognised, do a warning beep
 			std::cout << u8'\a';
 	}
@@ -1503,7 +1530,7 @@ extern "C" void always_log(const char* c, ...)
 	char output[1024];
 	va_list v;
 	va_start(v, c);
-	int numChars = vsprintf(output, c, v);
+	int numChars = vsprintf_s(output, std::size(output), c, v);
 	// always_log should always output valid data
 	if (numChars <= 0)
 		std::abort();
@@ -1558,103 +1585,59 @@ void GenerateFlashPolicy(int port)
 // This CloseHandler is spawned by OS in a separate thread to main(), so output will be unsynced,
 // making it particularly messy in startup when you're waiting for user input and get a Ctrl-C instead.
 // We don't write to std::cout here, unless we know server is running - which is when globalpump is set.
-
-// Handles user interrupts and OS interrupts.
-void CloseHandler(const int sig)
+BOOL WINAPI CloseHandler(DWORD ctrlType)
 {
-	// The majority of these signals, once returning, results in app termination.
-	// For example, SIGSEGV is raised in this process when this process tries to read from invalid memory.
-	// Attempting to continue app after that sort of handler will result in termination, and if it didn't,
-	// the main thread probably has corrupt memory and can't continue anyway.
-	// Others are notifications from the OS that the app is requested to exit.
-	// 
-	// Other handlers are special user signals that are safe to return from, such as pressing Ctrl-C.
-	// 
-	// It is also possible to manually send any interrupt number via an option to the kill command,
-	// such as "kill /9 bluewing-cpp-server-linux.out", and raise it yourself e.g. "raise(SIGINT)".
-	// For more info on signals:
-	// https://unix.stackexchange.com/a/317496
-	// Also note what functions you can call in a handler is heavily limited:
-	// https://stackoverflow.com/a/2056565
-	std::string signalType;
+	// This is used for cold restarts, and sometimes for mid-way statistics like in ping
+	if (ctrlType == CTRL_BREAK_EVENT)
+	{
+		if (globalpump)
+			statsDump = true;
+		return TRUE;
+	}
 
-	// SIGINT: user pressed Ctrl-C. This is user quit request, and stops the server,
-	// although it does not have to.
-	if (sig == SIGINT)
-		signalType = "SIGINT: interactive attention signal, probably a Ctrl+C"s;
-	else if (sig == SIGQUIT)
-	{
-		statsDump = true;
-		return;
-	}
-	// SIGHUP: user interactive terminal disconnected. This usually means
-	// their SSH connection died.
-	// 
-	// Services/daemons do not run under interactive terminal, so they never get SIGHUP
-	// naturally. As a result, sometimes services use the SIGHUP signal to reload config.
-	// SIGUSR1 is otherwise used for this.
-	// We don't have a config, so we ignore SIGHUP.
-	// 
-	// If you are running this server under a terminal and don't want the server dying
-	// when terminal disconnects, then you run it under tmux, screen, nohup, etc.,
-	// and detach with specific keypresses: tmux (ctrl-b, d), screen (ctrl-a, d).
-	// Or you write it to be run as a service, e.g. under systemd.
-	else if (sig == SIGHUP)
-	{
-		signalType = "SIGHUP: console user has gone away"s;
-		return;
-	}
-	else if (sig == SIGCONT)
-	{
-		signalType = "SIGCONT: console user has returned"s;
-		return;
-	}
-	else // We'll assume it's deadly as it's preferable to close nicely
-		signalType = "Signal "s + std::to_string(sig);
+	// Close, logoff and shutdown events will terminate app when this handler returns
+	const bool appDiesAfterReturn = ctrlType != CTRL_C_EVENT;
 
-	const bool appDiesAfterReturn = sig != SIGINT;
-	// Only trigger once
-	if (!shutdowned)
+	// Ctrl-C is traditional exit-console event. Close is user pressing close on window.
+	// Note that logoff and shutdown is not run for most consoles, only for services:
+	// https://stackoverflow.com/a/74376684
+	if (ctrlType == CTRL_C_EVENT || ctrlType == CTRL_CLOSE_EVENT ||
+		ctrlType == CTRL_LOGOFF_EVENT || ctrlType == CTRL_SHUTDOWN_EVENT)
 	{
 		// Don't wait for user to press a key to end app (if we were going to)
 		if (appDiesAfterReturn)
 			requestUserInput = false;
 
-		shutdowned = true;
-
-		if (globalpump)
+		// Only trigger once
+		if (!shutdowned)
 		{
-			std::cout << red << u8"Got a "sv << signalType << u8", ending app."sv << lineEnd();
-			globalpump->post_eventloop_exit();
+			shutdowned = true;
+
+			if (globalpump)
+			{
+				std::cout << red << u8"Got a close signal, ending app."sv << lineEnd();
+				globalpump->post_eventloop_exit();
+			}
 		}
+
+		if (appDiesAfterReturn)
+		{
+			while (globalpump)
+				Sleep(25);
+		}
+		
+		return TRUE;
 	}
 
-	// Program may be terminated when handlers finish for most signals.
-	// Stall until main thread finishes and exits itself.
-	if (appDiesAfterReturn)
-	{
-		while (globalpump)
-			std::this_thread::sleep_for(25ms);
-	}
+	// Other handler types are reserved
+	return FALSE;
 }
 
 // Returns true if std::cin has a character to report. Uses OS-specific methods.
 bool cinInputPending()
 {
-	// Terminal must not be line-buffered for this to work.
-	fd_set set;
-	struct timeval timeout;
-
-	// Clear the set
-	FD_ZERO(&set);
-	FD_SET(STDIN_FILENO, &set);
-
-	// Set timeout to zero for non-blocking behavior
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 0;
-
-	// Check if input is available - as cin is line-buffered by default,
-	// no input is reported until a newline (enter key) is pressed
-	return select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout) > 0;
+	// _kbhit() is MS specific for seeing if cin has data, there is no cross-compatible C++ way
+	// Internally, it delegates to Windows-specific PeekConsoleInputEvents()
+	return _kbhit();
 }
 

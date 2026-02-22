@@ -599,7 +599,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 				// We don't require a full match for an unlocked IP address.
 				// IP may mismatch between TCP + UDP even for a valid client, if NAT is getting involved on either side.
 				const lw_ui32 cmp = lw_memcmp_diff_index((const unsigned char*)&clientsocket->addressInt, (const unsigned char*)&addrIn6, sizeof(addrIn6));
-				if (cmp != -1)
+				if (cmp != UINT32_MAX)
 				{
 					const lw_bool isIPv4Mapped = IN6_IS_ADDR_V4MAPPED(&addrIn6);
 					lw_log_if_debug("!!! Mismatch %s IP detected. Differs at index %u.\n",

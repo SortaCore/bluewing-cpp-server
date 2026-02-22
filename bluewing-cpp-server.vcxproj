@@ -102,7 +102,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_CRT_SECURE_NO_WARNINGS;WIN32;lw_import=;_lacewing_static=;_WINSOCK_DEPRECATED_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -134,6 +134,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>ws2_32.lib;mswsock.lib;mpr.lib;secur32.lib;crypt32.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <Manifest>
+      <AdditionalManifestFiles>manifest.xml</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -249,10 +252,18 @@
     <ClCompile Include="Lacewing\src\windows\thread.c" />
     <ClCompile Include="Lacewing\src\windows\timer.c" />
     <ClCompile Include="Lacewing\src\windows\udp.c" />
-    <ClCompile Include="WindowsMain.cpp" />
+    <ClCompile Include="GenericConsole.cpp">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="WindowsUTF8Console.cpp">
+      <ExcludedFromBuild Condition="'$(CharacterSet)'=='Unicode'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="WindowsWideConsole.cpp">
+      <ExcludedFromBuild Condition="'$(CharacterSet)'!='Unicode'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConsoleColors.hpp" />
+    <ClInclude Include="GenericConsole.hpp" />
     <ClInclude Include="Lacewing\deps\http-parser\http_parser.h" />
     <ClInclude Include="Lacewing\deps\multipart-parser\multipart_parser.h" />
     <ClInclude Include="Lacewing\deps\utf8proc.h" />
@@ -287,12 +298,16 @@
     <ClInclude Include="Lacewing\src\windows\ssl\ssl.h" />
     <ClInclude Include="Lacewing\src\windows\typeof.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="WindowsConsole.hpp" />
+  </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="WindowsIcon.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Xml Include="manifest.xml" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

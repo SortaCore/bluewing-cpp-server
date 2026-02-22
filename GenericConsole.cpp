@@ -9,7 +9,11 @@
 */
 
 // Includes OS-specific headers
+#ifdef _WIN32
+#include "WindowsConsole.hpp"
+#else // !_WIN32
 #include "LinuxConsole.hpp"
+#endif // _WIN32
 
 // Includes all global variables and headers that both Windows wchar_t and non-Windows char use.
 #include "GenericConsole.hpp"
@@ -35,14 +39,27 @@ static std::basic_ostream<_Elem, _Traits> & operator << (std::basic_ostream<_Ele
 	// If we're not outputting to console, we don't want to pad or recolor, just output time
 	if (!isConsoleOutput)
 	{
-		std::cout << u8'\n';
+		std::cout << '\n';
 		if (!wrp.reprintStatsLine)
 			std::cout << timeBuffer;
 		return str;
 	}
 		
+#if lw_utf8_console
 	// Erase current line to end, then move to next line
-	std::cout << u8"\x1b[0K\n"sv;
+	std::cout << "\x1b[0K\n"sv;
+#else // !lw_utf8_console
+	CONSOLE_SCREEN_BUFFER_INFO csbi = {};
+	if (GetConsoleScreenBufferInfo(hStdOut, &csbi))
+	{
+		// If we wrote a line that's shorter than last statistics line, we clear whatever wasn't overwritten
+		// from end of last wrote line (cursor x) to end of console via padding an empty string.
+		const int charsToFill = csbi.dwSize.X - csbi.dwCursorPosition.X;
+		assert(charsToFill >= 0);
+		std::cout << std::setw((std::streamsize)charsToFill) << ""sv << std::setw(0);
+	}
+	std::cout << '\n';
+#endif // lw_utf8_console
 
 	if (wrp.reprintStatsLine)
 		ReprintStatisticsLine();
@@ -61,7 +78,7 @@ static void CheckPort(const lw_char * portStr, lw_ui16 * writeTo, std::function<
 	{
 		std::cout << red;
 		errInv();
-		std::cout << u8" had invalid port number "sv << portStr << u8'.' << lineEnd();
+		std::cout << " had invalid port number "sv << portStr << '.' << lineEnd();
 		return;
 	}
 	*writeTo = (lw_ui16)portNum;
@@ -72,7 +89,7 @@ static void CheckPort(const lw_char * portStr, lw_ui16 * writeTo, std::function<
 		(writeTo != &websocketSecurePort && *writeTo == websocketSecurePort))
 	{
 		errInv();
-		std::cout << u8" port number "sv << portStr << u8" was reused in several ports."sv << lineEnd();
+		std::cout << " port number "sv << portStr << " was reused in several ports."sv << lineEnd();
 	}
 }
 static lw_string GetConsoleLine(bool password = false)
@@ -83,7 +100,7 @@ static lw_string GetConsoleLine(bool password = false)
 	if (!requestUserInput)
 	{
 #ifdef _DEBUG
-		std::cout << u8"(prompting disabled)\n"sv;
+		std::cout << "(prompting disabled)\n"sv;
 #endif
 		return lw_string();
 	}
@@ -92,7 +109,17 @@ static lw_string GetConsoleLine(bool password = false)
 	std::cout << userresponsecolor;
 
 	// Turn off echo of input to output
-	std::cout << u8"\033 7"sv;
+#ifdef _WIN32
+	DWORD conMode;
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(hStdOut, &csbi);
+	if (password &&
+		(!GetConsoleMode(hStdOut, &conMode) || !SetConsoleMode(hStdOut, conMode & ~ENABLE_ECHO_INPUT)))
+	{
+		std::abort();
+	}
+#else // !_WIN32
+	std::cout << "\033 7"sv;
 	termios oldt, newt;
 	if (password)
 	{
@@ -101,6 +128,7 @@ static lw_string GetConsoleLine(bool password = false)
 		newt.c_lflag &= ~ECHO;
 		tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 	}
+#endif // _WIN32
 
 	lw_string consoleInputLine;
 	std::getline(std::cin, consoleInputLine);
@@ -111,16 +139,25 @@ static lw_string GetConsoleLine(bool password = false)
 
 	// restore cursor pos to previous line if no input to show
 	if (consoleInputLine.empty())
-		std::cout << u8"\033 8"sv;
+#ifdef _WIN32
+		SetConsoleCursorPosition(hStdOut, csbi.dwCursorPosition);
+#else // !_WIN32
+		std::cout << "\033 8"sv;
+#endif // _WIN32
 
 	// restore echo and generate random asterisk for password
 	if (password)
 	{
+#ifdef _WIN32
+		SetConsoleMode(hStdOut, conMode);
+		SetConsoleCursorPosition(hStdOut, csbi.dwCursorPosition);
+#else // !_WIN32
 		tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-		std::cout << lw_string(consoleInputLine.empty() ? 10 + (rand() % 20) : consoleInputLine.size(), u8'*') << u8'\n';
+#endif // _WIN32
+		std::cout << lw_string(consoleInputLine.empty() ? 10 + (rand() % 20) : consoleInputLine.size(), TXT('*')) << '\n';
 	}
 	else if (consoleInputLine.empty())
-		std::cout << u8"(empty input)\n"sv;
+		std::cout << "(empty input)\n"sv;
 	return consoleInputLine;
 }
 // Looks for matching default TLS cert files and uses the first to match
@@ -130,20 +167,30 @@ static void GuessCertPath()
 		return;
 
 	// Search app directory for matching files
-
+#ifdef _WIN32
+	// Windows: PFX file that should have both private and public key
+	if (lw_file_exists("./tlscert.pfx"))
+	{
+		wsPrivKeyPath = wsFullChainPath = "./tlscert.pfx"s;
+		std::cout << green << "Auto-set cert file to tlscert.pfx from current directory."sv << lineEnd();
+		return;
+	}
+#endif // _WIN32
 	if (lw_file_exists("./fullchain.pem") && lw_file_exists("./privkey.pem"))
 	{
 		wsPrivKeyPath = "./privkey.pem"s;
 		wsFullChainPath = "./fullchain.pem"s;
-		std::cout << green << u8"Auto-set cert files to privkey.pem and fullchain.pem from current directory."sv << lineEnd();
+		std::cout << green << "Auto-set cert files to privkey.pem and fullchain.pem from current directory."sv << lineEnd();
 		return;
 	}
 	// Not found at all - if websocket insecure was on, they probably want a secure cert
 	if (websocketNonSecurePort)
 	{
-		std::cout << yellow << u8"Couldn't auto-find TLS certficate files - expecting "sv;
-
-		std::cout << u8"\"fullchain.pem\" and \"privkey.pem\" in app folder."sv << lineEnd();
+		std::cout << yellow << "Couldn't auto-find TLS certficate files - expecting "sv;
+#ifdef _WIN32
+		std::cout << "either \"tlscert.pfx\" OR "sv;
+#endif // _WIN32
+		std::cout << "\"fullchain.pem\" and \"privkey.pem\" in app folder."sv << lineEnd();
 	}
 }
 static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool requireCert, lw_ui16 defaultVal)
@@ -161,7 +208,7 @@ static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool r
 
 	lw_string consoleInputLine;
 	if (requestUserInput && !requireCert)
-		std::cout << userpromptcolor << u8"Enter a "sv << req << u8" port (leave empty for default " << defaultVal << u8"):\n"sv;
+		std::cout << userpromptcolor << "Enter a "sv << req << " port (leave empty for default " << defaultVal << "):\n"sv;
 	// else cert is required for this port: guess cert
 	else
 	{
@@ -172,8 +219,8 @@ static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool r
 			*writeTo = defaultVal;
 			return true;
 		}
-		std::cout << userpromptcolor << u8"Enter a "sv << req << u8" port (leave empty for default "sv << defaultVal <<
-			u8", or pass 0 to disable secure websocket):\n"sv;
+		std::cout << userpromptcolor << "Enter a "sv << req << " port (leave empty for default "sv << defaultVal <<
+			", or pass 0 to disable secure websocket):\n"sv;
 	}
 	consoleInputLine = GetConsoleLine();
 
@@ -189,7 +236,7 @@ static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool r
 	else
 	{
 		CheckPort(consoleInputLine.c_str(), writeTo, [&]() {
-			std::cout << u8"Invalid input: "sv << req;
+			std::cout << "Invalid input: "sv << req;
 			good = false;
 		});
 	}
@@ -198,28 +245,28 @@ static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool r
 	{
 		if (wsFullChainPath.empty())
 		{
-			std::cout << userpromptcolor << u8"Enter a path to TLS certificate file (combined PFX or full chain PEM), or leave empty to disable websocket secure hosting:\n"sv;
+			std::cout << userpromptcolor << "Enter a path to TLS certificate file (combined PFX or full chain PEM), or leave empty to disable websocket secure hosting:\n"sv;
 			consoleInputLine = GetConsoleLine();
 			if (consoleInputLine.empty())
 			{
-				std::cout << green << u8"Left empty. Will continue webserver with just insecure websocket."sv << lineEnd();
+				std::cout << green << "Left empty. Will continue webserver with just insecure websocket."sv << lineEnd();
 				websocketSecurePort = 0;
 				return true;
 			}
-			wsFullChainPath = consoleInputLine;
+			wsFullChainPath = lw_u8(consoleInputLine);
 		}
 		if (wsPrivKeyPath.empty())
 		{
-			std::cout << userpromptcolor << u8"Enter a path to SSL priv key certificate file (PFX or PEM), or leave empty if part of chain file:\n"sv;
+			std::cout << userpromptcolor << "Enter a path to SSL priv key certificate file (PFX or PEM), or leave empty if part of chain file:\n"sv;
 			consoleInputLine = GetConsoleLine();
-			wsPrivKeyPath = consoleInputLine.empty() ? wsFullChainPath : consoleInputLine;
+			wsPrivKeyPath = consoleInputLine.empty() ? wsFullChainPath : lw_u8(consoleInputLine);
 		}
 
 		if (wsPassPhrase.empty())
 		{
-			std::cout << userpromptcolor << u8"Enter a password to the certificate file(s), or leave empty if none:\n"sv;
+			std::cout << userpromptcolor << "Enter a password to the certificate file(s), or leave empty if none:\n"sv;
 			consoleInputLine = GetConsoleLine(true);
-			wsPassPhrase = consoleInputLine;
+			wsPassPhrase = lw_u8(consoleInputLine);
 		}
 	}
 
@@ -229,10 +276,15 @@ static bool GetPortFromInput(const lw_string_view req, lw_ui16 * writeTo, bool r
 // Converts time_t to full date-time representation based on local date format
 lw_string fulltimetostring(std::time_t timepoint)
 {
-	lw_string buffer(100, u8'\0');
+	lw_string buffer(100, TXT('\0'));
 	std::tm timeinfo = { 0 };
+#ifdef _WIN32
+	if (!localtime_s(&timeinfo, &timepoint))
+		std::_tcsftime(buffer.data(), buffer.size(), TXT("%I:%M:%S%p %x"), &timeinfo);
+#else // !_WIN32
 	if (localtime_r(&timepoint, &timeinfo))
-		std::strftime(buffer.data(), buffer.size(), u8"%I:%M:%S%p %x", &timeinfo);
+		std::strftime(buffer.data(), buffer.size(), TXT("%I:%M:%S%p %x"), &timeinfo);
+#endif // _WIN32
 	return buffer;
 }
 
@@ -244,31 +296,31 @@ lw_string fulltimetostring(std::time_t timepoint)
 */
 static void PrintTotalStatistics(const bool endOfApp)
 {
-	std::cout << green << std::setw(70) << std::setfill(u8'=') << u8""sv << std::setw(0) << std::setfill(u8' ') << lineEnd(false);
+	std::cout << green << std::setw(70) << std::setfill(TXT('=')) << ""sv << std::setw(0) << std::setfill(TXT(' ')) << lineEnd(false);
 	if (endOfApp)
-		std::cout << u8"Program completed. Total statistics:"sv << lineEnd(false);
+		std::cout << "Program completed. Total statistics:"sv << lineEnd(false);
 	else
-		std::cout << u8"Manual statistics request. Statistics since start of server:" << lineEnd(false);
+		std::cout << "Manual statistics request. Statistics since start of server:" << lineEnd(false);
 	
 	const std::time_t curTime = time(NULL);
 	const std::uint64_t secondsUp = std::max<std::uint64_t>(1, (std::uint64_t)std::ceil(difftime(curTime, startTime)));
 	// Division is floor by default
 	const std::uint64_t hours = secondsUp / (60ULL * 60ULL), minutes = (secondsUp / 60ULL) % 60ULL, seconds = secondsUp % 60ULL;
 	std::cout
-		<< u8"     Start time: "sv << fulltimetostring(startTime) << u8". "sv << lineEnd(false)
-		<< (endOfApp ? u8"       End"sv : u8"   Current"sv) << u8" time: "sv << fulltimetostring(curTime) << u8". "sv << lineEnd(false)
-		<< u8"    Hosting for: "sv << hours << u8" hrs, "sv << minutes << u8" mins, "sv << seconds << u8" seconds ("sv << secondsUp << u8" seconds total)."sv << lineEnd(false)
-		<< u8"   Max in 1 sec: "sv << serverstats.in.highestSec.bytes << u8" bytes in, "sv << serverstats.out.highestSec.bytes << u8" bytes out."sv << lineEnd(false)
-		<< u8"                 "sv << serverstats.in.highestSec.msg << u8" msgs in, "sv << serverstats.out.highestSec.msg << u8" msgs out (may be diff seconds)."sv << lineEnd(false)
-		<< u8"    Avg per sec: "sv << (serverstats.in.total.bytes / secondsUp) << u8" bytes in, "sv << (serverstats.out.total.bytes / secondsUp) << u8" bytes out."sv << lineEnd(false)
-		<< u8"                 "sv << (serverstats.in.total.msg / secondsUp) << u8" msgs in, "sv << (serverstats.out.total.msg / secondsUp) << u8" msgs out."sv << lineEnd(false)
-		<< u8"          Total: "sv << serverstats.in.total.bytes << u8" bytes in, "sv << serverstats.out.total.bytes << u8" bytes out."sv << lineEnd(false)
-		<< u8"                 "sv << serverstats.in.total.msg << u8" msgs in, "sv << serverstats.out.total.msg << u8" msgs out."sv << lineEnd(false)
-		<< u8"    Max clients: "sv << serverstats.maxClients << u8", max channels: "sv << serverstats.maxChannels << u8'.' << lineEnd(false);
+		<< "     Start time: "sv << fulltimetostring(startTime) << ". "sv << lineEnd(false)
+		<< (endOfApp ? "       End"sv : "   Current"sv) << " time: "sv << fulltimetostring(curTime) << ". "sv << lineEnd(false)
+		<< "    Hosting for: "sv << hours << " hrs, "sv << minutes << " mins, "sv << seconds << " seconds ("sv << secondsUp << " seconds total)."sv << lineEnd(false)
+		<< "   Max in 1 sec: "sv << serverstats.in.highestSec.bytes << " bytes in, "sv << serverstats.out.highestSec.bytes << " bytes out."sv << lineEnd(false)
+		<< "                 "sv << serverstats.in.highestSec.msg << " msgs in, "sv << serverstats.out.highestSec.msg << " msgs out (may be diff seconds)."sv << lineEnd(false)
+		<< "    Avg per sec: "sv << (serverstats.in.total.bytes / secondsUp) << " bytes in, "sv << (serverstats.out.total.bytes / secondsUp) << " bytes out."sv << lineEnd(false)
+		<< "                 "sv << (serverstats.in.total.msg / secondsUp) << " msgs in, "sv << (serverstats.out.total.msg / secondsUp) << " msgs out."sv << lineEnd(false)
+		<< "          Total: "sv << serverstats.in.total.bytes << " bytes in, "sv << serverstats.out.total.bytes << " bytes out."sv << lineEnd(false)
+		<< "                 "sv << serverstats.in.total.msg << " msgs in, "sv << serverstats.out.total.msg << " msgs out."sv << lineEnd(false)
+		<< "    Max clients: "sv << serverstats.maxClients << ", max channels: "sv << serverstats.maxChannels << '.' << lineEnd(false);
 	if (endOfApp)
-		std::cout << u8"Current clients: "sv << globalserver->clientcount() << u8", current channels: "sv << globalserver->channelcount() << u8'.' << lineEnd(false);
+		std::cout << "Current clients: "sv << globalserver->clientcount() << ", current channels: "sv << globalserver->channelcount() << '.' << lineEnd(false);
 	std::cout
-		<< std::setw(70) << std::setfill(u8'=') << u8""sv << std::setw(0) << std::setfill(u8' ') << lineEnd(!endOfApp);
+		<< std::setw(70) << std::setfill(TXT('=')) << ""sv << std::setw(0) << std::setfill(TXT(' ')) << lineEnd(!endOfApp);
 }
 
 /**
@@ -288,6 +340,42 @@ int main(const int argcf, lw_char* argv[])
 	// If true, cmdline is set to require admin
 	bool requireAdmin = false;
 	
+#ifdef _WIN32
+#ifdef _DEBUG
+	// Enable memory tracking (does nothing in Release)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+
+	// If running in debugger, clear the console window
+	if (IsDebuggerPresent())
+		system("cls");
+#endif // _DEBUG
+
+	// UTF-8 console requires Windows 10, 1903+
+#if lw_utf8_console
+	{
+		OSVERSIONINFO osvi = {};
+		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+		GetVersionEx(&osvi);
+		if (osvi.dwMajorVersion < 10 || (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber < 1903))
+		{
+			std::cout << "UTF-8 Windows requires Windows 10, 1903 or later. Run the wide-char version of this program.\n"sv;
+			return ENOTSUP;
+		}
+	}
+#endif // lw_utf8_console
+
+	// Handle closing nicely - Ctrl-C, Ctrl-Break, and pressing the X on console window.
+	// Registering no handler will result in default behavior, which normally means OS will instantly terminate app.
+	//
+	// This is another entry point from OS -> program; OS will start up a thread in this app to call CloseHandler.
+	// Note that returning from some handlers will lead OS to instantly terminate app anyway,
+	// as some handlers are more for OS notifying a program to quit, rather than a user notification.
+	if (!SetConsoleCtrlHandler(CloseHandler, TRUE))
+	{
+		std::cout << "Could not set console close handler, error "sv << GetLastError() << ".\n"sv;
+		return ENOTSUP;
+	}
+#else // !_WIN32
 	// GDB sometimes takes a while to link to stdout
 #ifdef _DEBUG
 	std::cout << std::flush;
@@ -347,9 +435,10 @@ int main(const int argcf, lw_char* argv[])
 	sigaddset(&act.sa_mask, SIGTERM);
 	if (sigaction(SIGINT, &act, NULL))
 	{
-		std::cout << u8"Could not set console close handler, error "sv << errno << u8".\n"sv;
+		std::cout << "Could not set console close handler, error "sv << errno << ".\n"sv;
 		return ENOTSUP;
 	}
+#endif // _WIN32
 
 #ifndef _DEBUG
 	// We don't use C-style printf(), so desync C++ console output (std::cout) and C (printf, puts).
@@ -360,6 +449,26 @@ int main(const int argcf, lw_char* argv[])
 	std::ios_base::sync_with_stdio(false);
 #endif // !_DEBUG
 
+#ifdef _WIN32
+	// For Unicode text format
+#if lw_utf8_console
+	if (!SetConsoleCP(CP_UTF8) || !SetConsoleOutputCP(CP_UTF8))
+	{
+		std::cout << "UTF-8 console not permitted. Run the wide-char version of this program.\n";
+		return ENOTSUP;
+	}
+#else // !lw_utf8_console
+	init_locale();
+#endif // lw_utf8_console
+
+	// Get access to console
+	hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+
+	// If running under debugger, we may not care to ask for settings
+	if (IsDebuggerPresent())
+		requestUserInput = requestUserInputUnderDebugger;
+#endif // _WIN32
 
 	// Update timeBuffer for startup output
 	OnTimerTick(nullptr);
@@ -368,6 +477,68 @@ int main(const int argcf, lw_char* argv[])
 	// argv[0] may contain relative path, so it shouldn't be relied on.
 	{
 		lw_string filenameBuf;
+#ifdef _WIN32
+#ifdef _MSC_VER
+		// MSVC provide a shortcut to get current running app path, but not all compilers have it.
+		TCHAR* filePath = NULL;
+		if (_get_tpgmptr(&filePath) == 0)
+			filenameBuf = filePath;
+#endif // _MSC_VER
+		DWORD pathLen;
+		// Fall back on manual lookup of EXE path
+		if (filenameBuf.empty())
+		{
+			// We can't get path size via passing null, so we have to repeat with increasing buffer
+			filenameBuf.resize(1024);
+			while (true)
+			{
+				// Get full path of EXE, including EXE filename + ext.
+				pathLen = GetModuleFileName(NULL, filenameBuf.data(), (DWORD)filenameBuf.size());
+				if (pathLen == 0)
+				{
+					// Extend the buffer to next power of 2
+					if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+					{
+						filenameBuf.resize(filenameBuf.size() << 1);
+						continue;
+					}
+
+					// Some other error, give up
+					std::cout << red << "Looking up app directory failed. Error "sv << GetLastError() << '.' << lineEnd();
+					goto cleanup;
+				}
+				// If success, trim to number of bytes actually written
+				if (pathLen < filenameBuf.size())
+				{
+					// Null terminator is not guaranteed, remove if exists
+					if (filenameBuf[pathLen - 1] == _T('\0'))
+						--pathLen;
+					filenameBuf.resize(pathLen);
+					break;
+				}
+			} while (true);
+		}
+
+		// Both methods use whatever native used to run this app, so it may be DOS-style 8.3 path or a long path.
+		// We'll convert it to a long path, which may be a no-op.
+		pathLen = GetLongPathName(filenameBuf.data(), NULL, 0);
+		if (pathLen == 0)
+		{
+			std::cout << red << "Looking up app directory failed. Error "sv << GetLastError() << '.' << lineEnd();
+			goto cleanup;
+		}
+		filenameBuf.resize(pathLen);
+
+		// Reusing same buffer for short and long path is explicitly allowed
+		// Writing to std::string null terminator with another null is fine in C++17, undefined behavior earlier
+		pathLen = GetLongPathName(filenameBuf.data(), filenameBuf.data(), (DWORD)filenameBuf.size());
+		if (pathLen == 0)
+		{
+			std::cout << red << "Looking up app directory failed. Error "sv << GetLastError() << '.' << lineEnd();
+			goto cleanup;
+		}
+		filenameBuf.resize(pathLen); // return if success does not include null terminator
+#else // !_WIN32
 		filenameBuf.resize(256);
 		// Get full path of app, including filename + ext.
 		for (ssize_t pathLen; true;)
@@ -381,7 +552,7 @@ int main(const int argcf, lw_char* argv[])
 			}
 			if (pathLen == -1)
 			{
-				std::cout << u8"Looking up current app folder failed 2, error "sv << errno << u8".\n"sv;
+				std::cout << "Looking up current app folder failed 2, error "sv << errno << ".\n"sv;
 				return EINVAL;
 			}
 			// Enough written
@@ -394,12 +565,13 @@ int main(const int argcf, lw_char* argv[])
 			// Extend the buffer to next power of 2, try again
 			filenameBuf.resize(filenameBuf.size() << 1);
 		}
+#endif // _WIN32
 
 		// Trim to last slash.
-		const std::size_t lastSlash = filenameBuf.find_last_of(u8"\\/"sv);
+		const std::size_t lastSlash = filenameBuf.find_last_of(TXT("\\/"sv));
 		if (lastSlash == lw_string::npos)
 		{
-			std::cout << red << u8"Current app path \""sv << filenameBuf << u8"\" made no sense."sv << lineEnd();
+			std::cout << red << "Current app path \""sv << filenameBuf << "\" made no sense."sv << lineEnd();
 			goto cleanup;
 		}
 		appFolder = filenameBuf.substr(0, lastSlash + 1);
@@ -414,12 +586,12 @@ int main(const int argcf, lw_char* argv[])
 			const auto setport = [&](std::size_t argCIdxName, lw_ui16* writeTo) {
 				if (argCIdxName + 1 >= argc)
 				{
-					std::cout << u8"Invalid cmdline: " << argv[argCIdxName] << u8" had no following value.\n"sv;
+					std::cout << "Invalid cmdline: " << argv[argCIdxName] << " had no following value.\n"sv;
 					return (bad = true);
 				}
 
 				CheckPort(argv[argCIdxName + 1], writeTo, [&]() {
-					std::cout << u8"Invalid cmdline: "sv << argv[argCIdxName];
+					std::cout << "Invalid cmdline: "sv << argv[argCIdxName];
 					bad = true;
 					});
 				return !bad;
@@ -427,29 +599,33 @@ int main(const int argcf, lw_char* argv[])
 			const auto setpath = [&](std::size_t argCIdxName, std::string* writeTo) {
 				if (argCIdxName + 1 >= argc)
 				{
-					std::cout << u8"Invalid cmdline: "sv << argv[argCIdxName] << u8" had no following value.\n"sv;
+					std::cout << "Invalid cmdline: "sv << argv[argCIdxName] << " had no following value.\n"sv;
 					return (bad = true);
 				}
 
 				// If flash policy path is specified, it must exist
+#if lw_utf8_console
 				if (!lw_file_exists(argv[argCIdxName + 1]))
+#else // !lw_utf8_console
+				if (!lw_file_exists(WideToUTF8(argv[argCIdxName + 1]).c_str()))
+#endif // lw_utf8_console
 				{
-					std::cout << u8"Invalid cmdline: "sv << argv[argCIdxName] << u8" had invalid path \"" << argv[argCIdxName + 1] << u8"\".\n"sv;
+					std::cout << "Invalid cmdline: "sv << argv[argCIdxName] << " had invalid path \"" << argv[argCIdxName + 1] << "\".\n"sv;
 					return (bad = true);
 				}
-				*writeTo = argv[argCIdxName + 1];
+				*writeTo = lw_u8(argv[argCIdxName + 1]);
 				// PFX may hold both priv key and full chain, but should only be passed once, as priv key
 				if (writeTo == &wsFullChainPath && lw_u8str_icmp(*writeTo, wsPrivKeyPath))
 				{
-					std::cout << u8"Invalid cmdline: \""sv << argv[argCIdxName] << u8"\" cert path \""sv
-						<< argv[argCIdxName + 1] << u8"\" was reused for both fullchain and priv key. "
+					std::cout << "Invalid cmdline: \""sv << argv[argCIdxName] << "\" cert path \""sv
+						<< argv[argCIdxName + 1] << "\" was reused for both fullchain and priv key. "
 						"Only pass it for priv key if you're using a PFX with both.\n"sv;
 					return (bad = true);
 				}
 				if (writeTo == &flashPolicyPath && (lw_u8str_icmp(*writeTo, wsFullChainPath) || lw_u8str_icmp(*writeTo, wsPrivKeyPath)))
 				{
-					std::cout << u8"Invalid cmdline: \""sv << argv[argCIdxName] << u8"\" policy path \""sv
-						<< argv[argCIdxName + 1] << u8"\" was reused for a websocket cert path.\n"sv;
+					std::cout << "Invalid cmdline: \""sv << argv[argCIdxName] << "\" policy path \""sv
+						<< argv[argCIdxName + 1] << "\" was reused for a websocket cert path.\n"sv;
 					return (bad = true);
 				}
 
@@ -460,34 +636,34 @@ int main(const int argcf, lw_char* argv[])
 			for (std::size_t i = 1; i < argc;)
 			{
 				// Skip past commandline - or / precursor
-				if (argv[i][0] == u8'/' || argv[i][0] == u8'-')
+				if (argv[i][0] == TXT('/') || argv[i][0] == TXT('-'))
 					++argv[i];
 
 				// These only edit the same things
-				if ((!strcasecmp(argv[i], u8"mainPort") && setport(i, &mainPort)) ||
-					(!strcasecmp(argv[i], u8"wsPort") && setport(i, &websocketNonSecurePort)) ||
-					(!strcasecmp(argv[i], u8"wssPort") && setport(i, &websocketSecurePort)) ||
-					(!strcasecmp(argv[i], u8"certFullChainPath") && setpath(i, &wsFullChainPath)) ||
-					(!strcasecmp(argv[i], u8"certPrivKeyPath") && setpath(i, &wsPrivKeyPath)))
+				if ((!strcasecmp(argv[i], TXT("mainPort")) && setport(i, &mainPort)) ||
+					(!strcasecmp(argv[i], TXT("wsPort")) && setport(i, &websocketNonSecurePort)) ||
+					(!strcasecmp(argv[i], TXT("wssPort")) && setport(i, &websocketSecurePort)) ||
+					(!strcasecmp(argv[i], TXT("certFullChainPath")) && setpath(i, &wsFullChainPath)) ||
+					(!strcasecmp(argv[i], TXT("certPrivKeyPath")) && setpath(i, &wsPrivKeyPath)))
 				{
 					i += 2;
 					continue;
 				}
 				// Flash policy set: presumably we want flash enabled
-				if (!strcasecmp(argv[i], u8"flashPolicyPath") && setpath(i, &flashPolicyPath))
+				if (!strcasecmp(argv[i], TXT("flashPolicyPath")) && setpath(i, &flashPolicyPath))
 				{
 					if (flashEnabled)
-						std::cout << u8"Warning: cmdline enableFlash does not need passing if you pass the flash policy path.\n"sv;
+						std::cout << "Warning: cmdline enableFlash does not need passing if you pass the flash policy path.\n"sv;
 					flashEnabled = true;
 					i += 2;
 					continue;
 				}
 				// Flash is enabled: assume it is to be generated, or read from app directory
-				if (!strcasecmp(argv[i], u8"enableFlash"))
+				if (!strcasecmp(argv[i], TXT("enableFlash")))
 				{
 					// They also passed flash policy, so complain
 					if (!flashPolicyPath.empty())
-						std::cout << u8"Warning: cmdline "sv << argv[i] << u8" does not need passing if you set the policy path.\n"sv;
+						std::cout << "Warning: cmdline "sv << argv[i] << " does not need passing if you set the policy path.\n"sv;
 					flashEnabled = true;
 					++i;
 					continue;
@@ -495,7 +671,7 @@ int main(const int argcf, lw_char* argv[])
 				// If this is true, expects the server program to be run under admin privileges,
 				// which is necessary for ICMP raw sockets (used for UDP error replies),
 				// and for privileged hosting (hosting on a port number below 1024)
-				if (!strcasecmp(argv[i], u8"requireAdmin"))
+				if (!strcasecmp(argv[i], TXT("requireAdmin")))
 				{
 					requireAdmin = true;
 					++i;
@@ -503,7 +679,7 @@ int main(const int argcf, lw_char* argv[])
 				}
 				// If this is true, turns off the statistics line and the title bar updates.
 				// The ability to use cin for statistics, or send report messages, is still usable.
-				if (!strcasecmp(argv[i], u8"noRegularOutput"))
+				if (!strcasecmp(argv[i], TXT("noRegularOutput")))
 				{
 					regularOutputEnabled = false;
 					++i;
@@ -511,16 +687,16 @@ int main(const int argcf, lw_char* argv[])
 				}
 				// Sets the TLS certificate private password; note the server does not explicitly store
 				// this securely, it depends on SChannel or OpenSSL's storage.
-				if (!strcasecmp(argv[i], u8"certPassPhrase"))
+				if (!strcasecmp(argv[i], TXT("certPassPhrase")))
 				{
 					if (i + 1 >= argc)
 					{
-						std::cout << u8"Invalid cmdline: "sv << argv[i] << u8" had no following value.\n"sv;
+						std::cout << "Invalid cmdline: "sv << argv[i] << " had no following value.\n"sv;
 						bad = true;
 						break;
 					}
-					wsPassPhrase = argv[i + 1];
-					if (wsPassPhrase[0] == u8'"')
+					wsPassPhrase = lw_u8(argv[i + 1]);
+					if (wsPassPhrase[0] == TXT('"'))
 					{
 						wsPassPhrase.erase(0);
 						wsPassPhrase.erase(wsPassPhrase.cend());
@@ -528,30 +704,30 @@ int main(const int argcf, lw_char* argv[])
 					i += 2;
 					continue;
 				}
-				if (!strcasecmp(argv[i], u8"welcomeMsg"))
+				if (!strcasecmp(argv[i], TXT("welcomeMsg")))
 				{
 					if (i + 1 >= argc)
 					{
-						std::cout << u8"Invalid cmdline: "sv << argv[i] << u8" had no following value.\n"sv;
+						std::cout << "Invalid cmdline: "sv << argv[i] << " had no following value.\n"sv;
 						bad = true;
 						break;
 					}
-					welcomeMessage = argv[i + 1];
+					welcomeMessage = lw_u8(argv[i + 1]);
 					i += 2;
 					continue;
 				}
-				if (!strcasecmp(argv[i], u8"tcpClientUploadCap") || !strcasecmp(argv[i], u8"totalUploadCap"))
+				if (!strcasecmp(argv[i], TXT("tcpClientUploadCap")) || !strcasecmp(argv[i], TXT("totalUploadCap")))
 				{
 					if (i + 1 >= argc)
 					{
-						std::cout << u8"Invalid cmdline: "sv << argv[i] << u8" had no following value.\n"sv;
+						std::cout << "Invalid cmdline: "sv << argv[i] << " had no following value.\n"sv;
 						bad = true;
 						break;
 					}
 					const std::uint32_t capBytes = static_cast<std::uint32_t>(std::strtoul(argv[i + 1], nullptr, 10));
 					if (capBytes < 0)
 					{
-						std::cout << u8"Invalid cmdline: "sv << argv[i] << u8" had invalid value "sv << capBytes << u8" bytes.\n"sv;
+						std::cout << "Invalid cmdline: "sv << argv[i] << " had invalid value "sv << capBytes << " bytes.\n"sv;
 						bad = true;
 						break;
 					}
@@ -563,15 +739,15 @@ int main(const int argcf, lw_char* argv[])
 					continue;
 				}
 				// Give help
-				if (!strcasecmp(argv[i], u8"?") || !strcasecmp(argv[i], u8"help"))
+				if (!strcasecmp(argv[i], TXT("?")) || !strcasecmp(argv[i], TXT("help")))
 				{
-					std::cout << u8"==== " PROJECT_NAME " "sv;
+					std::cout << "==== " PROJECT_NAME " "sv;
 #					ifdef _DEBUG
-					std::cout << u8"debug"sv;
+					std::cout << "debug"sv;
 #					else // !_DEBUG
-					std::cout << u8"release"sv;
+					std::cout << "release"sv;
 #					endif // _DEBUG
-					std::cout << u8" build "sv << lacewing::relayserver::buildnum << u8" cmdline options ====\n"
+					std::cout << " build "sv << lacewing::relayserver::buildnum << " cmdline options ====\n"
 						"bluewing-cpp-server /welcomeMsg \"message\" /mainPort 6121\n"
 						"  /enableFlash /flashPolicyPath \"path to xml\"\n"
 						"  /wsPort 80 /wssPort 443 /certFullChainPath \"...full-chain.pem\" /certPrivKeyPath \"...privkey.pem\" /certPassPhrase \"password\"\n"
@@ -597,7 +773,7 @@ int main(const int argcf, lw_char* argv[])
 				if (bad)
 					break;
 
-				std::cout << u8"Invalid cmdline: "sv << argv[i] << u8" was not recognised.\n"sv;
+				std::cout << "Invalid cmdline: "sv << argv[i] << " was not recognised.\n"sv;
 				bad = true;
 				break;
 			}
@@ -608,25 +784,95 @@ int main(const int argcf, lw_char* argv[])
 	}
 
 	// Backup current console config for restoring
+#ifdef _WIN32
+	// GetConsoleMode fails if not console (e.g. redirected stdout to file)
+	isConsoleOutput = regularOutputEnabled && GetConsoleMode(hStdOut, &conOrigOutputMode);
+#else // !_WIN32
 	// A TTY is a normal console; if this is false, not console output (e.g. redirected stdout to file)
 	isConsoleOutput = regularOutputEnabled && isatty(fileno(stdout));
+#endif // _WIN32
 
 	if (isConsoleOutput)
 	{
+#ifdef _WIN32
+		// Save the console details for restoring at end of app
+		GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &conOrigInputMode);
+		CONSOLE_SCREEN_BUFFER_INFO csbi;
+		GetConsoleScreenBufferInfo(hStdOut, &csbi);
+		conOrigTextAttributes = csbi.wAttributes;
+		GetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
+
+#if lw_utf8_console
+		// Enable ANSI console commands - only supported on Windows consoles that also support UTF-8.
+		// Allows coloring, cursor hiding, etc, in a cross-platform way.
+		// For reading: https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
+		if (!SetConsoleMode(hStdOut, conOrigOutputMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT))
+		{
+			isConsoleOutput = false;
+			std::cout << "Error setting console mode: "sv << GetLastError() << '\n';
+			goto cleanup;
+		}
+#endif // lw_utf8_console
+
+		// Set console icon
+		{
+			// GetConsoleWindow() and undoc'd Kernel32 func SetConsoleIcon() doesn't work in Win 11,
+			// presumably due to psuedoconsole.
+			// GetForegroundWindow() will grab any app's foreground window, not just this one.
+			consoleWin = GetActiveWindow();
+			int width = GetSystemMetrics(SM_CXSMICON), height = GetSystemMetrics(SM_CYSMICON);
+			conSmallIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON,
+				width, height, LR_LOADTRANSPARENT | LR_COLOR | LR_COPYFROMRESOURCE);
+			conOrigSmallIcon = (HICON)SendMessageW(consoleWin, WM_SETICON, ICON_SMALL, (LPARAM)conSmallIcon);
+			width = GetSystemMetrics(SM_CXICON);
+			height = GetSystemMetrics(SM_CYICON);
+			conBigIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON,
+				width, height, LR_LOADTRANSPARENT | LR_COLOR | LR_COPYFROMRESOURCE);
+			conOrigBigIcon = (HICON)SendMessageW(consoleWin, WM_SETICON, ICON_BIG, (LPARAM)conBigIcon);
+		}
+#else // !_WIN32
 		// We restore origTerminalSettings if isConsoleOutput is true, so it must be valid.
 		if (tcgetattr(STDIN_FILENO, &origTerminalSettings) != 0)
 		{
-			std::cout << red << u8"Failed to get terminal settings (error "sv << errno << u8"). Aborting server start."sv << lineEnd();
+			std::cout << red << "Failed to get terminal settings (error "sv << errno << "). Aborting server start."sv << lineEnd();
 			return -1;
 		}
+#endif // _WIN32
 
 		// Same as outputting gray but without time buffer
-		std::cout << u8"\033[37m";
+#if lw_utf8_console
+		std::cout << "\033[37m";
+#else // !lw_utf8_console
+		SetConsoleTextAttribute(hStdOut, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+#endif // lw_utf8_console
 	}
 
 	// Check for admin membership, required for ICMP raw sockets, which are used for UDP error replies
 	// Blue Server does not *require* ICMP replies though; it will silently ignore bad UDP (e.g. from an unrecognised IP)
 	{
+#ifdef _WIN32
+		BOOL isAdmin;
+		SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+		PSID AdministratorsGroup;
+		isAdmin = AllocateAndInitializeSid(&NtAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+			DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0,
+			&AdministratorsGroup);
+		if (isAdmin)
+		{
+			if (!CheckTokenMembership(NULL, AdministratorsGroup, &isAdmin))
+				isAdmin = FALSE;
+			FreeSid(AdministratorsGroup);
+		}
+		if (!isAdmin)
+		{
+			if (requireAdmin)
+			{
+				std::cout << red << "Server is set by command-line to require admin, and is not running as admin. Server start aborted.\n"sv;
+				goto cleanup;
+			}
+			std::cout << red << "Warning: server is not running with admin privileges. Resetting UDP connections with ICMP will not be possible.\n"sv;
+		}
+#else // !_WIN32
 		// Linux-based OSes also require net bind service permission if targeting ports below 1024.
 		// You can enable both of these by running server under root user, or by adding the perm:
 		// $ setcap 'cap_net_bind_service,cap_net_raw=+ep' /path/to/bluewing-cpp-server
@@ -637,45 +883,46 @@ int main(const int argcf, lw_char* argv[])
 		const cap_t current = cap_get_proc();
 		if (current == NULL)
 		{
-			std::cout << red << u8"Warning: Failed to get process capabilities (error "sv << errno << u8"). Assuming raw socket + net bind capabilities are granted.\n"sv;
+			std::cout << red << "Warning: Failed to get process capabilities (error "sv << errno << "). Assuming raw socket + net bind capabilities are granted.\n"sv;
 			cap_flag_value_t on;
 			if (cap_get_flag(current, CAP_NET_BIND_SERVICE, CAP_PERMITTED, &on) != 0) {
-				std::cout << red << u8"Warning: Failed to check cap_net_bind_service value (error "sv << errno << u8"). Assuming it is granted.\n"sv;
+				std::cout << red << "Warning: Failed to check cap_net_bind_service value (error "sv << errno << "). Assuming it is granted.\n"sv;
 			}
 			isAdmin = on == 1;
 			if (cap_get_flag(current, CAP_NET_RAW, CAP_PERMITTED, &on) != 0) {
-				std::cout << red << u8"Warning: Failed to check cap_net_raw capability (error "sv << errno << u8"). Assuming it is granted.\n"sv;
+				std::cout << red << "Warning: Failed to check cap_net_raw capability (error "sv << errno << "). Assuming it is granted.\n"sv;
 			}
 			isAdmin &= on == 1;
 		}
 #else // __has_include 0
-		std::cout << red << u8"Warning: Server was built without libcap-dev. Checking for raw socket/port bind privileges is not possible. Assuming they are granted.\n"sv;
+		std::cout << red << "Warning: Server was built without libcap-dev. Checking for raw socket/port bind privileges is not possible. Assuming they are granted.\n"sv;
 #endif // __has_include
 
 		if (!isAdmin)
 		{
 			if (requireAdmin)
 			{
-				std::cout << red << u8"Server is set by command-line to require admin, and is not running as admin. Server start aborted.\n"sv;
+				std::cout << red << "Server is set by command-line to require admin, and is not running as admin. Server start aborted.\n"sv;
 				goto cleanup;
 			}
-			std::cout << red << u8"Warning: server is not running with admin privileges. Resetting UDP connections with ICMP will not be possible.\n"sv;
+			std::cout << red << "Warning: server is not running with admin privileges. Resetting UDP connections with ICMP will not be possible.\n"sv;
 		}
+#endif // _WIN32
 	}
 
 	// If console output, and no cmd args were passed at all, ask user for input
 	if (argc <= 1)
 	{
-		if (!GetPortFromInput(u8"main"sv, &mainPort, false, 6121) ||
-			!GetPortFromInput(u8"WebSocket insecure"sv, &websocketNonSecurePort, false, 80) ||
-			!GetPortFromInput(u8"WebSocket secure"sv, &websocketSecurePort, true, 443))
+		if (!GetPortFromInput("main"sv, &mainPort, false, 6121) ||
+			!GetPortFromInput("WebSocket insecure"sv, &websocketNonSecurePort, false, 80) ||
+			!GetPortFromInput("WebSocket secure"sv, &websocketSecurePort, true, 443))
 		{
 			goto cleanup;
 		}
 		if (welcomeMessage.empty() && requestUserInput)
 		{
-			std::cout << userpromptcolor << u8"Enter a welcome message, or leave blank for the default message with server build:\n"sv;
-			welcomeMessage = GetConsoleLine();
+			std::cout << userpromptcolor << "Enter a welcome message, or leave blank for the default message with server build:\n"sv;
+			welcomeMessage = lw_u8(GetConsoleLine());
 		}
 	}
 	else // Set defaults
@@ -688,7 +935,7 @@ int main(const int argcf, lw_char* argv[])
 			GuessCertPath();
 			if (wsFullChainPath.empty())
 			{
-				std::cout << red << u8"Server was passed secure port but no certificate paths.\n"sv;
+				std::cout << red << "Server was passed secure port but no certificate paths.\n"sv;
 				goto cleanup;
 			}
 		}
@@ -706,6 +953,13 @@ int main(const int argcf, lw_char* argv[])
 	// This allows various "is input pending" functions to work on single keypress.
 	if (isConsoleOutput)
 	{
+#ifdef _WIN32
+		if (SetConsoleMode(hStdIn, conOrigInputMode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT)) == FALSE)
+		{
+			std::cout << red << "Failed to set stdin to character mode (error "sv << GetLastError() << "). "
+				"Server may not process console input keypresses."sv << lineEnd();
+		}
+#else // !_WIN32
 		struct termios curTerminalSettings = origTerminalSettings;
 		curTerminalSettings.c_lflag &= ~(ECHO | ICANON);
 
@@ -729,9 +983,10 @@ int main(const int argcf, lw_char* argv[])
 			curTerminalSettings.c_cc[VQUIT] != _POSIX_VDISABLE ||
 			(curTerminalSettings.c_lflag & (ECHO | ICANON)) != 0)
 		{
-			std::cout << red << u8"Warning: Failed to set stdin terminal settings (error "sv << errno << u8"). "
+			std::cout << red << "Warning: Failed to set stdin terminal settings (error "sv << errno << "). "
 				"Server may malfunction if user leaves terminal or a special keybind is used."sv << lineEnd();
 		}
+#endif // _WIN32
 	}
 
 	// User input is not echoed to output screen anymore, so we don't need cin and cout sync'd
@@ -797,8 +1052,8 @@ int main(const int argcf, lw_char* argv[])
 	}
 
 	// Host the thing
-	std::cout << green << u8"Host started. Port "sv << mainPort << u8", build "sv << globalserver->buildnum << u8". "sv
-		<< (flashEnabled ? u8"Flash policy hosting on TCP port 843"sv : u8"Flash not hosting"sv) << u8'.' << lineEnd();
+	std::cout << green << "Host started. Port "sv << mainPort << ", build "sv << globalserver->buildnum << ". "sv
+		<< (flashEnabled ? "Flash policy hosting on TCP port 843"sv : "Flash not hosting"sv) << '.' << lineEnd();
 
 	// For loading from Windows certificate store (certmgr.msc), use e.g. websocket->load_sys_cert("Root", "yourdomain.com", "LocalMachine")
 	if (websocketSecurePort &&
@@ -806,34 +1061,36 @@ int main(const int argcf, lw_char* argv[])
 	{
 		if (wsFullChainPath == wsPrivKeyPath)
 		{
-			std::cout << red << u8"Found but couldn't load TLS certificate file \""sv << wsFullChainPath
-				<< u8"\". Aborting server start."sv << lineEnd();
+			std::cout << red << "Found but couldn't load TLS certificate file \""sv << u8_lw(wsFullChainPath)
+				<< "\". Aborting server start."sv << lineEnd();
 		}
 		else
 		{
-			std::cout << red << u8"Found but couldn't load TLS certificate files \""sv << wsFullChainPath << u8"\", \""sv
-				<< wsPrivKeyPath << u8"\". Aborting server start."sv << lineEnd();
+			std::cout << red << "Found but couldn't load TLS certificate files \""sv << u8_lw(wsFullChainPath) << "\", \""sv
+				<< u8_lw(wsPrivKeyPath) << "\". Aborting server start."sv << lineEnd();
 		}
 		goto cleanup;
 	}
 
 	if (websocketNonSecurePort || websocketSecurePort)
 	{
-		std::cout << green << u8"WebSocket hosting. Port "sv;
+		std::cout << green << "WebSocket hosting. Port "sv;
 		if (websocketNonSecurePort)
-			std::cout << websocketNonSecurePort << u8" (non-secure, ws://xx)"sv;
+			std::cout << websocketNonSecurePort << " (non-secure, ws://xx)"sv;
 		if (websocketNonSecurePort && websocketSecurePort)
-			std::cout << u8" and port "sv;
+			std::cout << " and port "sv;
 		if (websocketSecurePort)
-			std::cout << websocketSecurePort << u8" (secure, wss://xx)"sv;
-		std::cout << u8'.' << lineEnd(false);
+			std::cout << websocketSecurePort << " (secure, wss://xx)"sv;
+		std::cout << '.' << lineEnd(false);
 	}
 
+#ifndef _WIN32
 	// Enable the user's preferred date-time and large number format, using "" locale,
 	// instead of the "C" default.
 	// This sets big numbers to have thousand separators in statistics, and so on.
 	// We don't do it earlier as ports will be displayed wrong (e.g. as "6,121").
 	std::cout.imbue(std::locale(std::string()));
+#endif // !_WIN32
 	lastTimeAndStatsSS.imbue(std::locale(std::string()));
 	setlocale(LC_ALL, ""); // set user's locale for C functions like strftime
 
@@ -854,7 +1111,12 @@ int main(const int argcf, lw_char* argv[])
 	// Hide console cursor by default - otherwise the statistics line \r makes it flash at start of line (ugly)
 	if (isConsoleOutput)
 	{
-		std::cout << u8"\x1b[?25l"sv;
+#if lw_utf8_console
+		std::cout << "\x1b[?25l"sv;
+#else // !lw_utf8_console
+		CONSOLE_CURSOR_INFO info{ 100, FALSE };
+		SetConsoleCursorInfo(hStdOut, &info);
+#endif // lw_utf8_console
 
 		// In case this is set to false due to running under debugger, enable it again
 		requestUserInput = true;
@@ -877,7 +1139,7 @@ int main(const int argcf, lw_char* argv[])
 #endif // _DEBUG
 
 		if (error)
-			std::cout << red << u8"Error occurred in pump: "sv << error->tostring() << lineEnd();
+			std::cout << red << "Error occurred in pump: "sv << error->tostring() << lineEnd();
 	}
 
 	// ==================================================================
@@ -901,9 +1163,21 @@ cleanup:
 	// If we generated a flash policy, delete it
 	if (!flashPolicyPath.empty() && deleteFlashPolicyAtEndOfApp)
 	{
+#ifdef _WIN32
+		DeleteFile(u8_lw(flashPolicyPath).c_str());
+#else // !_WIN32
 		remove(flashPolicyPath.c_str());
+#endif // _WIN32
 	}
 
+#ifdef _WIN32
+	// Lacewing uses a sync inside lw_trace, which is singleton and never freed.
+	// lw_trace() is a no-op if _lacewing_debug isn't defined.
+	// To let garbage collector not see it as a leak:
+#if defined(_CRTDBG_MAP_ALLOC) && defined(_lacewing_debug)
+	lw_sync_delete(lw_trace_sync);
+#endif // CRT + Debug
+#endif // _WIN32
 
 	// If we inited properly, show the end app stats
 	if (goodInit)
@@ -927,22 +1201,47 @@ cleanup:
 				std::cin.get();
 			std::cout << std::flush;
 
-
+#ifdef _WIN32
+			// Count programs attached to this console. If 1, server was run directly, e.g. by double-clicking EXE.
+			// If server was run indirectly, via cmd, it will be 2 (or if we made room, more)
+			// and we don't need to pause at end of app.
+			DWORD procIDs[2], maxCount = 2, result = GetConsoleProcessList((LPDWORD)procIDs, maxCount);
+			if (result == 1)
+				requestUserInput = false;
+#endif // _WIN32
 		}
 		
 		// Erase current line to end, then set console cursor visible
-		std::cout << u8"\x1b[0K\x1b[?25h"sv;
-		std::cout << u8'\r';
+#if lw_utf8_console
+		std::cout << "\x1b[0K\x1b[?25h"sv;
+#else // !lw_utf8_console
+		SetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
+#endif // lw_utf8_console
+		std::cout << '\r';
 
 		// Read one character
 		if (requestUserInput)
 		{
-			std::cout << gray << u8"Press any key to exit.\n"sv << std::flush;
+			std::cout << gray << "Press any key to exit.\n"sv << std::flush;
 			std::cin.get();
 		}
 
+#ifdef _WIN32
+		// Restore console modes
+		SetConsoleMode(hStdOut, conOrigOutputMode);
+		SetConsoleMode(hStdIn, conOrigInputMode);
+		SetConsoleTextAttribute(hStdOut, conOrigTextAttributes);
+		SetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
+
+		// Reset console icons
+		SendMessage(consoleWin, WM_SETICON, ICON_SMALL, (LPARAM)conOrigSmallIcon);
+		SendMessage(consoleWin, WM_SETICON, ICON_BIG, (LPARAM)conOrigBigIcon);
+		DestroyIcon(conOrigSmallIcon);
+		DestroyIcon(conOrigBigIcon);
+#else // !_WIN32
 		// Restore terminal settings
 		tcsetattr(STDIN_FILENO, TCSANOW, &origTerminalSettings);
+#endif // _WIN32
 	}
 	std::cout << std::flush;
 
@@ -956,11 +1255,18 @@ void UpdateTitle(std::size_t clientCount)
 		return;
 	std::size_t channelCount = globalserver->channelcount();
 	lw_char name[128];
-	sprintf(name, u8"Bluewing C++ Server - %zu client%s connected in %zu channel%s",
-		clientCount, clientCount == 1 ? u8"" : u8"s",
-		channelCount, channelCount == 1 ? u8"" : u8"s");
-	std::cout << u8"\033]0;"sv << name << "\x1B\x5C"sv;
-
+#if lw_utf8_console
+	sprintf(name, TXT("Bluewing C++ Server - %zu client%s connected in %zu channel%s"),
+		clientCount, clientCount == 1 ? TXT("") : TXT("s"),
+		channelCount, channelCount == 1 ? TXT("") : TXT("s"));
+	std::cout << "\033]0;"sv << name << "\x1B\x5C"sv;
+#else // !lw_utf8_console
+	_stprintf_s(name, std::size(name), TXT("Bluewing C++ Server - %zu client%s connected in %zu channel%s"),
+		clientCount, clientCount == 1 ? TXT("") : TXT("s"),
+		channelCount, channelCount == 1 ? TXT("") : TXT("s"));
+	SetConsoleTitle(name);
+#endif // lw_utf8_console
+	
 	if (serverstats.maxClients < clientCount)
 		serverstats.maxClients = clientCount;
 	if (serverstats.maxChannels < channelCount)
@@ -992,7 +1298,7 @@ static bool IsIPTrusted(const std::string_view addr)
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
 	const std::string_view addr = client->getaddress();
-	const lw_string addrW(client->getaddress());
+	const lw_string addrW(u8_lw(client->getaddress()));
 
 	// If IP was marked as misbehaving
 	const auto entry = std::find_if(misbehavingIPList.begin(), misbehavingIPList.end(),
@@ -1010,8 +1316,8 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 			entry->resetAt = now + std::chrono::hours(entry->disconnects++ << 2);
 			if (entry->nextLogLine < now)
 			{
-				std::cout << yellow << u8"Blocked connection attempt from IP "sv << addrW << u8", banned due to "sv
-					<< entry->reason << u8'.' << lineEnd();
+				std::cout << yellow << "Blocked connection attempt from IP "sv << addrW << ", banned due to "sv
+					<< u8_lw(entry->reason) << '.' << lineEnd();
 			}
 			entry->nextLogLine = now + 1min;
 			return server.connect_response(client, entry->reason.c_str());
@@ -1022,7 +1328,7 @@ void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::r
 	server.connect_response(client, std::string_view());
 	UpdateTitle(server.clientcount());
 
-	std::cout << green << u8"New client ID " << client->id() << u8", IP "sv << addrW << u8" connected."sv << lineEnd();
+	std::cout << green << TXT("New client ID ") << client->id() << ", IP "sv << addrW << " connected."sv << lineEnd();
 	clientdata.push_back(std::make_unique<clientstats>(client));
 }
 
@@ -1042,9 +1348,9 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 
 	// A client that is not Relay will not have called OnConnect, so we won't have a data for it
 	const auto cd = ClientDataByClientPtr(client);
-	std::cout << green << u8"Client ID "sv << client->id() << u8", name "sv << name << u8", IP "sv << addr << u8" disconnected."sv;
+	std::cout << green << "Client ID "sv << client->id() << ", name "sv << u8_lw(name) << ", IP "sv << u8_lw(addr) << " disconnected."sv;
 	if (cd != clientdata.cend())
-		std::cout << u8" Uploaded "sv << (**cd).total.bytes << u8" bytes in "sv << (**cd).total.msg << u8" msgs total."sv;
+		std::cout << " Uploaded "sv << (**cd).total.bytes << " bytes in "sv << (**cd).total.msg << " msgs total."sv;
 	std::cout << lineEnd();
 
 	// client.istrusted() indicates whether the client sent invalid Bluewing messages, and is getting kicked
@@ -1054,12 +1360,12 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 		const auto entry = std::find_if(misbehavingIPList.begin(), misbehavingIPList.end(), [&](const MisbehavingIPEntry & b) { return b.ip == addr; });
 		if (entry == misbehavingIPList.end())
 		{
-			std::cout << yellow << u8"Due to malformed protocol usage, created a IP ban entry."sv << lineEnd();
+			std::cout << yellow << "Due to malformed protocol usage, created a IP ban entry."sv << lineEnd();
 			AddMisbehavingIPEntry(**cd, addr, "Broken Lacewing protoco", laceclock::now() + 30min);
 		}
 		else
 		{
-			std::cout << yellow << u8"Due to malformed protocol usage, increased their ban likelihood."sv << lineEnd();
+			std::cout << yellow << "Due to malformed protocol usage, increased their ban likelihood."sv << lineEnd();
 			++entry->disconnects;
 		}
 	}
@@ -1077,8 +1383,13 @@ void OnTimerTick(lacewing::timer timer)
 	std::tm timeinfo = { 0 };
 	std::time(&rawtime);
 	// Gets time and separator. %T is locale-independent.
+#ifdef _WIN32
+	if (!localtime_s(&timeinfo, &rawtime))
+		std::_tcsftime(timeBuffer, std::size(timeBuffer), TXT("%T | "), &timeinfo);
+#else // !_WIN32
 	if (localtime_r(&rawtime, &timeinfo))
-		std::strftime(timeBuffer, std::size(timeBuffer), u8"%T | ", &timeinfo);
+		std::strftime(timeBuffer, std::size(timeBuffer), TXT("%T | "), &timeinfo);
+#endif // _WIN32
 
 	// We're in startup, and only want to update the time
 	if (!timer)
@@ -1095,8 +1406,8 @@ void OnTimerTick(lacewing::timer timer)
 	// Prepare new statistics line, and print it at bottom of screen
 	if (isConsoleOutput)
 	{
-		lastTimeAndStatsSS << u8"Last sec received "sv << serverstats.in.lastSec.msg << u8" messages ("sv << serverstats.in.lastSec.bytes
-			<< u8" bytes), forwarded "sv << serverstats.out.lastSec.msg << u8" ("sv << serverstats.out.lastSec.bytes << u8" bytes).\r"sv;
+		lastTimeAndStatsSS << "Last sec received "sv << serverstats.in.lastSec.msg << " messages ("sv << serverstats.in.lastSec.bytes
+			<< " bytes), forwarded "sv << serverstats.out.lastSec.msg << " ("sv << serverstats.out.lastSec.bytes << " bytes).\r"sv;
 		lastTimeAndStats = lastTimeAndStatsSS.str();
 		lastTimeAndStatsSS.clear();
 		lastTimeAndStatsSS.str(lw_string());
@@ -1108,8 +1419,9 @@ void OnTimerTick(lacewing::timer timer)
 	{
 		int cinKey = std::cin.get();
 		// Space key: write statistics
-		if (cinKey == u8' ')
+		if (cinKey == TXT(' '))
 			statsDump = true;
+#ifndef _WIN32
 		// User pressed Ctrl-Z for SIGTSTP on Linux, which normally sends 0x1F & Z, displays as ^Z.
 		// or User pressed Ctrl-\ for SIGQUIT.
 		else if (cinKey == (0x1F & origTerminalSettings.c_cc[VSUSP]) ||
@@ -1117,8 +1429,9 @@ void OnTimerTick(lacewing::timer timer)
 		{
 			statsDump = true;
 		}
+#endif // !_WIN32
 		else // Unrecognised, do a warning beep
-			std::cout << u8'\a';
+			std::cout << '\a';
 	}
 
 	// Dump total server statistics so far
@@ -1160,8 +1473,8 @@ void OnTimerTick(lacewing::timer timer)
 			else
 				++banEntry->disconnects;
 
-			std::cout << red << u8"Client ID "sv << cliData->client->id() << u8", IP "sv << addr <<
-				u8" dropped for heavy TCP upload ("sv << cliData->cur.bytes << u8" bytes in "sv << cliData->cur.msg << u8" msgs)"sv << lineEnd();
+			std::cout << red << "Client ID "sv << cliData->client->id() << ", IP "sv << u8_lw(addr) <<
+				" dropped for heavy TCP upload ("sv << cliData->cur.bytes << " bytes in "sv << cliData->cur.msg << " msgs)"sv << lineEnd();
 			const std::string kickReason = "You have exceeded the TCP upload limit."s + contactMsg;
 			cliData->client->send(1, kickReason, 0);
 			cliData->client->send(0, kickReason, 0);
@@ -1190,7 +1503,7 @@ void OnError(lacewing::relayserver &server, lacewing::error error)
 	std::string_view err = error->tostring();
 	if (err.back() == '.')
 		err.remove_suffix(1);
-	std::cout << red << u8"Error occured: "sv << err << u8". Execution continues."sv << lineEnd();
+	std::cout << red << "Error occured: "sv << u8_lw(err) << ". Execution continues."sv << lineEnd();
 }
 
 /**
@@ -1215,11 +1528,11 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 		std::string name = senderclient->name();
 		name = !name.empty() ? name : "[unset]"sv;
 
-		std::cout << gray << u8"Message from client ID "sv << senderclient->id() << u8", name "sv << name
-			<< u8':' << lineEnd(false) << data << lineEnd(false)
-			<< u8"blasted = "sv << (blasted ? u8"yes"sv : u8"no"sv)
-			<< u8", subchannel = "sv << subchannel << u8", variant = "sv << variant
-			<< u8'.' << lineEnd();
+		std::cout << gray << "Message from client ID "sv << senderclient->id() << ", name "sv << u8_lw(name)
+			<< ':' << lineEnd(false) << u8_lw(data) << lineEnd(false)
+			<< "blasted = "sv << (blasted ? "yes"sv : "no"sv)
+			<< ", subchannel = "sv << subchannel << ", variant = "sv << variant
+			<< '.' << lineEnd();
 	}
 
 	// The default messages handled in bluewing-cpp-server, which are not required by Bluewing,
@@ -1227,7 +1540,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	if (blasted || variant != 0 || subchannel != 0)
 	{
 		const std::string_view addr = senderclient->getaddress();
-		std::cout << red << u8"Dropped server message from IP "sv << addr << u8", invalid type."sv << lineEnd();
+		std::cout << red << "Dropped server message from IP "sv << u8_lw(addr) << ", invalid type."sv << lineEnd();
 		const auto cd = ClientDataByClientPtr(senderclient);
 		if (cd != clientdata.cend())
 		{
@@ -1366,7 +1679,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 					<< "Total run: "sv << serverstats.in.total.bytes << " bytes in, in "sv << serverstats.in.total.msg << " msgs, "sv
 					<< serverstats.out.total.bytes << " bytes out, in "sv << serverstats.out.total.msg << " msgs.\n"sv
 					<< "Max num clients in this run: "sv << serverstats.maxClients << ". Max channels: "sv << serverstats.maxChannels << ".\n"sv
-					<< "Start time: "sv << fulltimetostring(startTime) << ". Current time: "sv << fulltimetostring(curTime) << ".\n"sv
+					<< "Start time: "sv << lw_u8(fulltimetostring(startTime)) << ". Current time: "sv << lw_u8(fulltimetostring(curTime)) << ".\n"sv
 					<< "Hosting for: "sv << hours << " hrs, "sv << minutes << " mins, "sv << seconds << " seconds ("sv << secondsUp << " seconds total).\n"sv
 					<< "\n=== Ban list has "sv << misbehavingIPList.size() << " entries:\n"sv;
 				if (misbehavingIPList.empty())
@@ -1425,9 +1738,9 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	std::string name = senderclient->name();
 	name = !name.empty() ? name : "[unset]"sv;
 
-	std::cout << gray << u8"Message from client ID "sv << senderclient->id()
-		<< u8", name "sv << name << u8':' << lineEnd(false)
-		<< data << lineEnd();
+	std::cout << gray << "Message from client ID "sv << senderclient->id()
+		<< ", name "sv << u8_lw(name) << ':' << lineEnd(false)
+		<< u8_lw(data) << lineEnd();
 }
 
 /**
@@ -1503,7 +1816,11 @@ extern "C" void always_log(const char* c, ...)
 	char output[1024];
 	va_list v;
 	va_start(v, c);
+#ifdef _WIN32
+	int numChars = vsprintf_s(output, std::size(output), c, v);
+#else // !_WIN32
 	int numChars = vsprintf(output, c, v);
+#endif // _WIN32
 	// always_log should always output valid data
 	if (numChars <= 0)
 		std::abort();
@@ -1519,12 +1836,20 @@ extern "C" void always_log(const char* c, ...)
 	// Currently always_log does not output multiple lines.
 	assert(outputStr.find('\n') == std::string_view::npos);
 
-	std::cout << yellow << u8"(AL) "sv << outputStr << lineEnd();
+#if lw_utf8_console
+	std::cout << yellow << "(AL) "sv << outputStr << lineEnd();
+#else // !lw_utf8_console
+	wchar_t * output_wide = lw_char_to_wchar(output, static_cast<int>(outputStr.size()));
+	std::wstring_view outputWideSV(output_wide);
+	std::cout << yellow << "(AL) "sv << outputWideSV << lineEnd();
+	free(output_wide);
+#endif // lw_utf8_console
 	va_end(v);
 }
 
 void GenerateFlashPolicy(int port)
 {
+#if lw_utf8_console
 	lw_string filename = appFolder + u8"FlashPlayerPolicy.xml"s;
 	// File already exists; just use it
 	struct stat buffer;
@@ -1538,7 +1863,7 @@ void GenerateFlashPolicy(int port)
 	//FILE* forWriting = fopen(filename.c_str(), "wb");
 	if (forWriting.bad())
 	{
-		std::cout << u8"Flash policy couldn't be created. Opening file \""sv << filename << u8"\" for writing in current app folder failed.\n"sv;
+		std::cout << "Flash policy couldn't be created. Opening file \""sv << filename << "\" for writing in current app folder failed.\n"sv;
 		return;
 	}
 
@@ -1553,11 +1878,110 @@ void GenerateFlashPolicy(int port)
 	forWriting.close();
 	flashPolicyPath = filename;
 
+#else // !lw_utf8_console
+	lw_string filename = appFolder + TXT("FlashPlayerPolicy.xml"s);
+
+	// File already exists; just use it
+	DWORD policyAttr = GetFileAttributes(filename.c_str());
+	if (policyAttr != INVALID_FILE_ATTRIBUTES && !(policyAttr & FILE_ATTRIBUTE_DIRECTORY))
+	{
+		flashPolicyPath = lw_u8(filename);
+		return;
+	}
+
+	// We write UTF-8 (well, ASCII really), but open filename in UTF-16
+	HANDLE forWriting = CreateFile(filename.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	if (forWriting == NULL || forWriting == INVALID_HANDLE_VALUE)
+	{
+		std::cout << red << "Flash policy couldn't be created. Opening file \""sv << filename
+			<< "\" for writing in current app folder failed."sv << lineEnd();
+		return;
+	}
+
+	deleteFlashPolicyAtEndOfApp = true;
+
+	std::stringstream flashPolicy;
+	flashPolicy << "<?xml version=\"1.0\"?>\n"sv
+		"<!DOCTYPE cross-domain-policy SYSTEM \"/xml/dtds/cross-domain-policy.dtd\">\n"sv
+		"<cross-domain-policy>\n"sv
+		"\t<site-control permitted-cross-domain-policies=\"master-only\"/>\n"sv
+		"\t<allow-access-from domain=\"*\" to-ports=\"843," << port << ",583\" secure=\"false\" />\n"sv
+		"</cross-domain-policy>"sv;
+	const std::string policyStr = flashPolicy.str();
+	if (!WriteFile(forWriting, policyStr.c_str(), (DWORD)policyStr.size(), NULL, NULL))
+	{
+		std::cout << red << "Flash policy couldn't be created. Writing to file "sv << filename << " failed."sv << lineEnd();
+		CloseHandle(forWriting);
+		DeleteFile(filename.c_str());
+		return;
+	}
+
+	CloseHandle(forWriting);
+	flashPolicyPath = lw_u8(filename);
+#endif // lw_utf8_console
 }
 
 // This CloseHandler is spawned by OS in a separate thread to main(), so output will be unsynced,
 // making it particularly messy in startup when you're waiting for user input and get a Ctrl-C instead.
 // We don't write to std::cout here, unless we know server is running - which is when globalpump is set.
+#ifdef _WIN32
+BOOL WINAPI CloseHandler(DWORD ctrlType)
+{
+	// This is used for cold restarts, and sometimes for mid-way statistics like in ping
+	if (ctrlType == CTRL_BREAK_EVENT)
+	{
+		if (globalpump)
+			statsDump = true;
+		return TRUE;
+	}
+
+	// Close, logoff and shutdown events will terminate app when this handler returns
+	const bool appDiesAfterReturn = ctrlType != CTRL_C_EVENT;
+
+	// Ctrl-C is traditional exit-console event. Close is user pressing close on window.
+	// Note that logoff and shutdown is not run for most consoles, only for services:
+	// https://stackoverflow.com/a/74376684
+	if (ctrlType == CTRL_C_EVENT || ctrlType == CTRL_CLOSE_EVENT ||
+		ctrlType == CTRL_LOGOFF_EVENT || ctrlType == CTRL_SHUTDOWN_EVENT)
+	{
+		// Don't wait for user to press a key to end app (if we were going to)
+		if (appDiesAfterReturn)
+			requestUserInput = false;
+
+		// Only trigger once
+		if (!shutdowned)
+		{
+			shutdowned = true;
+
+			if (globalpump)
+			{
+				std::cout << red << "Got a close signal, ending app."sv << lineEnd();
+				globalpump->post_eventloop_exit();
+			}
+		}
+
+		if (appDiesAfterReturn)
+		{
+			while (globalpump)
+				Sleep(25);
+		}
+		
+		return TRUE;
+	}
+
+	// Other handler types are reserved
+	return FALSE;
+}
+
+// Returns true if std::cin has a character to report. Uses OS-specific methods.
+bool cinInputPending()
+{
+	// _kbhit() is MS specific for seeing if cin has data, there is no cross-compatible C++ way
+	// Internally, it delegates to Windows-specific PeekConsoleInputEvents()
+	return _kbhit();
+}
+
+#else // !_WIN32
 
 // Handles user interrupts and OS interrupts.
 void CloseHandler(const int sig)
@@ -1624,7 +2048,7 @@ void CloseHandler(const int sig)
 
 		if (globalpump)
 		{
-			std::cout << red << u8"Got a "sv << signalType << u8", ending app."sv << lineEnd();
+			std::cout << red << "Got a "sv << signalType << ", ending app."sv << lineEnd();
 			globalpump->post_eventloop_exit();
 		}
 	}
@@ -1658,3 +2082,4 @@ bool cinInputPending()
 	return select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout) > 0;
 }
 
+#endif // _WIN32
