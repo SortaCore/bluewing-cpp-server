@@ -216,12 +216,14 @@ wsl: Failed to configure network (networkingMode Mirrored), falling back to netw
 ```
 
 https://github.com/microsoft/WSL/issues/13454
-
+The quick fix:
 ```ps1
 wsl --shutdown; netsh winsock reset; netsh int ip reset; Restart-Service hns -Force; wsl
 ```
 
-You're SOL.
+The hefty fix:
+https://github.com/microsoft/WSL/issues/13454#issuecomment-3792804841
+Edit IPs if you have static. Run in admin powershell after edits.
 
 
 
