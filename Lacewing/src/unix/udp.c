@@ -78,6 +78,9 @@ static void read_ready (void * ptr)
 			break;
 		}
 
+        // Populate remote_addr from the actual sender's address/port
+        lwp_addr_set_sockaddr(&remote_addr, (struct sockaddr*)&from);
+		
 		// Does not match expected incoming filter, discard it
 		if (!lw_filter_check_remote_addr(ctx->filter, &remote_addr))
 		{
