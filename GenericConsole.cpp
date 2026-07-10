@@ -1361,7 +1361,7 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 		if (entry == misbehavingIPList.end())
 		{
 			std::cout << yellow << "Due to malformed protocol usage, created a IP ban entry."sv << lineEnd();
-			AddMisbehavingIPEntry(**cd, addr, "Broken Lacewing protoco", laceclock::now() + 30min);
+			AddMisbehavingIPEntry(**cd, addr, "Broken Lacewing protocol", laceclock::now() + 30min);
 		}
 		else
 		{
