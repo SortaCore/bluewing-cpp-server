@@ -1222,6 +1222,16 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 			<< u8'.' << lineEnd();
 	}
 
+	// Ping reply (old style)
+	if (subchannel == 0 && variant == 2 && data.size() == 0)
+	{
+		if (blasted)
+			senderclient->blast(0, std::string_view{}, 2);
+		else
+			senderclient->send(0, std::string_view{}, 2);
+		return;
+	}
+
 	// The default messages handled in bluewing-cpp-server, which are not required by Bluewing,
 	// are only text messages that are TCP on subchannel 0.
 	if (blasted || variant != 0 || subchannel != 0)
