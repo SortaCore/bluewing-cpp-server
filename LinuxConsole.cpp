@@ -991,7 +991,7 @@ static bool IsIPTrusted(const std::string_view addr)
 */
 void OnConnectRequest(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> client)
 {
-	const std::string_view addr = client->getaddress();
+	const std::string addr = client->getaddress();
 	const lw_string addrW(client->getaddress());
 
 	// If IP was marked as misbehaving
@@ -1038,7 +1038,7 @@ void OnDisconnect(lacewing::relayserver &server, std::shared_ptr<lacewing::relay
 	UpdateTitle(server.clientcount());
 	std::string name = client->name();
 	name = !name.empty() ? name : "[unset]"sv;
-	const std::string_view addr = client->getaddress();
+	const std::string addr = client->getaddress();
 
 	// A client that is not Relay will not have called OnConnect, so we won't have a data for it
 	const auto cd = ClientDataByClientPtr(client);
@@ -1147,7 +1147,7 @@ void OnTimerTick(lacewing::timer timer)
 		{
 			if (!cliData->exceeded)
 				continue;
-			const std::string_view addr = cliData->client->getaddress();
+			const std::string addr = cliData->client->getaddress();
 
 			if (IsIPTrusted(addr))
 				continue;
@@ -1236,7 +1236,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	// are only text messages that are TCP on subchannel 0.
 	if (blasted || variant != 0 || subchannel != 0)
 	{
-		const std::string_view addr = senderclient->getaddress();
+		const std::string addr = senderclient->getaddress();
 		std::cout << red << u8"Dropped server message from IP "sv << addr << u8", invalid type."sv << lineEnd();
 		const auto cd = ClientDataByClientPtr(senderclient);
 		if (cd != clientdata.cend())
@@ -1295,7 +1295,7 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	// Report client list, channel list, ban list, and server statistics
 	if (data == "send report"sv || (data.size() > 6 && data.substr(0, 6) == "unban "sv))
 	{
-		const std::string_view addr = senderclient->getaddress();
+		const std::string addr = senderclient->getaddress();
 
 		if (IsIPTrusted(addr))
 		{
