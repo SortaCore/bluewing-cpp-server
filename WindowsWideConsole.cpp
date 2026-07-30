@@ -247,6 +247,7 @@ lw_string fulltimetostring(std::time_t timepoint)
 	std::tm timeinfo = { 0 };
 	if (!localtime_s(&timeinfo, &timepoint))
 		std::_tcsftime(buffer.data(), buffer.size(), L"%I:%M:%S%p %x", &timeinfo);
+	buffer.resize(buffer.find(L'\0'));
 	return buffer;
 }
 

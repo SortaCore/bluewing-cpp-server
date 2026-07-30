@@ -285,6 +285,7 @@ lw_string fulltimetostring(std::time_t timepoint)
 	if (localtime_r(&timepoint, &timeinfo))
 		std::strftime(buffer.data(), buffer.size(), TXT("%I:%M:%S%p %x"), &timeinfo);
 #endif // _WIN32
+	buffer.resize(buffer.find(TXT('\0')));
 	return buffer;
 }
 
