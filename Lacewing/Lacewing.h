@@ -110,6 +110,7 @@
 #endif
 #include <string_view>
 using namespace std::string_view_literals;
+#include <chrono>
 
 extern "C"
 #endif // __cplusplus
