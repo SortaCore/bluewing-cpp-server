@@ -351,13 +351,19 @@ int main(const int argcf, lw_char* argv[])
 		system("cls");
 #endif // _DEBUG
 
-	// UTF-8 console requires Windows 10, 1903+
 #if lw_utf8_console
+	// UTF-8 console requires Windows 10, 1903+ (2019 March+), i.e. build number 18362+
 	{
 		OSVERSIONINFO osvi = {};
 		osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-		GetVersionEx(&osvi);
-		if (osvi.dwMajorVersion < 10 || (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber < 1903))
+		// Ignore warn/error about GetVersionEx deprecation; we use manifest to ensure 10+
+#		ifdef _MSC_VER
+#			pragma warning (suppress: 4996)
+				GetVersionEx(&osvi);
+#		else
+			GetVersionEx(&osvi);
+#		endif // _MSC_VER
+		if (osvi.dwMajorVersion < 10 || (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber < 18362))
 		{
 			std::cout << "UTF-8 Windows requires Windows 10, 1903 or later. Run the wide-char version of this program.\n"sv;
 			return ENOTSUP;

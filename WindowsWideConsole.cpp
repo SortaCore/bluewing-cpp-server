@@ -312,7 +312,6 @@ int wmain(const int argcf, lw_char* argv[])
 		system("cls");
 #endif // _DEBUG
 
-	// UTF-8 console requires Windows 10, 1903+
 
 	// Handle closing nicely - Ctrl-C, Ctrl-Break, and pressing the X on console window.
 	// Registering no handler will result in default behavior, which normally means OS will instantly terminate app.
