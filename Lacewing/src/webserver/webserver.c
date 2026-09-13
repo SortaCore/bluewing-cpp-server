@@ -170,14 +170,8 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 			}
 		}
 
-		// Read mask, make sure it actually masks
+		// Read mask; RFC says it is random, but doesn't prevent this being zero
 		lw_ui32 mask = *(lw_ui32*)data;
-		if (mask == 0)
-		{
-			error = "masking with zero";
-			errorCode = 1002;
-			break;
-		}
 		data_remove_prefix(sizeof(lw_ui32));
 
 		// Unmask the packet
@@ -495,4 +489,3 @@ lwp_def_hook (ws, upload_done)
 lwp_def_hook (ws, upload_post)
 lwp_def_hook (ws, disconnect)
 lwp_def_hook (ws, websocket_message)
-
