@@ -31,6 +31,16 @@ bld/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# CMake building intermediate files
+build*/
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+# Need this?
+ALL_BUILD.vcxproj*
+ZERO_CHECK.vcxproj*
+bluewing-cpp-server.slnx
+
 # NUNIT
 *.VisualState.xml
 TestResult.xml

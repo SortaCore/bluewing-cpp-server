@@ -125,8 +125,8 @@ namespace BluewingCppServerTasks
 			// Anyone modifying the generic CPP file likely does not want to accidentally modify platform-specific cpp.
 			if (File.Exists(OutputPath) && File.GetLastWriteTimeUtc(OutputPath) > File.GetLastWriteTimeUtc(InputPath))
 			{
-				LogError($"Aborting generic to specific script, output file \"{Path.GetFileName(OutputPath)}\" modified later than input \"{Path.GetFileName(InputPath)}\".");
-				return false;
+				LogInfo($"Skipping generic to specific script, output file \"{Path.GetFileName(OutputPath)}\" modified later than input \"{Path.GetFileName(InputPath)}\".");
+				return true;
 			}
 
 			// We either appending u8 or L to string literals, not both

@@ -25,11 +25,18 @@
 			<Code Type="Class" Language="cs" Source="$(MSBuildThisFileDirectory)- Docs and Scripts/PrebuildScript_GenericToSpecific.cs" />
 		</Task>
 	</UsingTask>
+	
+	<Target Name="GenericToSpecificNo" BeforeTargets="ClCompile;_ValidateSources"
+		Condition="'$(DesignTimeBuild)' != 'true' AND $(MSBuildProjectName.StartsWith('bluewing-cpp-server'))==0">
+		<Message Text="NOT converting Generic to UTF-8..." Importance="High" />
+	</Target>
 
-	<!-- Converts Generic CPP file to specific CPP files. ClCompile for Windows, _ValidateSources for Linux. ValidateSources also runs for design-time build. -->
+	<!-- Converts Generic CPP file to specific CPP files. ClCompile for Windows, _ValidateSources for Linux.
+		_ValidateSources also runs for design-time build.
+		Project name condition to not trip up CMake's MSBuild CompilerId projects. -->
 	<Target Name="GenericToSpecific" BeforeTargets="ClCompile;_ValidateSources"
-		Condition="'$(DesignTimeBuild)' != 'true'"
-		Inputs="GenericConsole.cpp;Directory.Build.props"
+		Condition="'$(DesignTimeBuild)' != 'true' AND $(MSBuildProjectName.StartsWith('bluewing-cpp-server'))"
+		Inputs="GenericConsole.cpp"
 		Outputs="LinuxConsole.cpp;WindowsWideConsole.cpp;WindowsUTF8Console.cpp">
 
 		<Message Text="Converting Generic to UTF-8..." Importance="High" />
