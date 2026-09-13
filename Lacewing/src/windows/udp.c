@@ -650,7 +650,7 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 #ifdef _DEBUG
 		if (wsaSendMsg)
 		{
-			lw_log_if_debug("Sending UDP from socket %i, local address \"%s\" net interface ID %u), to remote \"%s\", success (instant).\n",
+			lw_log_if_debug("Sending UDP from socket %i, local address \"%s\" net interface ID %u, to remote \"%s\", success (instant).\n",
 				(int)ctx->socket,
 				lw_addr_tostring(from, addrstringflags),
 				ifidx,

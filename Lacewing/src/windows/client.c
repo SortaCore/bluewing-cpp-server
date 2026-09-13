@@ -278,7 +278,7 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 
 	if (bind ((SOCKET)ctx->fdstream.fd, (struct sockaddr *) &local_address,
 			// sizeof sockaddr_storage doesn't work cross-platform
-			lw_addr_ipv6(ctx->remote_address) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1)
+			lw_addr_ipv6(address) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1)
 	{
 		ctx->connecting = lw_false;
 

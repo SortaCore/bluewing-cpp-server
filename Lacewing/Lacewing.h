@@ -726,7 +726,7 @@ typedef enum _lw_addr_tostring_flags
 
 	void * lw_malloc_or_exit (const size_t size);
 	void * lw_calloc_or_exit (const size_t count, const size_t size);
-	void * lw_realloc_or_exit (void * origptr, size_t newsize);
+	void * lw_realloc_or_exit (void * const origptr, const size_t newsize);
 	// Returns 1+ if success, -1 if not found, -2 if error; use 0 for default
 	lw_ui32 lwp_get_ifidx (struct sockaddr_storage* s);
 
