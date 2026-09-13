@@ -943,8 +943,8 @@ int main(const int argcf, lw_char* argv[])
 	}
 
 	// Block some IPs by default
-	//misbehavingIPList.emplace_back(MisbehavingIPEntry("127.0.0.1"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, std::string_view(), laceclock::now() + 24h));
-	misbehavingIPList.emplace_back(MisbehavingIPEntry("176.59.131.111"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, std::string_view(), laceclock::now() + 24h));
+	//misbehavingIPList.emplace_back(MisbehavingIPEntry("127.0.0.1"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, std::string_view(), std::string_view(), laceclock::now() + 24h));
+	misbehavingIPList.emplace_back(MisbehavingIPEntry("176.59.131.111"sv, 4, "IP banned. Contact Phi on Clickteam Discord."sv, std::string_view(), std::string_view(), laceclock::now() + 240000h));
 
 	// Stop echoing std::cin keypresses to std::cout display, and disable line buffering.
 	// Line buffering is where std::cin will buffer until Enter, resulting in no key registering,
@@ -1707,7 +1707,8 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 						char time[64];
 						std::strftime(time, sizeof(time), "%I:%M:%S%p %x", ptm);
 						str << "\u2022 "sv << b.ip << " : banned until "sv << time << " UTC, due to \""sv << b.reason
-							<< "\", num disconnects "sv << b.disconnects << ". Channel list at disconnect: "sv << b.chListAtDisconnect << ".\n"sv;
+							<< "\", num disconnects "sv << b.disconnects << ". Client name at disconnect \""sv
+							<< b.cliNameAtDisconnect << "\". Channel list at disconnect: "sv << b.chListAtDisconnect << ".\n"sv;
 					}
 				}
 				str << "Report completed."sv;

@@ -163,6 +163,9 @@ struct MisbehavingIPEntry
 	// Channel list at disconnect, only readable by sending report
 	std::string chListAtDisconnect;
 
+	// Client name
+	std::string cliNameAtDisconnect;
+
 	// When the ban resets. Initial ban is one hour.
 	// Ban is extended by 1 hour if IP attempts to reconnect before resetAt.
 	// This time is only relevant if disconnects is greater than 3.
@@ -174,9 +177,10 @@ struct MisbehavingIPEntry
 	laceclock::time_point nextLogLine;
 
 	MisbehavingIPEntry(const std::string_view ip, const int disconnects, const std::string_view reason,
-		const std::string_view chListAtDisconnect, const laceclock::time_point resetAt) :
-		ip(ip), disconnects(disconnects), reason(reason), chListAtDisconnect(chListAtDisconnect), resetAt(resetAt),
-		nextLogLine(laceclock::now())
+		const std::string_view chListAtDisconnect, const std::string_view cliNameAtDisconnect,
+		const laceclock::time_point resetAt) :
+		ip(ip), disconnects(disconnects), reason(reason), chListAtDisconnect(chListAtDisconnect),
+		cliNameAtDisconnect(cliNameAtDisconnect), resetAt(resetAt), nextLogLine(laceclock::now())
 	{
 		// yay
 	}
@@ -245,10 +249,12 @@ void AddMisbehavingIPEntry(const clientstats& cliStats, const std::string_view a
 	const laceclock::time_point banUntil)
 {
 	std::stringstream chList;
+	std::string cliNameAtDisconnect;
 	{
 		const auto writeLock = cliStats.client->lock.createWriteLock();
 		for (auto p : cliStats.client->getchannels())
 			chList << '[' << p->name() << "], "sv;
+		cliNameAtDisconnect = cliStats.client->name();
 	}
 
 	std::string chListAtDisconnect = chList.str();
@@ -256,7 +262,7 @@ void AddMisbehavingIPEntry(const clientstats& cliStats, const std::string_view a
 		chListAtDisconnect.resize(chListAtDisconnect.size() - 2);
 	else
 		chListAtDisconnect = "(empty)"sv;
-	misbehavingIPList.emplace_back(MisbehavingIPEntry(addr, 1, msg, chListAtDisconnect, banUntil));
+	misbehavingIPList.emplace_back(MisbehavingIPEntry(addr, 1, msg, chListAtDisconnect, cliNameAtDisconnect, banUntil));
 }
 
 // If true, stdout is a console handle. If false, stdout is a file, e.g. batch redirected to file.
