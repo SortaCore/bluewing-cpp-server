@@ -318,7 +318,7 @@ static void PrintTotalStatistics(const bool endOfApp)
 		<< "          Total: "sv << serverstats.in.total.bytes << " bytes in, "sv << serverstats.out.total.bytes << " bytes out."sv << lineEnd(false)
 		<< "                 "sv << serverstats.in.total.msg << " msgs in, "sv << serverstats.out.total.msg << " msgs out."sv << lineEnd(false)
 		<< "    Max clients: "sv << serverstats.maxClients << ", max channels: "sv << serverstats.maxChannels << '.' << lineEnd(false);
-	if (endOfApp)
+	if (!endOfApp)
 		std::cout << "Current clients: "sv << globalserver->clientcount() << ", current channels: "sv << globalserver->channelcount() << '.' << lineEnd(false);
 	std::cout
 		<< std::setw(70) << std::setfill(TXT('=')) << ""sv << std::setw(0) << std::setfill(TXT(' ')) << lineEnd(!endOfApp);
