@@ -24,7 +24,7 @@ protected:
 
 public:
 
-	char * buffer = nullptr;
+	lw_ui8 * buffer = nullptr;
 	lw_ui32 size = 0U;
 	std::thread::id threadOwner;
 
@@ -52,11 +52,11 @@ public:
 		if constexpr (sizeof(sizeP) > 4)
 			assert(sizeP < 0xFFFFFFFF);
 
-		lw_ui32 size = (lw_ui32)sizeP;
+		const lw_ui32 size = (lw_ui32)sizeP;
 
 		if (this->size + size > allocated)
 		{
-			int origalloc = allocated;
+			const int origalloc = allocated;
 			if (!allocated)
 				allocated = 1024 * 4;
 			else
@@ -65,7 +65,7 @@ public:
 			if (this->size + size > allocated)
 				allocated += size;
 
-			this->buffer = (char *)lw_realloc_or_exit(this->buffer, allocated);
+			this->buffer = (lw_ui8 *)lw_realloc_or_exit(this->buffer, allocated);
 			memset(this->buffer + origalloc, 0, allocated - origalloc);
 		}
 
@@ -128,17 +128,17 @@ public:
 
 	void send(lacewing::client socket, int offset = 0)
 	{
-		socket->write(buffer + offset, size - offset);
+		socket->write((char *)buffer + offset, size - offset);
 	}
 
 	void send(lacewing::server_client socket, int offset = 0)
 	{
-		socket->write(buffer + offset, size - offset);
+		socket->write((char *)buffer + offset, size - offset);
 	}
 
 	void send(lacewing::udp udp, lacewing::address from, lw_ui32 ifidx, lacewing::address to, int offset = 0)
 	{
-		udp->send(from, ifidx, to, buffer + offset, size - offset);
+		udp->send(from, ifidx, to, (char *)buffer + offset, size - offset);
 	}
 
 };

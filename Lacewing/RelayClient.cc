@@ -1599,10 +1599,7 @@ namespace lacewing
 		handler_channellistreceived = 0;
 
 		message.framereset();
-		message.reset();
-
 		messageMF.framereset();
-		messageMF.reset();
 
 		udp->tag(this);
 

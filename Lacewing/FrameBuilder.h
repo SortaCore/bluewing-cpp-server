@@ -10,85 +10,82 @@
 
 #include "MessageBuilder.h"
 
-// TODO: This isn't an ideal workaround.
-extern "C" size_t lwp_stream_write(lw_stream ctx, const char* buffer, size_t size, int flags);
-
 #ifndef lacewingframebuilder
 #define lacewingframebuilder
-static const char zerothree[3] = { 0, 0, 0 };
 
 class framebuilder : public messagebuilder
 {
 protected:
+	static constexpr lw_ui32 frameHeaderSize = 8;
+	// 11 is the largest pre-allocated header, WebSocket uses it for >65KiB packets.
+	// Standard TCP is one byte type
+	// UDP uses a 1 or 3 byte header.
+	static constexpr lw_ui32 preallocHdrSize = 11;
+	static constexpr lw_ui32 headerPrefixSize = preallocHdrSize - frameHeaderSize;
 
 	void preparefortransmission(bool iswebsocketclient)
 	{
 		if (tosend)
 			return;
 
-		lw_ui32 type = *(lw_ui32 *) buffer;
-		lw_i32 messagesize = size - 8;
+		lw_ui32 type = *(lw_ui32 *)(buffer + preallocHdrSize - frameHeaderSize);
+		lw_i32 messagesize = size - preallocHdrSize;
 
 		lw_ui32 headersize;
 
 		// We're sending to a websocket client, we need to mash this into WebSocket format
+		// WebSocket is close to liblacewing, with size as one byte, then expanding with a second variable.
+		// WS requires a specific flag + op byte set.
 		if (iswebsocketclient)
 		{
 			// If we're sending to a websocket client, we must be a server.
-			// If we're a server, the UDP header has one byte: the type.
+			// If we're a server, the UDP header has one byte: the type,
+			// and as we switch to websocket mode, we set 0x8 in type to indicate psuedo UDP.
 			if (origUDP != UINT32_MAX)
-				type = buffer[7] | 0x8;
+				type = buffer[preallocHdrSize - 1] | 0x8;
 
 			// Since we send text messages to channels and so on, we can't use text opcode for text messages
-			const lw_ui8 flagopcode = 0b10000010; // fin flag enabled + binary message
-			if (messagesize + 1 <= 125)
+			constexpr lw_ui8 flagopcode = 0b10000010; // fin flag enabled + binary message
+
+			// WS has no liblacewing header, as it'd be an unnecessary repeat of size.
+			// Instead, we include type byte as part of WS message and reuse the size variable.
+			++messagesize;
+
+			// WS splits at 126 bytes, becoming a separate u16,
+			// then splits at 0xFFFF, becoming sep ui64
+			if (messagesize <= 125)
 			{
-				(*(lw_ui8*)(buffer + 5)) = flagopcode;
-				(*(lw_ui8*)(buffer + 6)) = (lw_ui8)(messagesize + 1);
-				(*(lw_ui8*)(buffer + 7)) = (lw_ui8)type;
-				headersize = 3;
-				tosend = (buffer + 8) - headersize;
-				tosendsize = messagesize + headersize;
+				headersize = 3; // flagopcode, msgsize, type
+				tosend = buffer + preallocHdrSize - headersize;
+
+				tosend[1] = (lw_ui8)messagesize;
 			}
 			else if (messagesize <= 0xFFFF)
 			{
-				(*(lw_ui8*)(buffer + 3)) = flagopcode;
-				(*(lw_ui8*)(buffer + 4)) = (lw_ui8)126; // indicate uint16 following size
-				(*(lw_ui16*)(buffer + 5)) = htons((lw_ui16)(messagesize + 1));
-				(*(lw_ui8*)(buffer + 7)) = (lw_ui8)type;
-				headersize = 5;
-				tosend = buffer + 8 - headersize;
-				tosendsize = messagesize + headersize;
+				headersize = 5; // flagopcode, msgsize, u16 msgsize, type
+				tosend = buffer + preallocHdrSize - headersize;
+				tosend[1] = 126; // indicate uint16 following size
+
+				const lw_ui16 tmpmsgsize = htons((lw_ui16)messagesize);
+				memcpy(tosend + 2, &tmpmsgsize, sizeof(tmpmsgsize));
 			}
 			else
 			{
-				// The TCP header uses only 8 bytes, and we need 11 for uint64 size, so hack an extra three bytes in
-				// It's not efficient to memmove like this, but anyone passing this much data shouldn't expect speed
-				// TODO: For speed, add extra header space, so there's room for the full thing without memmove()
-				add(zerothree, sizeof(zerothree));
+				headersize = 11; // flagopcode, msgsize, u64 msgsize, type
+				tosend = buffer + preallocHdrSize - headersize;
+				tosend[1] = 127; // indicate uint64 following size
 
-				memmove(buffer + 11, buffer + 8, messagesize);
-
-				(*(lw_ui8*)(buffer)) = flagopcode;
-				(*(lw_ui8*)(buffer + 1)) = (lw_ui8)127; // indicate uint64 following size
-
-				const lw_i16 endianTest = 42;
-				if (*(lw_i8*)&endianTest == endianTest)
-				{
-					(*(lw_ui32*)(buffer + 2)) = 0; // assumes messagesize is not > 32bit, which is expected due to sizeof(this->size) and sizeof(messagesize)
-					(*(lw_ui32*)(buffer + 6)) = htonl(messagesize + 1);
-				}
-				else // big-endian
-				{
-					(*(lw_ui32*)(buffer + 2)) = htonl(messagesize + 1);
-					(*(lw_ui32*)(buffer + 6)) = 0; // see above comment
-				}
-
-				(*(lw_ui8*)(buffer + 10)) = (lw_ui8)type;
-
-				tosend = buffer;
-				tosendsize = size;
+				// WebSocket size is 64-bit big endian; include the 1 byte for type
+				// No portable htonll(), compiler checks are messy, runtime is slow
+				// memset and memcpy skip around that and possible alignment issues
+				const lw_ui32 tmpmsgsize = htonl(messagesize);
+				memset(tosend + 2, 0, sizeof(lw_ui32));
+				memcpy(tosend + 6, &tmpmsgsize, sizeof(tmpmsgsize));
 			}
+
+			tosend[0] = flagopcode;
+			tosend[headersize - 1] = (lw_ui8)type;
+			tosendsize = messagesize - 1 + headersize;
 
 			return;
 		}
@@ -96,87 +93,92 @@ protected:
 		// Message size < 254; store as type byte + size byte
 		if (messagesize < 0xfe)
 		{
-			(*(lw_ui8*)(buffer + 6)) = (lw_ui8)type;
-			(*(lw_ui8*)(buffer + 7)) = (lw_ui8)messagesize;
-
 			headersize = 2;
+			tosend = buffer + preallocHdrSize - headersize;
+
+			tosend[1] = (lw_ui8)messagesize;
 		}
 		// Message size >= 0xFF and <= 0xFFFF; store as type byte, plus size indicator byte of 254, plus size uint16
 		else if (messagesize < 0xffff)
 		{
-			(*(lw_ui8*)(buffer + 4)) = (lw_ui8)type;
-
-			(*(lw_ui8 *) (buffer + 5))	= 254;
-			(*(lw_ui16 *) (buffer + 6)) = (lw_ui16)messagesize;
-
 			headersize = 4;
+			tosend = buffer + preallocHdrSize - headersize;
+
+			const lw_ui16 tmpmsgsize = (lw_ui16)messagesize;
+
+			tosend[1] = 254;
+			memcpy(tosend + 2, &tmpmsgsize, sizeof(tmpmsgsize));
 		}
 		// Message size > 0xFFFF and <= 0xFFFFFFFF; store as type byte, plus size indicator byte of 255, plus size uint32
 		else if ((lw_ui32)messagesize < 0xffffffff)
 		{
-			(*(lw_ui8*)(buffer + 2)) = (lw_ui8)type;
-
-			(*(lw_ui8 *) (buffer + 3))	= 255;
-			(*(lw_ui32 *) (buffer + 4)) = messagesize;
-
 			headersize = 6;
+			tosend = buffer + preallocHdrSize - headersize;
+
+			tosend[1] = 255;
+			memcpy(tosend + 2, &messagesize, sizeof(messagesize));
 		}
 		else
 			return;
 
-		tosend	 = (buffer + 8) - headersize;
-		tosendsize =  messagesize + headersize;
+		// tosend is edited in the if-chain above
+		tosend[0] = (lw_ui8)type;
+		tosendsize = messagesize + headersize;
 	}
 
-	bool isudpclient;
+	const bool isudpclient;
 
-	char* tosend;
+	lw_ui8* tosend;
 	int tosendsize;
+	// Holds -1 if unset, or stores the lw_ui8 type; used for swapping a UDP message to WebSocket
 	lw_ui32 origUDP;
+	// If -1, no config; if 1, WebSocket header was last; if 0, plain TCP/UDP header was last
 	lw_i8 wasWebLast;
 
 public:
 
 	framebuilder(bool isudpclient)
+		: isudpclient(isudpclient)
 	{
-		this->isudpclient = isudpclient;
-		tosend = nullptr;
-		tosendsize = 0;
-		origUDP = UINT32_MAX;
-		wasWebLast = -1;
+		// The dummy byte added should have auto-expand to >= 11 by virtue of add() allocating in 1KiB chunks
+		add<lw_ui8>(0);
+		assert(allocated >= preallocHdrSize);
+		framereset();
 	}
 
-	inline void addheader(lw_ui8 type, lw_ui8 variant, bool forudp = false, int udpclientid = -1)
+	inline void addheader(lw_ui8 type, lw_ui8 variant, bool forudp = false, lw_ui16 udpclientid = -1)
 	{
 		if (threadOwner != std::this_thread::get_id())
 			LacewingFatalErrorMsgBox();
 
-		assert(size == 0 && "lacewing framebuilder.addheader() error: adding header to message that already has one.");
+		assert(size == preallocHdrSize && "lacewing framebuilder.addheader() error: adding header to message that already has one.");
 		assert(type <= 0xF && variant <= 0xF);
+
+		const lw_ui8 relayType = (type << 4) | variant;
 
 		if (!forudp)
 		{
-			add <lw_ui32> ((type << 4) | variant);
-			add <lw_ui32> (0); // this is used for reserving space for adding message size later, in preparefortransmission()
-
+			// 8-byte TCP header
+			memset(buffer + preallocHdrSize - frameHeaderSize, 0, frameHeaderSize);
+			buffer[preallocHdrSize - frameHeaderSize] = relayType;
 			return;
 		}
-		// Pad to 8 bytes in buffer
-		add(std::string(8 - 1 - (isudpclient ? 2 : 0), '\xCD'));
 
-		add <lw_ui8> ((lw_ui8)((type << 4) | variant));
+		// UDP header, 1 or 3 bytes; if UDP client, include 2-byte client ID
+		lw_ui8 * const udpHeader = buffer + preallocHdrSize - (isudpclient ? 3 : 1);
+		udpHeader[0] = relayType;
 
 		if (isudpclient)
-			add <lw_ui16> ((lw_ui16)udpclientid);
+			memcpy(udpHeader + 1, &udpclientid, sizeof(udpclientid));
 		else
-			origUDP = ((lw_ui32*)buffer)[1];
+			origUDP = relayType;
 	}
 
 	inline void send(lacewing::server_client client, bool clear = true)
 	{
 		if (threadOwner != std::this_thread::get_id())
 			LacewingFatalErrorMsgBox();
-		if (wasWebLast == -1 || client->is_websocket() != wasWebLast)
+		if (wasWebLast == -1 || (client->is_websocket() ? 1 : 0) != wasWebLast)
 		{
 			wasWebLast = client->is_websocket();
 			tosend = nullptr; // or preparefortransmission does nothing
@@ -184,9 +186,9 @@ public:
 		}
 
 		if (wasWebLast)
-			lwp_stream_write((lw_stream)client, tosend, tosendsize, 2 /* lwp_stream_write_ignore_busy */);
+			lwp_stream_write((lw_stream)client, (char *)tosend, tosendsize, 2 /* lwp_stream_write_ignore_busy */);
 		else
-			client->write(tosend, tosendsize);
+			client->write((char *)tosend, tosendsize);
 
 		if (clear)
 			framereset();
@@ -197,14 +199,15 @@ public:
 		if (threadOwner != std::this_thread::get_id())
 			LacewingFatalErrorMsgBox();
 		preparefortransmission(false);
-		client->write(tosend, tosendsize);
+		client->write((char *)tosend, tosendsize);
 
 		if (clear)
 			framereset();
 	}
 
 	inline void revert() {
-		((lw_ui32*)buffer)[1] = origUDP;
+		// Revert the type byte back to its original
+		buffer[preallocHdrSize - 1] = (lw_ui8)origUDP;
 		tosend = nullptr;
 		tosendsize = 0;
 	}
@@ -213,7 +216,10 @@ public:
 	{
 		if (threadOwner != std::this_thread::get_id())
 			LacewingFatalErrorMsgBox();
-		udp->send (from, ifidx, to, &buffer[isudpclient ? 5 : 7], size - (isudpclient ? 5 : 7));
+
+		// UDP client sends type + client ID; UDP server sends type alone
+		const size_t headerSize = 1 + (isudpclient ? 2 : 0);
+		udp->send (from, ifidx, to, (char *)buffer + preallocHdrSize - headerSize, size - preallocHdrSize + headerSize);
 
 		if (clear)
 			framereset();
@@ -221,13 +227,16 @@ public:
 
 	inline void framereset()
 	{
-		reset();
+		size = preallocHdrSize;
 		tosend = NULL;
 		tosendsize = 0;
+		origUDP = UINT32_MAX;
 		wasWebLast = -1;
+#ifdef _DEBUG
+		memset(buffer, 0xCD, allocated);
+#endif
 	}
 
 };
 
 #endif
-

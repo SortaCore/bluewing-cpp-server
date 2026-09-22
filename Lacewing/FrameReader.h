@@ -158,7 +158,7 @@ public:
 		{
 			buffer.add <lw_ui8> (0);
 
-			if (!messagehandler(tag, messagetype, buffer.buffer, messagesize))
+			if (!messagehandler(tag, messagetype, (char *)buffer.buffer, messagesize))
 				return false; // Error, exit out
 			buffer.reset();
 

@@ -26,10 +26,7 @@
 #include <map>
 #include <iostream>
 
-#define lwp_stream_write_ignore_filters  1
-
 extern "C" {
-	size_t lwp_stream_write(lw_stream ctx, const char* buffer, size_t size, int flags);
 	void* lw_server_client_get_relay_tag(lw_server_client client);
 	void lw_server_client_set_relay_tag(lw_server_client client, void* ptr);
 	void lw_server_client_set_websocket(lw_server_client client, lw_bool isWebSocket);
