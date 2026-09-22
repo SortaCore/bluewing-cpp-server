@@ -84,6 +84,8 @@ static size_t def_sink_data (lw_stream stream, const char * buffer, size_t size)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) stream;
 
+	lw_pump_thread_check (ctx->client.stream.pump);
+
 	lwp_trace ("HTTP got " lwp_fmt_size " bytes", size);
 
 	size_t processed = 0;

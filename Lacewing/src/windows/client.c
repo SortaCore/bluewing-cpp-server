@@ -74,6 +74,8 @@ void lw_client_delete (lw_client ctx)
 
 void lw_client_connect (lw_client ctx, const char * host, lw_ui16 port)
 {
+	lw_pump_thread_check(ctx->fdstream.stream.pump);
+
 	lw_addr address = lw_addr_new_port (host, port);
 
 	lw_client_connect_addr (ctx, address);
@@ -137,6 +139,8 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 
 void lw_client_connect_addr (lw_client ctx, lw_addr address)
 {
+	lw_pump_thread_check(ctx->fdstream.stream.pump);
+
 	if (lw_client_connected (ctx) || lw_client_connecting (ctx))
 	{
 		lw_error error = lw_error_new ();
@@ -395,4 +399,3 @@ void lw_client_on_disconnect (lw_client ctx,
 
 lwp_def_hook (client, connect)
 lwp_def_hook (client, error)
-

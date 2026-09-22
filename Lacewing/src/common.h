@@ -39,6 +39,7 @@
 	#endif
 	#include <tchar.h>
 	#include <inttypes.h>
+	#define ENABLE_THREADS
 #else
 
 	#ifndef _GNU_SOURCE
@@ -57,6 +58,19 @@
 	#include <sys/sendfile.h>
 #endif
 
+#endif
+
+#ifdef ENABLE_THREADS
+	#ifdef _MSC_VER
+		typedef unsigned long lw_thread_id;
+		#define lw_thread_id_current() GetCurrentThreadId()
+		#define lw_thread_id_equal(a, b) ((a) == (b))
+	#elif !__STDC_NO_THREADS__
+		#include <threads.h>
+		typedef thrd_t lw_thread_id;
+		#define lw_thread_id_current() thrd_current()
+		#define lw_thread_id_equal(a, b) thrd_equal((a), (b))
+	#endif
 #endif
 
 #ifdef _WIN32

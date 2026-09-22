@@ -8,6 +8,8 @@
  * https://opensource.org/license/mit
 */
 
+#include "common.h"
+
 #ifndef _lw_pump_h
 #define _lw_pump_h
 
@@ -16,6 +18,10 @@ struct _lw_pump
 	const lw_pumpdef * def;
 
 	long use_count;
+
+#ifdef ENABLE_THREADS
+	lw_thread_id thread_id;
+#endif // ENABLE_THREADS
 
 	void * tag;
 };

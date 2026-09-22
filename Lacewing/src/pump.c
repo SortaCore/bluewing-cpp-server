@@ -28,6 +28,9 @@ void lwp_pump_init (lw_pump ctx, const lw_pumpdef * def)
 	memset (ctx, 0, sizeof (*ctx));
 
 	ctx->def = def;
+#ifdef ENABLE_THREADS
+	ctx->thread_id = lw_thread_id_current();
+#endif // ENABLE_THREADS
 }
 
 void * lw_pump_tail (lw_pump pump)
@@ -156,5 +159,11 @@ void lw_pump_set_tag (lw_pump ctx, void * tag)
 	ctx->tag = tag;
 }
 
-
-
+void lw_pump_thread_check (lw_pump ctx)
+{
+	if (!lw_thread_id_equal(ctx->thread_id, lw_thread_id_current()))
+	{
+		always_log("Thread check failed\n");
+		assert(!"Thread check failed");
+	}
+}

@@ -616,7 +616,10 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 			// Closest to the EAGAIN exception on Unix servers, but since we use overlapped, it's unlikely this will apply
 			// This code as a response to WSASendTo may be Windows NT only
 			if (code == WSAEWOULDBLOCK)
+			{
+				lwp_release(ctx, "udp write");
 				break;
+			}
 
 			// genuine error, whine about it
 			lw_error error = lw_error_new();
@@ -644,6 +647,7 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 				ctx->on_error(ctx, error);
 
 			lw_error_delete(error);
+			lwp_release(ctx, "udp write");
 			break;
 		}
 		// else no error, completed as sync already (IOCP still has posted completion status)
@@ -663,8 +667,6 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 		}
 #endif
 	} while (0);
-
-	lwp_release(ctx, "udp write");
 }
 
 void lw_udp_send_unreachable(lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const char * data, lw_ui32 size)

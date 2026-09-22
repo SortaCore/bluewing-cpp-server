@@ -290,6 +290,7 @@ typedef enum _lw_addr_tostring_flags
 	lw_import		void  lw_pump_post			(lw_pump, void * fn, void * param);
 	lw_import	  void *  lw_pump_tag			(lw_pump);
 	lw_import		void  lw_pump_set_tag		(lw_pump, void *);
+	lw_import		void  lw_pump_thread_check  (lw_pump);
 
 	#ifdef _WIN32
 

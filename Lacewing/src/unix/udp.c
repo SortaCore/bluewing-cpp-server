@@ -289,6 +289,8 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 		return;
 	}
 
+	lw_pump_thread_check (ctx->pump);
+
 	if (size == SIZE_MAX)
 		size = strlen (data);
 
