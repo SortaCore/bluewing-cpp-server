@@ -65,11 +65,18 @@
 		typedef unsigned long lw_thread_id;
 		#define lw_thread_id_current() GetCurrentThreadId()
 		#define lw_thread_id_equal(a, b) ((a) == (b))
-	#elif !__STDC_NO_THREADS__
+	#elif __STDC_NO_THREADS__==0
 		#include <threads.h>
 		typedef thrd_t lw_thread_id;
 		#define lw_thread_id_current() thrd_current()
 		#define lw_thread_id_equal(a, b) thrd_equal((a), (b))
+	#elif __has_include(<pthread.h>)
+		#include <pthread.h>
+		typedef pthread_t lw_thread_id;
+		#define lw_thread_id_current() pthread_self()
+		#define lw_thread_id_equal(a, b) pthread_equal((a), (b))
+	#else
+		#error Unknown threading model
 	#endif
 #endif
 
@@ -119,7 +126,7 @@ void always_log(const char* c, ...);
  typedef struct _lw_flashpolicy		* lw_flashpolicy;
  typedef struct _lw_ws				* lw_ws;
  typedef struct _lw_ws_req			* lw_ws_req;
- typedef struct _lw_ws_websocket		* lw_ws_websocket;
+ typedef struct _lw_ws_websocket	* lw_ws_websocket;
  typedef struct _lw_ws_req_hdr		* lw_ws_req_hdr;
  typedef struct _lw_ws_req_param	* lw_ws_req_param;
  typedef struct _lw_ws_req_cookie	* lw_ws_req_cookie;

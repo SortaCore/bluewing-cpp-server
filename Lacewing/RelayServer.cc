@@ -894,29 +894,33 @@ std::shared_ptr<relayserver::client> relayserver::channel::readpeer(messagereade
 	return nullptr;
 }
 
+// These three handlers are used for raw socket and WebSocket TCP
 void handlerconnect(lacewing::server server, lacewing::server_client clientsocket)
 {
-	relayserverinternal &serverinternal = *(relayserverinternal *)server->tag();
+	relayserverinternal &serverinternal = *(relayserverinternal *)server->relay_tag();
 	serverinternal.generic_handlerconnect(server, clientsocket);
 }
 void handlerdisconnect(lacewing::server server, lacewing::server_client clientsocket)
 {
-	relayserverinternal &serverinternal = *(relayserverinternal *)server->tag();
+	relayserverinternal &serverinternal = *(relayserverinternal *)server->relay_tag();
 	serverinternal.generic_handlerdisconnect(server, clientsocket);
 }
 void handlerreceive(lacewing::server server, lacewing::server_client clientsocket, const char * data, size_t size)
 {
-	relayserverinternal &internal = *(relayserverinternal *)server->tag();
+	relayserverinternal &internal = *(relayserverinternal *)server->relay_tag();
 	internal.generic_handlerreceive(server, clientsocket, std::string_view(data, size));
 }
 
-void relayserverinternal::generic_handlerconnect(lacewing::server server, lacewing::server_client clientsocket)
+void relayserverinternal::generic_handlerconnect(lacewing::server, lacewing::server_client clientsocket)
 {
+	// The server param being passed is this->server.socket, or this->server.websocket's socket/socket_secure,
+	// for rate limiting we always use the main server's IP list
+
 	// Check num of pending/active connections. Pending connections may not be in RelayServer's list.
 	size_t numMatchIPTotal = 0U, numMatchIPFullyConnected = 0U;
 	size_t numMatchIPPending = 0U;
 	const char * bootReason = nullptr;
-	for (auto c = server->client_first(); c; c = c->next())
+	for (auto c = server.socket->client_first(); c; c = c->next())
 	{
 		if (c == clientsocket)
 			continue;
@@ -1036,79 +1040,6 @@ bool icmp(const std::string_view& a, const std::string_view& b) noexcept
 	return strcasecmp(a.data(), b.data()) == 0;
 }
 
-static const char* B64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-static const char* B64charsEquals = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-
-static const int B64index[256] =
-{
-	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  62, 63, 62, 62, 63,
-	52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0,  0,  0,  0,  0,  0,
-	0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
-	15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0,  0,  0,  0,  63,
-	0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
-};
-
-const std::string b64encode(const void* data, const size_t len)
-{
-	std::string result((len + 2) / 3 * 4, '=');
-	unsigned char* p = (unsigned  char*)data;
-	char* str = &result[0];
-	size_t j = 0, pad = len % 3;
-	const size_t last = len - pad;
-
-	for (size_t i = 0; i < last; i += 3)
-	{
-		int n = int(p[i]) << 16 | int(p[i + 1]) << 8 | p[i + 2];
-		str[j++] = B64chars[n >> 18];
-		str[j++] = B64chars[n >> 12 & 0x3F];
-		str[j++] = B64chars[n >> 6 & 0x3F];
-		str[j++] = B64chars[n & 0x3F];
-	}
-	if (pad)  /// Set padding
-	{
-		int n = --pad ? int(p[last]) << 8 | p[last + 1] : p[last];
-		str[j++] = B64chars[pad ? n >> 10 & 0x3F : n >> 2];
-		str[j++] = B64chars[pad ? n >> 4 & 0x03F : n << 4 & 0x3F];
-		str[j++] = pad ? B64chars[n << 2 & 0x3F] : '=';
-	}
-	return result;
-}
-
-const std::string b64decode(const void* data, const size_t& len)
-{
-	if (len == 0) return "";
-
-	unsigned char* p = (unsigned char*)data;
-	size_t j = 0,
-		pad1 = len % 4 || p[len - 1] == '=',
-		pad2 = pad1 && (len % 4 > 2 || p[len - 2] != '=');
-	const size_t last = (len - pad1) / 4 << 2;
-	std::string result(last / 4 * 3 + pad1 + pad2, '\0');
-	unsigned char* str = (unsigned char*)&result[0];
-
-	for (size_t i = 0; i < last; i += 4)
-	{
-		int n = B64index[p[i]] << 18 | B64index[p[i + 1]] << 12 | B64index[p[i + 2]] << 6 | B64index[p[i + 3]];
-		str[j++] = (unsigned char)(n >> 16);
-		str[j++] = (unsigned char)(n >> 8) & 0xFF;
-		str[j++] = (unsigned char)(n & 0xFF);
-	}
-	if (pad1)
-	{
-		int n = B64index[p[last]] << 18 | B64index[p[last + 1]] << 12;
-		str[j++] = (unsigned char)(n >> 16);
-		if (pad2)
-		{
-			n |= B64index[p[last + 2]] << 6;
-			str[j++] = ((unsigned char)(n >> 8)) & 0xFF;
-		}
-	}
-	return result;
-}
-
 void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewing::server_client clientsocket, std::string_view data)
 {
 	// Null when closing down server
@@ -1190,7 +1121,7 @@ void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewi
 			return;
 	}
 
-	relayserverinternal & internal = *(relayserverinternal *)server->tag();
+	relayserverinternal & internal = *(relayserverinternal *)server->relay_tag();
 
 	if (internal.handlererror)
 	{
@@ -1231,7 +1162,7 @@ void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewi
 
 void handlererror(lacewing::server server, lacewing::error error)
 {
-	relayserverinternal &internal = *(relayserverinternal *) server->tag();
+	relayserverinternal &internal = *(relayserverinternal *) server->relay_tag();
 
 	error->add("TCP socket error");
 
@@ -1260,72 +1191,6 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 {
 	relayserverinternal& internal = *(relayserverinternal*)webserver->tag();
 	std::string error;
-
-	// According to spec Connection must only *include* Upgrade.
-	// Firefox sends Keep-Alive as well, for some reason.
-	if (strstr(req->header("Connection"), "Upgrade") != NULL)
-	{
-		do {
-			const char* webSocketKey2 = req->header("Sec-WebSocket-Key");
-			if (webSocketKey2 == nullptr)
-			{
-				error = "no websocket request key"sv;
-				break;
-			}
-			if (strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing"))
-			{
-				error = "not a Bluewing websocket"sv;
-				break;
-			}
-
-			std::string webSocketKey(webSocketKey2);
-			size_t sz = webSocketKey.find_first_not_of(B64charsEquals);
-			if (webSocketKey.size() < 4 || sz != std::string_view::npos)
-			{
-				error = "invalid websocket key"sv;
-				break;
-			}
-			webSocketKey += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"sv;
-
-			char sha1[20];
-			lw_sha1(sha1, webSocketKey.data(), webSocketKey.size());
-			const std::string webSocketKeyResponse = b64encode(sha1, sizeof(sha1));
-
-			lwp_ws_client reqClient = ((struct _lw_ws_req*)req)->client;
-			req->accept_websocket();
-
-			lw_server server;
-			if (reqClient->secure)
-				server = ((lw_ws)webserver)->socket_secure;
-			else
-				server = ((lw_ws)webserver)->socket;
-			lw_server_client_set_websocket(reqClient->socket, lw_true);
-
-			req->header("Upgrade", "WebSocket");
-			req->header("Connection", "Upgrade");
-			req->header("Sec-WebSocket-Accept", webSocketKeyResponse.c_str());
-			req->header("Sec-WebSocket-Protocol", "bluewing");
-			req->status(101, "Switching Protocols");
-			req->finish();
-			internal.generic_handlerconnect((lacewing::server)server, (lacewing::server_client)reqClient->socket);
-			return;
-		} while (false);
-
-		lacewing::error err = lacewing::error_new();
-		err->add("Failed a HTML5/UWP WebSocket connection, due to %s.\n", error.c_str());
-		if (internal.handlererror)
-			internal.handlererror(internal.server, err);
-		lacewing::error_delete(err);
-	}
-	else
-	{
-		lacewing::error err = lacewing::error_new();
-		err->add("Non-WebSocket connection response to URL \"%s\", secure = %s; from IP %s", req->url(), req->secure() ? "YES" : "NO", req->address()->tostring());
-		if (internal.handlererror)
-			internal.handlererror(internal.server, err);
-		lacewing::error_delete(err);
-	}
-
 	// Root page
 	if (req->url()[0] == '\0')
 	{
@@ -1349,27 +1214,19 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 		req->add_header("Location", "//dark-wire.com/favicon.ico");
 	}
 	else
+	{
+		lacewing::error err = lacewing::error_new();
+		err->add("Non-WebSocket connection response to URL \"%s\", secure = %s; from IP %s", req->url(), req->secure() ? "YES" : "NO", req->address()->tostring());
+		if (internal.handlererror)
+			internal.handlererror(internal.server, err);
+		lacewing::error_delete(err);
 		req->status(422, "Unprocessable Entity");
+	}
 	req->finish();
-}
-void handlerwebsocketmessage(lacewing::webserver websocket, lacewing::webserver_websocket client, const char* buffer, size_t size)
-{
-	relayserverinternal& internal = *(relayserverinternal*)websocket->tag();
-	internal.generic_handlerreceive((lacewing::server)((lw_ws)websocket)->socket,
-		(lacewing::server_client)((lw_ws_websocket)client)->client.socket,
-		std::string_view(buffer, size));
 }
 bool handlerwebsocketaccept(lacewing::webserver websocket, lacewing::webserver_request req)
 {
 	return !strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing");
-}
-void handlerwebsocketconnect(lacewing::webserver websocket, lacewing::webserver_websocket websocket_client)
-{
-	relayserverinternal& internal = *(relayserverinternal*)websocket->tag();
-	auto client = (lw_ws_websocket)websocket_client;
-	lw_server server = client->client.secure ? ((lw_ws)websocket)->socket_secure : ((lw_ws)websocket)->socket;
-	internal.generic_handlerconnect((lacewing::server)server,
-		(lacewing::server_client)client->client.socket);
 }
 void handlerwebservererror(lacewing::webserver webserver, lacewing::error error)
 {
@@ -1379,18 +1236,6 @@ void handlerwebservererror(lacewing::webserver webserver, lacewing::error error)
 
 	if (internal.handlererror)
 		internal.handlererror(internal.server, error);
-}
-void handlerwebserverdisconnect(lacewing::webserver webserver, lacewing::webserver_websocket websocket_client)
-{
-	relayserverinternal& internal = *(relayserverinternal*)webserver->tag();
-	auto client = (lw_ws_websocket)websocket_client;
-	lw_server server;
-	if (client->client.secure)
-		server = ((lw_ws)webserver)->socket_secure;
-	else
-		server = ((lw_ws)webserver)->socket;
-	internal.generic_handlerdisconnect((lacewing::server)server,
-		(lacewing::server_client)client->client.socket);
 }
 
 void handlerflasherror(lacewing::flashpolicy flash, lacewing::error error)
@@ -1422,17 +1267,19 @@ relayserver::relayserver(lacewing::pump pump) noexcept :
 
 	flash->on_error	(lacewing::handlerflasherror);
 
-	websocket->on_get (lacewing::handlerwebserverget);
 	websocket->on_error (lacewing::handlerwebservererror);
-	websocket->on_websocket_message (lacewing::handlerwebsocketmessage);
+	websocket->on_get	(lacewing::handlerwebserverget);
 	websocket->on_websocket_accept (lacewing::handlerwebsocketaccept);
-	websocket->on_websocket_connect (lacewing::handlerwebsocketconnect);
-	websocket->on_websocket_disconnect (lacewing::handlerwebserverdisconnect);
+	websocket->on_websocket_connect (lacewing::handlerconnect);
+	websocket->on_websocket_message (lacewing::handlerreceive);
+	websocket->on_websocket_disconnect (lacewing::handlerdisconnect);
 
 	auto s = new relayserverinternal(*this, pump);
 	internaltag = s;
 	socket->tag(s);
+	socket->relay_tag(s);
 	websocket->tag(s);
+	websocket->server_relay_tags(s);
 	udp->tag(s);
 	flash->tag(s);
 

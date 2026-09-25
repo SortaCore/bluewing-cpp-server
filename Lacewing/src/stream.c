@@ -166,13 +166,12 @@ void lw_stream_delete (lw_stream ctx)
 	list_clear (ctx->front_queue);
 	list_clear (ctx->back_queue);
 
+	// Watches aren't used in all streams, although pump is always set
 	if (ctx->watch)
 	{
 		lw_pump_remove(ctx->pump, ctx->watch, "lw_stream_delete");
 		ctx->watch = NULL;
 	}
-	else
-		assert(lw_false);
 
 	/*	This matches the lwp_retain in lw_stream_new, allowing the refcount to
 		become 0 and the stream to be destroyed. */

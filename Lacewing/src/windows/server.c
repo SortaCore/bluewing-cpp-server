@@ -57,7 +57,7 @@ struct _lw_server
 
 	lw_list (lw_server_client, clients);
 
-	void * tag;
+	void * tag, * relay_tag;
 	lw_ui32 num_hole_punches_pending;
 };
 
@@ -340,11 +340,20 @@ void lw_server_set_tag (lw_server ctx, void * tag)
 {
 	ctx->tag = tag;
 }
+void lw_server_set_relay_tag(lw_server ctx, void* tag)
+{
+	ctx->relay_tag = tag;
+}
 
 void * lw_server_tag (lw_server ctx)
 {
 	return ctx->tag;
 }
+void * lw_server_relay_tag (lw_server ctx)
+{
+	return ctx->relay_tag;
+}
+
 void on_tls_error (lw_server_client client, lw_error error)
 {
 	lw_error_addf(error, "TLS error");

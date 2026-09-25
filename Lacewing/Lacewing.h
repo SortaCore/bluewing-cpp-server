@@ -543,6 +543,8 @@ typedef enum _lw_addr_tostring_flags
 	lw_import	lw_server_client  lw_server_client_next		(lw_server_client);
 	lw_import			  void *  lw_server_tag				(lw_server);
 	lw_import				void  lw_server_set_tag			(lw_server, void *);
+	lw_import			  void *  lw_server_relay_tag		(lw_server);
+	lw_import				void  lw_server_set_relay_tag	(lw_server, void *);
 	lw_import				void  lw_server_hole_punch		(lw_server, lw_addr remote, lw_ui16 local_port);
 
 	/* Server's client */
@@ -634,16 +636,15 @@ typedef enum _lw_addr_tostring_flags
 	lw_import				void  lw_ws_set_idle_timeout		(lw_ws, long seconds);
 	lw_import			  void *  lw_ws_tag						(lw_ws);
 	lw_import				void  lw_ws_set_tag					(lw_ws, void * tag);
+	lw_import				void  lw_ws_set_server_relay_tags	(lw_ws, void * tag);
 	lw_import			 lw_addr  lw_ws_req_addr				(lw_ws_req);
 	lw_import			 lw_bool  lw_ws_req_secure				(lw_ws_req);
-	lw_import			 lw_bool  lw_ws_req_websocket			(lw_ws_req);
-	lw_import				void  lw_ws_req_accept_websocket	(lw_ws_req);
 	lw_import		const char *  lw_ws_req_url					(lw_ws_req);
 	lw_import		const char *  lw_ws_req_hostname			(lw_ws_req);
 	lw_import				void  lw_ws_req_disconnect			(lw_ws_req);
 	lw_import			 lw_addr  lw_ws_websocket_addr			(lw_ws_websocket);
 	lw_import			 lw_bool  lw_ws_websocket_secure		(lw_ws_websocket);
-	lw_import				void  lw_ws_websocket_disconnect		(lw_ws_websocket, unsigned int websocket_reason_code);
+	lw_import				void  lw_ws_websocket_disconnect	(lw_ws_websocket, unsigned int websocket_reason_code);
 	lw_import				void  lw_ws_req_set_redirect		(lw_ws_req, const char * url);
 	lw_import				void  lw_ws_req_status				(lw_ws_req, long code, const char * message);
 	lw_import				void  lw_ws_req_set_mimetype		(lw_ws_req, const char * mimetype);
@@ -727,13 +728,16 @@ typedef enum _lw_addr_tostring_flags
 	typedef void (lw_callback * lw_ws_hook_upload_post) (lw_ws, lw_ws_req, lw_ws_upload uploads [], size_t num_uploads);
 	lw_import void lw_ws_on_upload_post (lw_ws, lw_ws_hook_upload_post);
 
-	typedef void (lw_callback * lw_ws_hook_websocket_message) (lw_ws, lw_ws_websocket, const char * buffer, size_t size);
+	typedef lw_bool (lw_callback* lw_ws_hook_websocket_accept) (lw_ws, lw_ws_req);
+	lw_import void lw_ws_on_websocket_accept(lw_ws, lw_ws_hook_websocket_accept);
+
+	typedef void (lw_callback* lw_ws_hook_websocket_connect) (lw_server, lw_server_client);
+	lw_import void lw_ws_on_websocket_connect(lw_ws, lw_ws_hook_websocket_connect);
+
+	typedef void (lw_callback * lw_ws_hook_websocket_message) (lw_server, lw_server_client, const char * buffer, size_t size);
 	lw_import void lw_ws_on_websocket_message (lw_ws, lw_ws_hook_websocket_message);
-	typedef lw_bool (lw_callback * lw_ws_hook_websocket_accept) (lw_ws, lw_ws_req);
-	lw_import void lw_ws_on_websocket_accept (lw_ws, lw_ws_hook_websocket_accept);
-	typedef void (lw_callback * lw_ws_hook_websocket_connect) (lw_ws, lw_ws_websocket);
-	lw_import void lw_ws_on_websocket_connect (lw_ws, lw_ws_hook_websocket_connect);
-	typedef void (lw_callback * lw_ws_hook_websocket_disconnect) (lw_ws, lw_ws_websocket);
+
+	typedef void (lw_callback * lw_ws_hook_websocket_disconnect) (lw_server, lw_server_client);
 	lw_import void lw_ws_on_websocket_disconnect (lw_ws, lw_ws_hook_websocket_disconnect);
 
 	void * lw_malloc_or_exit (const size_t size);
@@ -1274,6 +1278,8 @@ struct _server
 
 	lw_import void tag (void *);
 	lw_import void * tag ();
+	lw_import void relay_tag (void *);
+	lw_import void * relay_tag ();
 };
 
 lw_import server server_new (pump);
@@ -1405,14 +1411,14 @@ struct _webserver
 	typedef void (lw_callback * hook_upload_post)
 		(webserver, webserver_request, webserver_upload uploads[], size_t num_uploads);
 
-	typedef void (lw_callback* hook_websocketmessage)
-		(webserver, webserver_websocket, const char * buffer, size_t size);
-	typedef void (lw_callback* hook_websocketdisconnect)
-		(webserver, webserver_websocket);
 	typedef bool (lw_callback* hook_websocketaccept)
 		(webserver, webserver_request);
 	typedef void (lw_callback* hook_websocketconnect)
-		(webserver, webserver_websocket);
+		(server, server_client);
+	typedef void (lw_callback* hook_websocketmessage)
+		(server, server_client, const char * buffer, size_t size);
+	typedef void (lw_callback* hook_websocketdisconnect)
+		(server, server_client);
 
 	lw_import void on_get			(hook_get);
 	lw_import void on_upload_start	(hook_upload_start);
@@ -1423,13 +1429,14 @@ struct _webserver
 	lw_import void on_head			(hook_head);
 	lw_import void on_disconnect	(hook_disconnect);
 	lw_import void on_error			(hook_error);
-	lw_import void on_websocket_message (hook_websocketmessage);
-	lw_import void on_websocket_disconnect (hook_websocketdisconnect);
 	lw_import void on_websocket_accept (hook_websocketaccept);
 	lw_import void on_websocket_connect (hook_websocketconnect);
+	lw_import void on_websocket_message (hook_websocketmessage);
+	lw_import void on_websocket_disconnect (hook_websocketdisconnect);
 
 	lw_import void tag (void *);
 	lw_import void * tag ();
+	lw_import void server_relay_tags (void *);
 };
 
 lw_import webserver webserver_new (pump);

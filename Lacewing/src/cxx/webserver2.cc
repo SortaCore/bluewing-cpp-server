@@ -188,16 +188,6 @@ bool _webserver_request::secure ()
 	return lw_ws_req_secure ((lw_ws_req) this);
 }
 
-bool _webserver_request::websocket ()
-{
-	return lw_ws_req_websocket ((lw_ws_req) this);
-}
-
-void _webserver_request::accept_websocket ()
-{
-	lw_ws_req_accept_websocket ((lw_ws_req) this);
-}
-
 const char * _webserver_request::url ()
 {
 	return lw_ws_req_url ((lw_ws_req) this);
@@ -487,4 +477,9 @@ void * _webserver::tag ()
 void _webserver::tag (void * tag)
 {
 	lw_ws_set_tag ((lw_ws) this, tag);
+}
+
+void _webserver::server_relay_tags (void * tag)
+{
+	lw_ws_set_server_relay_tags ((lw_ws) this, tag);
 }

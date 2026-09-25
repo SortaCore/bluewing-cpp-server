@@ -66,7 +66,7 @@ static lw_bool process (lw_eventpump ctx, OVERLAPPED * overlapped,
 	return lw_true;
 }
 
-static void watcher (lw_eventpump ctx)
+static DWORD WINAPI watcher (lw_eventpump ctx)
 {
 	for (;;)
 	{
@@ -95,6 +95,8 @@ static void watcher (lw_eventpump ctx)
 		lw_event_wait (ctx->watcher.resume_event, -1);
 		lw_event_unsignal (ctx->watcher.resume_event);
 	}
+
+	return 0;
 }
 
 lw_eventpump lw_eventpump_new ()
@@ -255,6 +257,7 @@ static lw_pump_watch def_add (lw_pump _ctx, HANDLE handle, const char* desc,
 
 	watch->on_completion = callback;
 	watch->tag = tag;
+	always_log("Watch created at %p, for %p, %p.\n", watch, callback, tag);
 
 	// If this fails; it does rarely happen as a race condition during a server shutdown
 	if (CreateIoCompletionPort (handle, ctx->completion_port,

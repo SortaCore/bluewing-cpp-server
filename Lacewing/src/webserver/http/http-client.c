@@ -10,8 +10,8 @@
 
 #include "../common.h"
 
-static void client_tick (lwp_ws_client);
-static void client_cleanup (lwp_ws_client);
+static void http_client_tick (lwp_ws_client);
+static void http_client_cleanup(lwp_ws_client);
 
 static size_t client_upgrade_to_websocket (lwp_ws_httpclient ctx,
 		size_t processed, size_t size)
@@ -23,12 +23,47 @@ static size_t client_upgrade_to_websocket (lwp_ws_httpclient ctx,
 		return size;
 	}
 
-	lwp_ws_httpclient_upgrade (ctx);
+	lw_ws_websocket websocket = ctx->websocket;
+	assert (websocket);
+
+	/* The 101 response is already queued on the socket. Remove HTTP's inbound
+	 * edge before destroying its parser and request streams. */
+	lw_stream socket = (lw_stream) ctx->client.socket;
+	lw_stream http = (lw_stream) ctx;
+	lwp_streamgraph_link link = 0;
+	list_each (lwp_streamgraph_link, http->prev, candidate)
+	{
+		if (candidate->from == socket)
+		{
+			link = candidate;
+			break;
+		}
+	}
+	assert (link);
+	lwp_streamgraph_clear_expanded (socket->graph);
+	list_remove (lwp_streamgraph_link, socket->next, link);
+	list_remove (lwp_streamgraph_link, http->prev, link);
+	free (link);
+	lwp_streamgraph_expand (socket->graph);
+
+	lw_stream_set_tag (socket, websocket);
+	ctx->websocket = 0;
+	lwp_ws_req_delete (ctx->request);
+	ctx->request = 0;
+	lw_stream_delete (http);
+
+	/* This is the permanent inbound protocol edge for the upgraded connection. */
+	lw_stream_write_stream ((lw_stream) websocket, socket, SIZE_MAX, lw_false);
+
+	if (websocket->client.ws->on_websocket_connect)
+		websocket->client.ws->on_websocket_connect (websocket->server,
+			websocket->client.socket);
+
 	return processed;
 }
 
 lwp_ws_client lwp_ws_httpclient_new (lw_ws ws, lw_server_client socket,
-									 lw_bool secure)
+										 lw_bool secure)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) calloc (sizeof (*ctx), 1);
 
@@ -37,10 +72,11 @@ lwp_ws_client lwp_ws_httpclient_new (lw_ws ws, lw_server_client socket,
 
 	ctx->client.ws = ws;
 	ctx->client.socket = socket;
-	ctx->client.tick	 = client_tick;
-	ctx->client.cleanup  = client_cleanup;
-	ctx->client.secure   = secure;
+	ctx->client.tick = http_client_tick;
+	ctx->client.cleanup = http_client_cleanup;
+	ctx->client.secure = secure;
 	ctx->timeout = ws->timeout;
+	ctx->last_activity = time(0);
 
 	lwp_stream_init ((lw_stream) ctx, &def_httpclient, 0);
 
@@ -66,7 +102,7 @@ lwp_ws_client lwp_ws_httpclient_new (lw_ws ws, lw_server_client socket,
 	return (lwp_ws_client) ctx;
 }
 
-void client_cleanup (lwp_ws_client client)
+void http_client_cleanup (lwp_ws_client client)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) client;
 
@@ -74,7 +110,7 @@ void client_cleanup (lwp_ws_client client)
 	* completed (responded == false)
 	*/
 
-	if (ctx->upgrade_requested)
+	if (ctx->websocket_upgrade_requested)
 	{
 		ctx->websocket->client.cleanup ((lwp_ws_client) ctx->websocket);
 		lw_stream_delete ((lw_stream) ctx->websocket);
@@ -90,33 +126,10 @@ void client_cleanup (lwp_ws_client client)
 	lwp_ws_req_delete (ctx->request);
 }
 
-void lwp_ws_httpclient_upgrade (lwp_ws_httpclient ctx)
-{
-	lw_ws_websocket websocket = ctx->websocket;
-	assert (websocket);
-
-	/* The 101 response has already been copied into the socket's output queue.
-	 * HTTP's request stream and parser can now disappear before the next input. */
-	lw_stream_set_tag ((lw_stream) ctx->client.socket, websocket);
-	ctx->websocket = 0;
-	lwp_ws_req_delete (ctx->request);
-	ctx->request = 0;
-	lw_stream_delete ((lw_stream) ctx);
-
-	/* This is the permanent inbound protocol edge for the upgraded connection. */
-	lw_stream_write_stream ((lw_stream) websocket,
-		(lw_stream) websocket->client.socket, SIZE_MAX, lw_false);
-
-	if (websocket->client.ws->on_websocket_connect)
-		websocket->client.ws->on_websocket_connect (websocket->client.ws, websocket);
-}
-
 void lwp_ws_httpclient_close (lwp_ws_httpclient ctx)
 {
 	lw_stream_close ((lw_stream) ctx->client.socket, lw_true);
 }
-
-
 
 /*
  * Stream implementation
@@ -126,7 +139,10 @@ static size_t def_sink_http (lw_stream stream, const char * buffer, size_t size)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) stream;
 
-	lw_pump_thread_check (ctx->client.stream.pump);
+	// There is no pump for stream or ctx->client->stream.pump,
+	// it's a transparent stream made per-request, with no pump or pumpwatch.
+	assert(!stream->pump && !ctx->client.stream.pump);
+	lw_pump_thread_check (lw_stream_pump((lw_stream)ctx->client.socket));
 
 	lwp_trace ("HTTP got " lwp_fmt_size " bytes", size);
 
@@ -183,9 +199,9 @@ static size_t def_sink_http (lw_stream stream, const char * buffer, size_t size)
 
 				processed += parsed;
 
-				/* RFC 6455 requires the client to wait for the upgrade response. */
-				if (ctx->upgrade_requested)
-					return client_finish_websocket_input (ctx, processed, size);
+				/* An accepted upgrade ends HTTP parsing after the response is queued. */
+				if (ctx->parser.upgrade && ctx->websocket_upgrade_requested)
+					return client_upgrade_to_websocket (ctx, processed, size);
 
 				if (ctx->parser.http_errno == HPE_PAUSED)
 				{
@@ -237,9 +253,9 @@ static size_t def_sink_http (lw_stream stream, const char * buffer, size_t size)
 
 	  processed += parsed;
 
-	  /* RFC 6455 requires the client to wait for the upgrade response. */
-	  if (ctx->upgrade_requested)
-		  return client_finish_websocket_input (ctx, processed, size);
+	  /* An accepted upgrade ends HTTP parsing after the response is queued. */
+	  if (ctx->parser.upgrade && ctx->websocket_upgrade_requested)
+		return client_upgrade_to_websocket (ctx, processed, size);
 
 	  if (ctx->parser.http_errno == HPE_PAUSED)
 	  {
@@ -350,7 +366,7 @@ void lwp_ws_httpclient_respond (lwp_ws_httpclient ctx, lw_ws_req request)
 	char * head_buffer = lwp_heapbuffer_buffer (&request->buffer);
 	size_t head_length = lwp_heapbuffer_length (&request->buffer);
 
-	if (ctx->upgrade_requested)
+	if (ctx->websocket_upgrade_requested)
 	{
 		lw_stream socket = (lw_stream) ctx->client.socket;
 		lw_stream request = (lw_stream) ctx->request;
@@ -389,7 +405,7 @@ void lwp_ws_httpclient_respond (lwp_ws_httpclient ctx, lw_ws_req request)
 
 	lw_fdstream_uncork ((lw_fdstream) ctx->client.socket);
 
-	if (!http_should_keep_alive (&ctx->parser) && !ctx->upgrade_requested)
+	if (!http_should_keep_alive (&ctx->parser) && !ctx->websocket_upgrade_requested)
 	  lw_stream_close ((lw_stream) ctx->client.socket, lw_false);
 
 	request->responded = lw_true;
@@ -398,12 +414,14 @@ void lwp_ws_httpclient_respond (lwp_ws_httpclient ctx, lw_ws_req request)
 	* be able to process it now.
 	*/
 
-	if (!ctx->upgrade_requested)
+	if (!ctx->websocket_upgrade_requested)
 		lw_stream_retry ((lw_stream) ctx, lw_stream_retry_now);
 }
 
-void client_tick (lwp_ws_client client)
+void http_client_tick (lwp_ws_client client)
 {
+	assert(!client->is_websocket); // tick should've been removed for websocket
+
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) client;
 
 	if (ctx->request->responded

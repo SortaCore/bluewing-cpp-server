@@ -145,9 +145,16 @@ void * _server::tag ()
 {
 	return lw_server_tag ((lw_server) this);
 }
+void * _server::relay_tag ()
+{
+	return lw_server_relay_tag ((lw_server) this);
+}
 
 void _server::tag (void * tag)
 {
 	lw_server_set_tag ((lw_server) this, tag);
 }
-
+void _server::relay_tag (void * tag)
+{
+	lw_server_set_relay_tag ((lw_server) this, tag);
+}

@@ -168,6 +168,7 @@ void lwp_ws_req_call_hook (lw_ws_req);
 
 void lwp_ws_req_respond (lw_ws_req);
 
+void lw_ws_req_accept_websocket (lw_ws_req);
 
 struct _lwp_ws_client
 {
@@ -175,16 +176,16 @@ struct _lwp_ws_client
 
 	void (* tick) (lwp_ws_client);
 	void (* cleanup) (lwp_ws_client);
-
-	lw_bool secure;
-
 	lw_ws ws;
 	lw_server_client socket;
+	lw_bool secure, is_websocket;
 };
 
 struct _lw_ws_websocket
 {
 	struct _lwp_ws_client client;
+
+	lw_server server; // socket or socket_secure in ws, for easier callback
 
 	// -1 or close code. WebSocket requires a close frame from both endpoints for a clean close.
 	lw_i16 local_close_code, remote_close_code;
@@ -195,4 +196,4 @@ void lwp_ws_websocket_disconnect (lw_ws_websocket, unsigned int websocket_reason
 
 #include "http/http.h"
 
-lw_bool lwp_ws_try_websocket_upgrade (lwp_ws_httpclient);
+lw_bool lwp_ws_accept_websocket_upgrade (lwp_ws_httpclient);

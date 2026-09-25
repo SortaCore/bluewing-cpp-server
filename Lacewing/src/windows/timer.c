@@ -76,7 +76,10 @@ static void timer_completion (void * ptr)
 	lw_timer ctx = (lw_timer) ptr;
 
 	if (ctx->on_tick)
-		ctx->on_tick (ctx);
+	{
+		always_log("ctx->on_tick: %p", ctx->on_tick);
+		ctx->on_tick(ctx);
+	}
 }
 
 DWORD __stdcall timer_thread (lw_timer ctx)

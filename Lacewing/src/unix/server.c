@@ -40,7 +40,7 @@ struct _lw_server
 	lw_server_hook_data on_data;
 	lw_server_hook_error on_error;
 
-	void * tag;
+	void * tag, * relay_tag;
 
 	#ifdef ENABLE_SSL
 		SSL_CTX * ssl_context;
@@ -199,10 +199,18 @@ void lw_server_set_tag (lw_server ctx, void * tag)
 {
 	ctx->tag = tag;
 }
+void lw_server_set_relay_tag(lw_server ctx, void* tag)
+{
+	ctx->relay_tag = tag;
+}
 
 void * lw_server_tag (lw_server ctx)
 {
 	return ctx->tag;
+}
+void * lw_server_relay_tag (lw_server ctx)
+{
+	return ctx->relay_tag;
 }
 
 static lw_bool add_client_internal(lw_server ctx,

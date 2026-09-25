@@ -89,6 +89,7 @@ struct _lw_stream
 	const lw_streamdef * def;
 
 	lw_pump pump;
+	// Watches aren't used in all streams, although pump is always set
 	lw_pump_watch watch;
 
 	lw_i8 flags;

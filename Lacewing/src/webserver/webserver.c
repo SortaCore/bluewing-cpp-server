@@ -43,6 +43,7 @@ static void on_disconnect (lw_server server, lw_server_client client_socket)
 		return; // no op
 	}
 	assert (client);
+	assert (client->is_websocket == lw_server_client_is_websocket (client_socket));
 
 	client->cleanup (client);
 	lw_stream_delete ((lw_stream) client);
@@ -84,7 +85,7 @@ static void websocket_cleanup (lwp_ws_client client)
 	lw_ws_websocket websocket = (lw_ws_websocket) client;
 
 	if (client->ws->on_websocket_disconnect)
-		client->ws->on_websocket_disconnect (client->ws, websocket);
+		client->ws->on_websocket_disconnect (websocket->server, websocket->client.socket);
 }
 
 lw_ws_websocket lwp_ws_websocket_new (lw_ws ws, lw_server_client socket,
@@ -97,12 +98,22 @@ lw_ws_websocket lwp_ws_websocket_new (lw_ws ws, lw_server_client socket,
 	ctx->client.ws = ws;
 	ctx->client.socket = socket;
 	ctx->client.secure = secure;
+	ctx->client.is_websocket = lw_true;
 	ctx->client.tick = websocket_tick;
 	ctx->client.cleanup = websocket_cleanup;
+	ctx->server = secure ? ws->socket_secure : ws->socket;
 	ctx->local_close_code = ctx->remote_close_code = -1;
 
 	lwp_stream_init ((lw_stream) ctx, &def_websocketclient, ws->pump);
 	return ctx;
+}
+
+static void * websocket_close_after_read (void * param)
+{
+	lw_stream socket = (lw_stream) param;
+	lw_stream_close (socket, lw_true);
+	lwp_release (socket, "websocket close post");
+	return 0;
 }
 
 void lwp_ws_websocket_disconnect (lw_ws_websocket ctx,
@@ -123,7 +134,16 @@ void lwp_ws_websocket_disconnect (lw_ws_websocket ctx,
 	}
 
 	if (ctx->remote_close_code != -1)
-		lw_stream_close ((lw_stream) ctx->client.socket, lw_true);
+	{
+		/* This can be called by websocket_sink_data while the stream graph is
+		 * in lwp_stream_write_direct(). Closing the socket here clears the
+		 * graph's expanded links before that direct write has finished using
+		 * them. Keep the socket alive and close it on the next pump turn. */
+		lw_stream socket = (lw_stream) ctx->client.socket;
+		lwp_retain (socket, "websocket close post");
+		lw_pump_post (lw_stream_pump (socket),
+			(void *) websocket_close_after_read, socket);
+	}
 }
 
 lw_addr lw_ws_websocket_addr (lw_ws_websocket ctx)
@@ -144,7 +164,7 @@ void lw_ws_websocket_disconnect (lw_ws_websocket ctx,
 
 static lw_bool websocket_key_valid (const char * key)
 {
-	if (strlen (key) != 24 || key [22] != '=' || key [23] != '=')
+	if (strnlen (key, 25) != 24 || key [22] != '=' || key [23] != '=')
 		return lw_false;
 
 	for (size_t i = 0; i < 22; ++ i)
@@ -154,52 +174,73 @@ static lw_bool websocket_key_valid (const char * key)
 	return lw_true;
 }
 
-static void websocket_accept_value (const char * key, char output [29])
+lw_bool lwp_ws_accept_websocket_upgrade (lwp_ws_httpclient ctx)
 {
-	static const char alphabet [] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	char input [61];
-	char sha1 [20];
-	memcpy (input, key, 24);
-	memcpy (input + 24, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
-	lw_sha1 (sha1, input, 60);
+	const lw_ws ws = ctx->client.ws;
+	const lw_ws_req req = ctx->request;
 
-	for (size_t i = 0, j = 0; i < sizeof (sha1); i += 3)
+	// Caller should have checked this
+	assert(!strcmp(req->method, "GET"));
+	assert(!strcasecmp(lw_ws_req_header(req, "upgrade"), "websocket"));
+
+	// No handler, this webserver doesn't support websocket
+	if (!ws->on_websocket_message)
 	{
-		unsigned int n = (unsigned char) sha1 [i] << 16;
-		if (i + 1 < sizeof (sha1)) n |= (unsigned char) sha1 [i + 1] << 8;
-		if (i + 2 < sizeof (sha1)) n |= (unsigned char) sha1 [i + 2];
-		output [j ++] = alphabet [n >> 18];
-		output [j ++] = alphabet [(n >> 12) & 63];
-		output [j ++] = i + 1 < sizeof (sha1) ? alphabet [(n >> 6) & 63] : '=';
-		output [j ++] = i + 2 < sizeof (sha1) ? alphabet [n & 63] : '=';
-	}
-	output [28] = 0;
-}
-
-lw_bool lwp_ws_try_websocket_upgrade (lwp_ws_httpclient ctx)
-{
-	lw_ws ws = ctx->client.ws;
-	lw_ws_req req = ctx->request;
-	if (!ws->on_websocket_message || !ctx->parser.upgrade)
+		lw_ws_req_status(req, 400, "Bad WebSocket Request");
+		always_log("WebSocket upgrade request ignored: no WebSocket message handler.");
 		return lw_false;
+	}
 
-	const char * key = lw_ws_req_header (req, "sec-websocket-key");
-	if (strcmp (req->method, "GET") || strcasecmp (lw_ws_req_header (req, "upgrade"), "websocket")
-		|| strcmp (lw_ws_req_header (req, "sec-websocket-version"), "13") || !websocket_key_valid (key)
-		|| (ws->on_websocket_accept && !ws->on_websocket_accept (ws, req)))
+	const char * const key = lw_ws_req_header (req, "sec-websocket-key");
+	if (strcmp (lw_ws_req_header (req, "sec-websocket-version"), "13") ||
+		!websocket_key_valid (key))
 	{
+		always_log("Rejecting incoming WebSocket connect due to invalid version or websocket key");
 		lw_ws_req_status (req, 400, "Bad WebSocket Request");
 		lwp_ws_req_respond (req);
-		return lw_true;
+		return lw_false;
 	}
 
-	char accept [29];
-	websocket_accept_value (key, accept);
+	// User handler: optional, if not present, accept by default
+	if (ws->on_websocket_accept && !ws->on_websocket_accept(ws, req))
+	{
+		lwp_trace("Rejecting incoming WebSocket connect to accept handler refusal");
+		lw_ws_req_status(req, 400, "Bad WebSocket Request");
+		lwp_ws_req_respond(req);
+		return lw_false;
+	}
+
+	// Create the WebSocket protocol stream before composing the upgrade response.
+	lw_ws_req_accept_websocket(req);
+	if (!ctx->websocket_upgrade_requested)
+		return lw_true; // Allocation failed; the request helper already closed the socket.
+
+	static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	char reqKey[61], replyKey[29];
+	lw_ui8 sha1[20];
+
+	memcpy(reqKey, key, 24);
+	memcpy(reqKey + 24, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
+	lw_sha1((char*)sha1, reqKey, 24 + 36);
+
+	for (size_t i = 0, j = 0, n; i < sizeof(sha1); i += 3)
+	{
+		n = (size_t)sha1[i] << 16u;
+		if (i + 1 < sizeof(sha1))
+			n |= (size_t)sha1[i + 1] << 8u;
+		if (i + 2 < sizeof(sha1))
+			n |= sha1[i + 2];
+		replyKey[j++] = alphabet[n >> 18];
+		replyKey[j++] = alphabet[(n >> 12) & 63];
+		replyKey[j++] = i + 1 < sizeof(sha1) ? alphabet[(n >> 6) & 63] : '=';
+		replyKey[j++] = i + 2 < sizeof(sha1) ? alphabet[n & 63] : '=';
+	}
+	replyKey[28] = 0;
+
 	lw_server_client_set_websocket (ctx->client.socket, lw_true);
-	lw_ws_req_accept_websocket (req);
 	lw_ws_req_set_header (req, "Upgrade", "websocket");
 	lw_ws_req_set_header (req, "Connection", "Upgrade");
-	lw_ws_req_set_header (req, "Sec-WebSocket-Accept", accept);
+	lw_ws_req_set_header (req, "Sec-WebSocket-Accept", replyKey);
 	lw_ws_req_status (req, 101, "Switching Protocols");
 	lwp_ws_req_respond (req);
 	return lw_true;
@@ -340,7 +381,7 @@ static size_t websocket_sink_data (lw_stream stream, const char * data, size_t s
 		{
 			// Binary message - make sure there's content
 			if (opcode == 2 && size > 0)
-				webserver->on_websocket_message(webserver, client, unmaskedData, size);
+				webserver->on_websocket_message(client->server, client->client.socket, unmaskedData, size);
 			// WebSocket layer ping
 			// Bluewing doesn't actually use the WebSocket ping, because if the Fusion app crashes, the browser will keep the socket alive,
 			// responding to WebSocket pings, but the app will be unresponsive.
@@ -625,6 +666,11 @@ void * lw_ws_tag (lw_ws ctx)
 void lw_ws_set_tag (lw_ws ctx, void * tag)
 {
 	ctx->tag = tag;
+}
+void lw_ws_set_server_relay_tags (lw_ws ctx, void * tag)
+{
+	lw_server_set_relay_tag(ctx->socket, tag);
+	lw_server_set_relay_tag(ctx->socket_secure, tag);
 }
 
 lwp_def_hook (ws, get)

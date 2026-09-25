@@ -149,6 +149,14 @@ void lwp_ws_req_call_hook (lw_ws_req ctx)
 	{
 	  if (!strcmp (ctx->method, "GET"))
 	  {
+		 lwp_ws_httpclient client = (lwp_ws_httpclient) ctx->client;
+		 if (client->parser.upgrade &&
+			 !strcasecmp (lw_ws_req_header (ctx, "upgrade"), "websocket") &&
+			 lwp_ws_accept_websocket_upgrade (client))
+		 {
+			return;
+		 }
+
 		 if (ctx->ws->on_get)
 			ctx->ws->on_get (ctx->ws, ctx);
 
@@ -841,13 +849,13 @@ lw_bool lw_ws_req_secure (lw_ws_req ctx)
 
 lw_bool lw_ws_req_websocket (lw_ws_req ctx)
 {
-	return ((lwp_ws_httpclient) ctx->client)->upgrade_requested;
+	return ((lwp_ws_httpclient) ctx->client)->websocket_upgrade_requested;
 }
 
 void lw_ws_req_accept_websocket (lw_ws_req ctx)
 {
 	lwp_ws_httpclient client = (lwp_ws_httpclient) ctx->client;
-	if (client->upgrade_requested)
+	if (client->websocket_upgrade_requested)
 		return;
 
 	client->websocket = lwp_ws_websocket_new (client->client.ws,
@@ -858,7 +866,7 @@ void lw_ws_req_accept_websocket (lw_ws_req ctx)
 		return;
 	}
 
-	client->upgrade_requested = lw_true;
+	client->websocket_upgrade_requested = lw_true;
 }
 
 const char * lw_ws_req_hostname (lw_ws_req ctx)

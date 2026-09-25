@@ -250,7 +250,7 @@ static size_t def_sink_data (lw_stream stream, const char * buffer, size_t size)
 	lw_fdstream ctx = (lw_fdstream) stream;
 
 	lwp_trace ("fdstream sink " lwp_fmt_size " bytes", size);
-	lw_pump_thread_check(ctx->pump);
+	lw_pump_thread_check(ctx->stream.pump);
 
 	ssize_t written;
 

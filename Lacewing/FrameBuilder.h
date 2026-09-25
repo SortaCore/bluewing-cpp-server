@@ -16,11 +16,11 @@
 class framebuilder : public messagebuilder
 {
 protected:
-	static constexpr lw_ui32 frameHeaderSize = 8;
 	// 11 is the largest pre-allocated header, WebSocket uses it for >65KiB packets.
 	// Standard TCP is one byte type
 	// UDP uses a 1 or 3 byte header.
 	static constexpr lw_ui32 preallocHdrSize = 11;
+	static constexpr lw_ui32 frameHeaderSize = 8;
 	static constexpr lw_ui32 headerPrefixSize = preallocHdrSize - frameHeaderSize;
 
 	void preparefortransmission(bool iswebsocketclient)
@@ -154,7 +154,7 @@ public:
 		assert(size == preallocHdrSize && "lacewing framebuilder.addheader() error: adding header to message that already has one.");
 		assert(type <= 0xF && variant <= 0xF);
 
-		const lw_ui8 relayType = (type << 4) | variant;
+		const lw_ui8 relayType = (lw_ui8)((type << 4) | variant);
 
 		if (!forudp)
 		{

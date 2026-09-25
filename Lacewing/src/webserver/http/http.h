@@ -22,8 +22,8 @@ typedef struct _lwp_ws_httpclient
 	http_parser parser;
 
 	lw_bool parsing_headers, signal_eof;
-	lw_bool upgrade_requested;
 	lw_ws_websocket websocket;
+	lw_bool websocket_upgrade_requested;
 	lwp_ws_multipart multipart;
 
 	char * cur_header_name;
@@ -38,7 +38,6 @@ extern "C" {
 lwp_ws_client lwp_ws_httpclient_new
 	(lw_ws, lw_server_client socket, lw_bool secure);
 
-void lwp_ws_httpclient_upgrade (lwp_ws_httpclient);
 void lwp_ws_httpclient_close (lwp_ws_httpclient);
 void lwp_ws_httpclient_respond (lwp_ws_httpclient, lw_ws_req);
 
