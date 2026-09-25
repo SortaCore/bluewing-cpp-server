@@ -186,7 +186,6 @@ void lwp_stream_init (lw_stream, const lw_streamdef *, lw_pump);
 
  lw_bool lwp_stream_write_direct (lw_stream);
 
-
 /* Returns true if this stream is ready to be closed - i.e. nothing is
  * queued or currently being written.
  */
@@ -205,5 +204,3 @@ void lwp_stream_init (lw_stream, const lw_streamdef *, lw_pump);
  lw_bool lwp_stream_close (lw_stream, lw_bool immediate);
 
 #endif
-
-

@@ -182,6 +182,7 @@ typedef enum _lw_addr_tostring_flags
 	typedef struct _lw_flashpolicy		*  lw_flashpolicy;
 	typedef struct _lw_ws				*  lw_ws;
 	typedef struct _lw_ws_req			*  lw_ws_req;
+	typedef struct _lw_ws_websocket		*  lw_ws_websocket;
 	typedef struct _lw_ws_req_hdr		*  lw_ws_req_hdr;
 	typedef struct _lw_ws_req_param		*  lw_ws_req_param;
 	typedef struct _lw_ws_req_cookie	*  lw_ws_req_cookie;
@@ -636,9 +637,13 @@ typedef enum _lw_addr_tostring_flags
 	lw_import			 lw_addr  lw_ws_req_addr				(lw_ws_req);
 	lw_import			 lw_bool  lw_ws_req_secure				(lw_ws_req);
 	lw_import			 lw_bool  lw_ws_req_websocket			(lw_ws_req);
+	lw_import				void  lw_ws_req_accept_websocket	(lw_ws_req);
 	lw_import		const char *  lw_ws_req_url					(lw_ws_req);
 	lw_import		const char *  lw_ws_req_hostname			(lw_ws_req);
-	lw_import				void  lw_ws_req_disconnect			(lw_ws_req, unsigned int websocket_reason_code);
+	lw_import				void  lw_ws_req_disconnect			(lw_ws_req);
+	lw_import			 lw_addr  lw_ws_websocket_addr			(lw_ws_websocket);
+	lw_import			 lw_bool  lw_ws_websocket_secure		(lw_ws_websocket);
+	lw_import				void  lw_ws_websocket_disconnect		(lw_ws_websocket, unsigned int websocket_reason_code);
 	lw_import				void  lw_ws_req_set_redirect		(lw_ws_req, const char * url);
 	lw_import				void  lw_ws_req_status				(lw_ws_req, long code, const char * message);
 	lw_import				void  lw_ws_req_set_mimetype		(lw_ws_req, const char * mimetype);
@@ -722,8 +727,14 @@ typedef enum _lw_addr_tostring_flags
 	typedef void (lw_callback * lw_ws_hook_upload_post) (lw_ws, lw_ws_req, lw_ws_upload uploads [], size_t num_uploads);
 	lw_import void lw_ws_on_upload_post (lw_ws, lw_ws_hook_upload_post);
 
-	typedef void (lw_callback * lw_ws_hook_websocket_message) (lw_ws, lw_ws_req, const char * buffer, size_t size);
+	typedef void (lw_callback * lw_ws_hook_websocket_message) (lw_ws, lw_ws_websocket, const char * buffer, size_t size);
 	lw_import void lw_ws_on_websocket_message (lw_ws, lw_ws_hook_websocket_message);
+	typedef lw_bool (lw_callback * lw_ws_hook_websocket_accept) (lw_ws, lw_ws_req);
+	lw_import void lw_ws_on_websocket_accept (lw_ws, lw_ws_hook_websocket_accept);
+	typedef void (lw_callback * lw_ws_hook_websocket_connect) (lw_ws, lw_ws_websocket);
+	lw_import void lw_ws_on_websocket_connect (lw_ws, lw_ws_hook_websocket_connect);
+	typedef void (lw_callback * lw_ws_hook_websocket_disconnect) (lw_ws, lw_ws_websocket);
+	lw_import void lw_ws_on_websocket_disconnect (lw_ws, lw_ws_hook_websocket_disconnect);
 
 	void * lw_malloc_or_exit (const size_t size);
 	void * lw_calloc_or_exit (const size_t count, const size_t size);
@@ -1332,6 +1343,7 @@ lw_import void udp_delete (udp&);
 
 typedef struct _webserver						* webserver;
 typedef struct _webserver_request				* webserver_request;
+typedef struct _webserver_websocket				* webserver_websocket;
 typedef struct _webserver_request_header		* webserver_request_header;
 typedef struct _webserver_request_cookie		* webserver_request_cookie;
 typedef struct _webserver_request_param		 * webserver_request_param;
@@ -1394,7 +1406,13 @@ struct _webserver
 		(webserver, webserver_request, webserver_upload uploads[], size_t num_uploads);
 
 	typedef void (lw_callback* hook_websocketmessage)
-		(webserver, webserver_request, const char * buffer, size_t size);
+		(webserver, webserver_websocket, const char * buffer, size_t size);
+	typedef void (lw_callback* hook_websocketdisconnect)
+		(webserver, webserver_websocket);
+	typedef bool (lw_callback* hook_websocketaccept)
+		(webserver, webserver_request);
+	typedef void (lw_callback* hook_websocketconnect)
+		(webserver, webserver_websocket);
 
 	lw_import void on_get			(hook_get);
 	lw_import void on_upload_start	(hook_upload_start);
@@ -1406,6 +1424,9 @@ struct _webserver
 	lw_import void on_disconnect	(hook_disconnect);
 	lw_import void on_error			(hook_error);
 	lw_import void on_websocket_message (hook_websocketmessage);
+	lw_import void on_websocket_disconnect (hook_websocketdisconnect);
+	lw_import void on_websocket_accept (hook_websocketaccept);
+	lw_import void on_websocket_connect (hook_websocketconnect);
 
 	lw_import void tag (void *);
 	lw_import void * tag ();
@@ -1423,6 +1444,7 @@ struct _webserver_request : public _stream
 
 	lw_import bool secure ();
 	lw_import bool websocket ();
+	lw_import void accept_websocket ();
 
 	lw_import const char * url ();
 	lw_import const char * hostname ();
@@ -1494,6 +1516,15 @@ struct _webserver_request : public _stream
 	lw_import const char * POST (const char * name);
 
 	lw_import const char * body ();
+};
+
+struct _webserver_websocket
+{
+	lw_class_wraps (ws_websocket);
+
+	lw_import lacewing::address address ();
+	lw_import bool secure ();
+	lw_import void disconnect (unsigned int reason_code = 1000);
 };
 
 struct _webserver_request_header
@@ -2367,4 +2398,3 @@ struct relayserver
 
 #endif /* defined (__cplusplus) */
 #endif /* _lacewing_h */
-

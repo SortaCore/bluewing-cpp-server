@@ -99,7 +99,7 @@ static void on_autosave_close (lw_stream stream, void * tag)
 	lw_stream_delete ((lw_stream) upload->autosave_file);
 	upload->autosave_file = 0;
 
-	lwp_ws_multipart_call_hook (upload->request->client->multipart);
+	lwp_ws_multipart_call_hook (((lwp_ws_httpclient) upload->request->client)->multipart);
 }
 
 void lw_ws_upload_set_autosave (lw_ws_upload ctx)
@@ -125,4 +125,3 @@ const char * lw_ws_upload_autosave_fname (lw_ws_upload ctx)
 
 	return ctx->autosave_filename;
 }
-

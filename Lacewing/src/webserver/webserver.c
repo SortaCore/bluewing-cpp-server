@@ -10,6 +10,8 @@
 
 #include "common.h"
 
+void lw_server_client_set_websocket (lw_server_client, lw_bool);
+
 static void on_connect (lw_server server, lw_server_client client_socket)
 {
 	lw_ws ws = (lw_ws) lw_server_tag (server);
@@ -58,10 +60,157 @@ static void on_error (lw_server server, lw_error error)
 		ws->on_error (ws, error);
 }
 
+static size_t websocket_sink_data (lw_stream stream, const char * buffer, size_t size);
+
+static const lw_streamdef def_websocketclient =
+{
+	websocket_sink_data,
+	0, /* sink_stream */
+	0, /* retry */
+	0, /* is_transparent */
+	0, /* close */
+	0, /* bytes_left */
+	0, /* read */
+	0  /* cleanup */
+};
+
+static void websocket_tick (lwp_ws_client client)
+{
+	/* WebSocket connections deliberately have no HTTP idle timeout. */
+}
+
+static void websocket_cleanup (lwp_ws_client client)
+{
+	lw_ws_websocket websocket = (lw_ws_websocket) client;
+
+	if (client->ws->on_websocket_disconnect)
+		client->ws->on_websocket_disconnect (client->ws, websocket);
+}
+
+lw_ws_websocket lwp_ws_websocket_new (lw_ws ws, lw_server_client socket,
+	lw_bool secure)
+{
+	lw_ws_websocket ctx = (lw_ws_websocket) calloc (sizeof (*ctx), 1);
+	if (!ctx)
+		return 0;
+
+	ctx->client.ws = ws;
+	ctx->client.socket = socket;
+	ctx->client.secure = secure;
+	ctx->client.tick = websocket_tick;
+	ctx->client.cleanup = websocket_cleanup;
+	ctx->local_close_code = ctx->remote_close_code = -1;
+
+	lwp_stream_init ((lw_stream) ctx, &def_websocketclient, ws->pump);
+	return ctx;
+}
+
+void lwp_ws_websocket_disconnect (lw_ws_websocket ctx,
+	unsigned int websocket_exit_reason)
+{
+	if (ctx->local_close_code == -1)
+	{
+		if (websocket_exit_reason == 0)
+			websocket_exit_reason = 1000;
+
+		ctx->local_close_code = (lw_i16) websocket_exit_reason;
+
+		lw_ui16 exit_reason = htons ((lw_ui16) websocket_exit_reason);
+		char close_msg [] = { (char) 0b10001000, (char) sizeof (exit_reason),
+			((char *) &exit_reason) [0], ((char *) &exit_reason) [1] };
+		lwp_stream_write ((lw_stream) ctx->client.socket, close_msg,
+			sizeof (close_msg), 0);
+	}
+
+	if (ctx->remote_close_code != -1)
+		lw_stream_close ((lw_stream) ctx->client.socket, lw_true);
+}
+
+lw_addr lw_ws_websocket_addr (lw_ws_websocket ctx)
+{
+	return lw_server_client_remote_addr (ctx->client.socket);
+}
+
+lw_bool lw_ws_websocket_secure (lw_ws_websocket ctx)
+{
+	return ctx->client.secure;
+}
+
+void lw_ws_websocket_disconnect (lw_ws_websocket ctx,
+	unsigned int websocket_reason_code)
+{
+	lwp_ws_websocket_disconnect (ctx, websocket_reason_code);
+}
+
+static lw_bool websocket_key_valid (const char * key)
+{
+	if (strlen (key) != 24 || key [22] != '=' || key [23] != '=')
+		return lw_false;
+
+	for (size_t i = 0; i < 22; ++ i)
+		if (!isalnum ((unsigned char) key [i]) && key [i] != '+' && key [i] != '/')
+			return lw_false;
+
+	return lw_true;
+}
+
+static void websocket_accept_value (const char * key, char output [29])
+{
+	static const char alphabet [] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	char input [61];
+	char sha1 [20];
+	memcpy (input, key, 24);
+	memcpy (input + 24, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
+	lw_sha1 (sha1, input, 60);
+
+	for (size_t i = 0, j = 0; i < sizeof (sha1); i += 3)
+	{
+		unsigned int n = (unsigned char) sha1 [i] << 16;
+		if (i + 1 < sizeof (sha1)) n |= (unsigned char) sha1 [i + 1] << 8;
+		if (i + 2 < sizeof (sha1)) n |= (unsigned char) sha1 [i + 2];
+		output [j ++] = alphabet [n >> 18];
+		output [j ++] = alphabet [(n >> 12) & 63];
+		output [j ++] = i + 1 < sizeof (sha1) ? alphabet [(n >> 6) & 63] : '=';
+		output [j ++] = i + 2 < sizeof (sha1) ? alphabet [n & 63] : '=';
+	}
+	output [28] = 0;
+}
+
+lw_bool lwp_ws_try_websocket_upgrade (lwp_ws_httpclient ctx)
+{
+	lw_ws ws = ctx->client.ws;
+	lw_ws_req req = ctx->request;
+	if (!ws->on_websocket_message || !ctx->parser.upgrade)
+		return lw_false;
+
+	const char * key = lw_ws_req_header (req, "sec-websocket-key");
+	if (strcmp (req->method, "GET") || strcasecmp (lw_ws_req_header (req, "upgrade"), "websocket")
+		|| strcmp (lw_ws_req_header (req, "sec-websocket-version"), "13") || !websocket_key_valid (key)
+		|| (ws->on_websocket_accept && !ws->on_websocket_accept (ws, req)))
+	{
+		lw_ws_req_status (req, 400, "Bad WebSocket Request");
+		lwp_ws_req_respond (req);
+		return lw_true;
+	}
+
+	char accept [29];
+	websocket_accept_value (key, accept);
+	lw_server_client_set_websocket (ctx->client.socket, lw_true);
+	lw_ws_req_accept_websocket (req);
+	lw_ws_req_set_header (req, "Upgrade", "websocket");
+	lw_ws_req_set_header (req, "Connection", "Upgrade");
+	lw_ws_req_set_header (req, "Sec-WebSocket-Accept", accept);
+	lw_ws_req_status (req, 101, "Switching Protocols");
+	lwp_ws_req_respond (req);
+	return lw_true;
+}
+
 _Bool lw_u8str_validate(const char* toValidate, size_t size);
 
-size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, const char* data, size_t size)
+static size_t websocket_sink_data (lw_stream stream, const char * data, size_t size)
 {
+	lw_ws_websocket client = (lw_ws_websocket) stream;
+	lw_ws webserver = client->client.ws;
 	const size_t originalSize = size;
 	char * unmaskedData = NULL;
 	const char * error = NULL;
@@ -187,11 +336,11 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 
 		// If we've started a disconnect (!= -1), we'll ignore everything except an acknowledging close response.
 		// (if the client is dodgy and won't acknowledge, they'll get timed out anyway)
-		if (client->client.local_close_code == -1)
+		if (client->local_close_code == -1)
 		{
 			// Binary message - make sure there's content
 			if (opcode == 2 && size > 0)
-				webserver->on_websocket_message(webserver, client->request, unmaskedData, size);
+				webserver->on_websocket_message(webserver, client, unmaskedData, size);
 			// WebSocket layer ping
 			// Bluewing doesn't actually use the WebSocket ping, because if the Fusion app crashes, the browser will keep the socket alive,
 			// responding to WebSocket pings, but the app will be unresponsive.
@@ -202,7 +351,7 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 				error2[0] = (char)0b10001010; // fin + pong
 				error2[1] = (char)size; // msg size (no mask); note control frames like ping are hard-capped to < 125 bytes
 				memcpy(error2 + 2, unmaskedData, size);
-				lwp_stream_write(&client->client.stream, error2, 2 + size, lwp_stream_write_ignore_busy);
+				lwp_stream_write((lw_stream)client->client.socket, error2, 2 + size, 0);
 			}
 			// WebSocket layer pong
 			else if (opcode == 10) {
@@ -238,8 +387,8 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 			}
 
 			// Log close reason; req_disconnect will send our WebSocket close packet, then close connection immediately
-			client->client.remote_close_code = (lw_i16)remote_code_reason;
-			lw_ws_req_disconnect(client->request, 1000);
+			client->remote_close_code = (lw_i16)remote_code_reason;
+			lwp_ws_websocket_disconnect(client, 1000);
 		}
 
 		free(unmaskedData);
@@ -256,7 +405,7 @@ size_t lw_webserver_sink_websocket(lw_ws webserver, lwp_ws_httpclient client, co
 		if (webserver->on_error)
 			webserver->on_error(webserver, err);
 		lw_error_delete(err);
-		lw_ws_req_disconnect(client->request, errorCode);
+		lwp_ws_websocket_disconnect(client, errorCode);
 	}
 	free(unmaskedData);
 	return originalSize;
@@ -311,7 +460,6 @@ lw_ws lw_ws_new (lw_pump pump)
 	ctx->pump = pump;
 	ctx->auto_finish = lw_true;
 	ctx->timeout = 5; // time to respond to first request
-	ctx->websocket = lw_false;
 
 	ctx->timer = lw_timer_new (ctx->pump, "webserver timer");
 	lw_timer_set_tag (ctx->timer, ctx);
@@ -489,3 +637,6 @@ lwp_def_hook (ws, upload_done)
 lwp_def_hook (ws, upload_post)
 lwp_def_hook (ws, disconnect)
 lwp_def_hook (ws, websocket_message)
+lwp_def_hook (ws, websocket_accept)
+lwp_def_hook (ws, websocket_connect)
+lwp_def_hook (ws, websocket_disconnect)

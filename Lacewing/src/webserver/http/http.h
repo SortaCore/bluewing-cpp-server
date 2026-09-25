@@ -17,23 +17,36 @@ typedef struct _lwp_ws_httpclient
 	lw_ws_req request; /* HTTP is one request at a time, so this is just reused */
 
 	time_t last_activity;
+	long timeout;
 
 	http_parser parser;
 
 	lw_bool parsing_headers, signal_eof;
+	lw_bool upgrade_requested;
+	lw_ws_websocket websocket;
+	lwp_ws_multipart multipart;
 
 	char * cur_header_name;
 	size_t cur_header_name_length;
 
 } * lwp_ws_httpclient;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 lwp_ws_client lwp_ws_httpclient_new
 	(lw_ws, lw_server_client socket, lw_bool secure);
 
-void lwp_ws_httpclient_delete (lw_ws, lwp_ws_httpclient);
+void lwp_ws_httpclient_upgrade (lwp_ws_httpclient);
+void lwp_ws_httpclient_close (lwp_ws_httpclient);
+void lwp_ws_httpclient_respond (lwp_ws_httpclient, lw_ws_req);
 
 extern const http_parser_settings parser_settings;
 
 extern const lw_streamdef def_httpclient;
 extern const lw_streamdef def_httprequest;
 
+#ifdef __cplusplus
+}
+#endif

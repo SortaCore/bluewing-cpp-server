@@ -185,10 +185,7 @@ public:
 			preparefortransmission(wasWebLast);
 		}
 
-		if (wasWebLast)
-			lwp_stream_write((lw_stream)client, (char *)tosend, tosendsize, 2 /* lwp_stream_write_ignore_busy */);
-		else
-			client->write((char *)tosend, tosendsize);
+		client->write((char *)tosend, tosendsize);
 
 		if (clear)
 			framereset();

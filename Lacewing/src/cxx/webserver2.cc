@@ -162,6 +162,22 @@ void _webserver::on_websocket_message(_webserver::hook_websocketmessage hook)
 	lw_ws_on_websocket_message ((lw_ws) this, (lw_ws_hook_websocket_message) hook);
 }
 
+void _webserver::on_websocket_disconnect(_webserver::hook_websocketdisconnect hook)
+{
+	lw_ws_on_websocket_disconnect ((lw_ws) this,
+		(lw_ws_hook_websocket_disconnect) hook);
+}
+
+void _webserver::on_websocket_accept(_webserver::hook_websocketaccept hook)
+{
+	lw_ws_on_websocket_accept ((lw_ws) this, (lw_ws_hook_websocket_accept) hook);
+}
+
+void _webserver::on_websocket_connect(_webserver::hook_websocketconnect hook)
+{
+	lw_ws_on_websocket_connect ((lw_ws) this, (lw_ws_hook_websocket_connect) hook);
+}
+
 lacewing::address _webserver_request::address ()
 {
 	return (lacewing::address) lw_ws_req_addr ((lw_ws_req) this);
@@ -177,6 +193,11 @@ bool _webserver_request::websocket ()
 	return lw_ws_req_websocket ((lw_ws_req) this);
 }
 
+void _webserver_request::accept_websocket ()
+{
+	lw_ws_req_accept_websocket ((lw_ws_req) this);
+}
+
 const char * _webserver_request::url ()
 {
 	return lw_ws_req_url ((lw_ws_req) this);
@@ -189,7 +210,22 @@ const char * _webserver_request::hostname ()
 
 void _webserver_request::disconnect ()
 {
-	lw_ws_req_disconnect ((lw_ws_req) this, 0);
+	lw_ws_req_disconnect ((lw_ws_req) this);
+}
+
+lacewing::address _webserver_websocket::address ()
+{
+	return (lacewing::address) lw_ws_websocket_addr ((lw_ws_websocket) this);
+}
+
+bool _webserver_websocket::secure ()
+{
+	return lw_ws_websocket_secure ((lw_ws_websocket) this);
+}
+
+void _webserver_websocket::disconnect (unsigned int reason_code)
+{
+	lw_ws_websocket_disconnect ((lw_ws_websocket) this, reason_code);
 }
 
 void _webserver_request::redirect (const char * url)
@@ -452,4 +488,3 @@ void _webserver::tag (void * tag)
 {
 	lw_ws_set_tag ((lw_ws) this, tag);
 }
-

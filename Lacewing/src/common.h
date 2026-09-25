@@ -119,6 +119,7 @@ void always_log(const char* c, ...);
  typedef struct _lw_flashpolicy		* lw_flashpolicy;
  typedef struct _lw_ws				* lw_ws;
  typedef struct _lw_ws_req			* lw_ws_req;
+ typedef struct _lw_ws_websocket		* lw_ws_websocket;
  typedef struct _lw_ws_req_hdr		* lw_ws_req_hdr;
  typedef struct _lw_ws_req_param	* lw_ws_req_param;
  typedef struct _lw_ws_req_cookie	* lw_ws_req_cookie;
@@ -259,5 +260,4 @@ extern lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg);
 	void lw_##c##_on_##hook (lw_##c ctx, lw_##c##_hook_##hook hook)			\
 	{	ctx->on_##hook = hook;												\
 	}																		 \
-
 

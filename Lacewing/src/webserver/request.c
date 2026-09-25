@@ -473,7 +473,7 @@ void lwp_ws_req_respond (lw_ws_req ctx)
 	/* James note: Respond may delete us w/ SPDY blah blah
 	   Phi note: SPDY was deprecated in favour of HTTP/2 in 2021, and so removed from liblacewing */
 
-	ctx->client->respond (ctx->client, ctx);
+	lwp_ws_httpclient_respond ((lwp_ws_httpclient) ctx->client, ctx);
 }
 
 lw_addr lw_ws_req_addr (lw_ws_req ctx)
@@ -481,38 +481,9 @@ lw_addr lw_ws_req_addr (lw_ws_req ctx)
 	return lw_server_client_remote_addr (ctx->client->socket);
 }
 
-void lw_ws_req_disconnect (lw_ws_req ctx, unsigned int websocket_exit_reason)
+void lw_ws_req_disconnect (lw_ws_req ctx)
 {
-	if (!ctx->client->websocket)
-		lw_stream_close ((lw_stream) ctx->client->socket, lw_true);
-	else
-	{
-		// Worth noting these close code checks mean that subsequent local disconnects do nothing
-		// There's a timeout activated, so there's no need to rush, regardless.
-
-		// Close message not sent already
-		if (ctx->client->local_close_code == -1)
-		{
-			// if no error code, report normal closure reason
-			if (websocket_exit_reason == 0)
-				websocket_exit_reason = 1000;
-
-			ctx->client->local_close_code = (lw_i16)websocket_exit_reason;
-
-			lw_ui8 opcode = 0b10001000; // fin, connection close
-			lw_ui16 exit_reason = htons((lw_ui16)websocket_exit_reason);
-			char maskAndLen = (char)sizeof(exit_reason);
-			char close_msg[] = { *(char*)&opcode, maskAndLen, ((char*)&exit_reason)[0], ((char*)&exit_reason)[1] };
-			lwp_stream_write((lw_stream)ctx->client->socket, close_msg, sizeof(close_msg), lwp_stream_write_ignore_busy);
-
-			ctx->client->timeout = 5; // WebSocket client has 5 seconds to acknowledge our sent close packet
-		}
-
-		// We already got a close packet, and since we just sent one, it's safe to exit now
-		// lw_stream_close(..., lw_false) results in "non-clean" close for browser
-		if (ctx->client->remote_close_code != -1)
-			lw_stream_close((lw_stream)ctx->client->socket, lw_true);
-	}
+	lwp_ws_httpclient_close ((lwp_ws_httpclient) ctx->client);
 }
 
 void lw_ws_req_guess_mimetype (lw_ws_req ctx, const char * filename)
@@ -870,7 +841,24 @@ lw_bool lw_ws_req_secure (lw_ws_req ctx)
 
 lw_bool lw_ws_req_websocket (lw_ws_req ctx)
 {
-	return ctx->client->websocket;
+	return ((lwp_ws_httpclient) ctx->client)->upgrade_requested;
+}
+
+void lw_ws_req_accept_websocket (lw_ws_req ctx)
+{
+	lwp_ws_httpclient client = (lwp_ws_httpclient) ctx->client;
+	if (client->upgrade_requested)
+		return;
+
+	client->websocket = lwp_ws_websocket_new (client->client.ws,
+		client->client.socket, client->client.secure);
+	if (!client->websocket)
+	{
+		lw_stream_close ((lw_stream) client->client.socket, lw_true);
+		return;
+	}
+
+	client->upgrade_requested = lw_true;
 }
 
 const char * lw_ws_req_hostname (lw_ws_req ctx)
@@ -885,11 +873,10 @@ const char * lw_ws_req_url (lw_ws_req ctx)
 
 long lw_ws_req_idle_timeout (lw_ws_req ctx)
 {
-	return ctx->client->timeout;
+	return ((lwp_ws_httpclient) ctx->client)->timeout;
 }
 
 void lw_ws_req_set_idle_timeout (lw_ws_req ctx, long seconds)
 {
-	ctx->client->timeout = seconds;
+	((lwp_ws_httpclient) ctx->client)->timeout = seconds;
 }
-

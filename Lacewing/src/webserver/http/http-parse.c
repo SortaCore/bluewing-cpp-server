@@ -104,7 +104,7 @@ static int on_headers_complete (http_parser * parser)
 	{
 		lwp_trace ("Creating Multipart...");
 
-		if (! (ctx->client.multipart = lwp_ws_multipart_new
+		if (! (ctx->multipart = lwp_ws_multipart_new
 				(ctx->client.ws, ctx->request, content_type)))
 		{
 			return -1;
@@ -118,7 +118,7 @@ static int on_body (http_parser * parser, const char * buffer, size_t size)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) parser->data;
 
-	if (!ctx->client.multipart)
+	if (!ctx->multipart)
 	{
 		/* Normal request body - just buffer it */
 
@@ -128,17 +128,17 @@ static int on_body (http_parser * parser, const char * buffer, size_t size)
 
 	/* Multipart request body - hand it over to the multipart processor */
 
-	if (lwp_ws_multipart_process (ctx->client.multipart, buffer, size) != size)
+	if (lwp_ws_multipart_process (ctx->multipart, buffer, size) != size)
 	{
 		lwp_trace ("Error w/ multipart form data");
 
-		lwp_ws_multipart_delete (ctx->client.multipart);
-		ctx->client.multipart = 0;
+		lwp_ws_multipart_delete (ctx->multipart);
+		ctx->multipart = 0;
 
 		return -1;
 	}
 
-	if ( (!ctx->client.multipart) || ctx->client.multipart->done)
+	if ( (!ctx->multipart) || ctx->multipart->done)
 		ctx->signal_eof = lw_true;
 
 	return 0;
@@ -148,7 +148,7 @@ static int on_message_complete (http_parser * parser)
 {
 	lwp_ws_httpclient ctx = (lwp_ws_httpclient) parser->data;
 
-	if (!ctx->client.multipart)
+	if (!ctx->multipart)
 		lwp_ws_req_call_hook (ctx->request);
 
 	ctx->parsing_headers = lw_true;

@@ -64,7 +64,6 @@ struct _lw_ws
 	lw_ws_session sessions;
 
 	lw_bool auto_finish;
-	lw_bool websocket;
 
 	// No request made timeout - ignored for websocket
 	long timeout;
@@ -79,6 +78,9 @@ struct _lw_ws
 	lw_ws_hook_upload_post			on_upload_post;
 	lw_ws_hook_disconnect			on_disconnect;
 	lw_ws_hook_websocket_message	on_websocket_message;
+	lw_ws_hook_websocket_accept on_websocket_accept;
+	lw_ws_hook_websocket_connect on_websocket_connect;
+	lw_ws_hook_websocket_disconnect on_websocket_disconnect;
 
 	void * tag;
 };
@@ -171,21 +173,26 @@ struct _lwp_ws_client
 {
 	struct _lw_stream stream;
 
-	void (* respond) (lwp_ws_client, lw_ws_req request);
 	void (* tick) (lwp_ws_client);
 	void (* cleanup) (lwp_ws_client);
 
 	lw_bool secure;
-	lw_bool websocket;
 
 	lw_ws ws;
 	lw_server_client socket;
-
-	long timeout;
-	// WebSocket: -1 or close code. WebSocket requires a close packet from both ends for a "clean" connection close
-	lw_i16 local_close_code, remote_close_code;
-
-	lwp_ws_multipart multipart;
 };
 
+struct _lw_ws_websocket
+{
+	struct _lwp_ws_client client;
+
+	// -1 or close code. WebSocket requires a close frame from both endpoints for a clean close.
+	lw_i16 local_close_code, remote_close_code;
+};
+
+lw_ws_websocket lwp_ws_websocket_new (lw_ws, lw_server_client, lw_bool secure);
+void lwp_ws_websocket_disconnect (lw_ws_websocket, unsigned int websocket_reason_code);
+
 #include "http/http.h"
+
+lw_bool lwp_ws_try_websocket_upgrade (lwp_ws_httpclient);

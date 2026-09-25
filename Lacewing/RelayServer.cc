@@ -1292,8 +1292,7 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 			const std::string webSocketKeyResponse = b64encode(sha1, sizeof(sha1));
 
 			lwp_ws_client reqClient = ((struct _lw_ws_req*)req)->client;
-			reqClient->websocket = lw_true;
-			reqClient->ws->timeout = 0; // disable timeout - next used when server inits a disconnect and is waiting for WebSocket close packet back
+			req->accept_websocket();
 
 			lw_server server;
 			if (reqClient->secure)
@@ -1301,7 +1300,6 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 			else
 				server = ((lw_ws)webserver)->socket;
 			lw_server_client_set_websocket(reqClient->socket, lw_true);
-			internal.generic_handlerconnect((lacewing::server)server, (lacewing::server_client)reqClient->socket);
 
 			req->header("Upgrade", "WebSocket");
 			req->header("Connection", "Upgrade");
@@ -1309,7 +1307,7 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 			req->header("Sec-WebSocket-Protocol", "bluewing");
 			req->status(101, "Switching Protocols");
 			req->finish();
-			lwp_ws_req_clean((lw_ws_req)req);
+			internal.generic_handlerconnect((lacewing::server)server, (lacewing::server_client)reqClient->socket);
 			return;
 		} while (false);
 
@@ -1354,12 +1352,24 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 		req->status(422, "Unprocessable Entity");
 	req->finish();
 }
-void handlerwebsocketmessage(lacewing::webserver websocket, lacewing::webserver_request req, const char* buffer, size_t size)
+void handlerwebsocketmessage(lacewing::webserver websocket, lacewing::webserver_websocket client, const char* buffer, size_t size)
 {
 	relayserverinternal& internal = *(relayserverinternal*)websocket->tag();
-	if (!req->websocket())
-		return; // not websocket - just some dumb client, don't pass to relayserver
-	internal.generic_handlerreceive((lacewing::server)((lw_ws)websocket)->socket, (lacewing::server_client)((lw_ws_req)req)->client->socket, std::string_view(buffer, size));
+	internal.generic_handlerreceive((lacewing::server)((lw_ws)websocket)->socket,
+		(lacewing::server_client)((lw_ws_websocket)client)->client.socket,
+		std::string_view(buffer, size));
+}
+bool handlerwebsocketaccept(lacewing::webserver websocket, lacewing::webserver_request req)
+{
+	return !strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing");
+}
+void handlerwebsocketconnect(lacewing::webserver websocket, lacewing::webserver_websocket websocket_client)
+{
+	relayserverinternal& internal = *(relayserverinternal*)websocket->tag();
+	auto client = (lw_ws_websocket)websocket_client;
+	lw_server server = client->client.secure ? ((lw_ws)websocket)->socket_secure : ((lw_ws)websocket)->socket;
+	internal.generic_handlerconnect((lacewing::server)server,
+		(lacewing::server_client)client->client.socket);
 }
 void handlerwebservererror(lacewing::webserver webserver, lacewing::error error)
 {
@@ -1370,18 +1380,17 @@ void handlerwebservererror(lacewing::webserver webserver, lacewing::error error)
 	if (internal.handlererror)
 		internal.handlererror(internal.server, error);
 }
-void handlerwebserverdisconnect(lacewing::webserver webserver, lacewing::webserver_request req)
+void handlerwebserverdisconnect(lacewing::webserver webserver, lacewing::webserver_websocket websocket_client)
 {
 	relayserverinternal& internal = *(relayserverinternal*)webserver->tag();
-	auto client = ((lw_ws_req)req)->client;
-	if (!client->websocket)
-		return; // not websocket - just some dumb client, don't pass to relayserver
+	auto client = (lw_ws_websocket)websocket_client;
 	lw_server server;
-	if (client->secure)
+	if (client->client.secure)
 		server = ((lw_ws)webserver)->socket_secure;
 	else
 		server = ((lw_ws)webserver)->socket;
-	internal.generic_handlerdisconnect((lacewing::server)server, (lacewing::server_client)client->socket);
+	internal.generic_handlerdisconnect((lacewing::server)server,
+		(lacewing::server_client)client->client.socket);
 }
 
 void handlerflasherror(lacewing::flashpolicy flash, lacewing::error error)
@@ -1416,7 +1425,9 @@ relayserver::relayserver(lacewing::pump pump) noexcept :
 	websocket->on_get (lacewing::handlerwebserverget);
 	websocket->on_error (lacewing::handlerwebservererror);
 	websocket->on_websocket_message (lacewing::handlerwebsocketmessage);
-	websocket->on_disconnect (lacewing::handlerwebserverdisconnect);
+	websocket->on_websocket_accept (lacewing::handlerwebsocketaccept);
+	websocket->on_websocket_connect (lacewing::handlerwebsocketconnect);
+	websocket->on_websocket_disconnect (lacewing::handlerwebserverdisconnect);
 
 	auto s = new relayserverinternal(*this, pump);
 	internaltag = s;
@@ -1442,7 +1453,9 @@ relayserver::~relayserver() noexcept
 	flash->on_error(nullptr);
 	websocket->on_get(nullptr);
 	websocket->on_error(nullptr);
-	websocket->on_disconnect(nullptr);
+	websocket->on_websocket_disconnect(nullptr);
+	websocket->on_websocket_accept(nullptr);
+	websocket->on_websocket_connect(nullptr);
 	websocket->on_head(nullptr);
 	websocket->on_websocket_message(nullptr);
 
@@ -3154,7 +3167,11 @@ void relayserver::client::disconnect(std::shared_ptr<relayserver::client> cli, i
 
 	if (socket->is_websocket())
 	{
-		lw_ws_req_disconnect(((lwp_ws_httpclient)socket->tag())->request, websocketReasonCode);
+		lwp_ws_client protocol = (lwp_ws_client) socket->tag();
+		if (protocol->stream.def == &def_httpclient)
+			lwp_ws_httpclient_close((lwp_ws_httpclient)protocol);
+		else
+			lw_ws_websocket_disconnect((lw_ws_websocket)protocol, websocketReasonCode);
 		return;
 	}
 
