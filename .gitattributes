@@ -11,6 +11,9 @@
 *.md text eol=lf
 *.js text eol=lf
 *.json text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
 *.rc text eol=crlf
 *.htm text eol=crlf
 *.html text eol=crlf
