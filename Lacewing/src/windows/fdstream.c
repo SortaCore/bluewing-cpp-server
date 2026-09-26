@@ -187,6 +187,11 @@ static void close_fd (lw_fdstream ctx)
 
 	ctx->flags &= ~lwp_fdstream_flag_close_asap;
 
+	// Note we cannot actually clear this yet; cancelled IOCP above will have queued some aborts.
+	// Similarly, we keep the pending_writes/reading until all the IOCP drains.
+	// The watch is freed by the final lw_stream_close(), triggered by write_completed or read_completed
+	// hitting their zero-ref count.
+
 	//list_clear(ctx->pending_writes);
 }
 
@@ -204,12 +209,13 @@ void write_completed (lw_fdstream ctx)
 
 void issue_read (lw_fdstream ctx)
 {
+	// This handles a pending close as well
 	if (ctx->fd == INVALID_HANDLE_VALUE)
 		return;
 
+	// Only one read pending on a stream at once
 	if ((ctx->flags & lwp_fdstream_flag_read_pending) != 0)
-	//if ((ctx->flags & (lwp_fdstream_flag_read_pending | lwp_fdstream_flag_close_asap)) != 0 || (ctx->stream.flags & lwp_stream_flag_closeASAP) != 0)
-		return; // Only one read pending on a stream at once
+		return;
 
 	ctx->flags |= lwp_fdstream_flag_read_pending;
 	lwp_retain(ctx, "fdstream read");  /* retain the stream for the duration of the read op */
@@ -259,7 +265,13 @@ void issue_read (lw_fdstream ctx)
 void read_completed (lw_fdstream ctx)
 {
 	ctx->flags &= ~ lwp_fdstream_flag_read_pending;
-	lwp_release (ctx, "fdstream read");  /* matches retain in issue_read */
+
+	// matches retain in issue_read
+	// we don't have to call stream close/delete, as it must have been called if read is the last ref
+	// currently, read_completed is called within fdstream completion ref, so won't ever be last if async,
+	// but may be last if ReadFile sync error path is triggering
+	if (lwp_release (ctx, "fdstream read"))
+		return;
 
 	// A graceful close is scheduled, and no read/writes remaining; close now
 	if ((ctx->flags & lwp_fdstream_flag_close_asap) && ctx->num_pending_writes == 0)
@@ -421,7 +433,8 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 	((OVERLAPPED *) overlapped)->Offset = ctx->offset.LowPart;
 	((OVERLAPPED *) overlapped)->OffsetHigh = ctx->offset.HighPart;
 
-	/* TODO : Find a way to avoid copying the data. */
+	// TODO : Find a way to avoid copying the data. Unlike Linux send() which copies the data to kernel,
+	// Windows IOCP requires the user keep the buffer in-place.
 
 	memcpy (overlapped->data, buffer, size);
 
@@ -429,8 +442,6 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 	* Same goes for ReadFile and WSARecv.
 	*/
 
-	// We add before write, because the IOCP thread writing it could free it underneath us
-	// But... wouldn't this create an atomic issue? either way, two things are modifying pending_writes with no sync
 	++ctx->num_pending_writes;
 	list_push(fdstream_overlapped, ctx->pending_writes, overlapped);
 

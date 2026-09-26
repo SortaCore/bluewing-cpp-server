@@ -166,15 +166,10 @@ void lw_stream_delete (lw_stream ctx)
 	list_clear (ctx->front_queue);
 	list_clear (ctx->back_queue);
 
-	// Watches aren't used in all streams, although pump is always set
-	if (ctx->watch)
-	{
-		lw_pump_remove(ctx->pump, ctx->watch, "lw_stream_delete");
-		ctx->watch = NULL;
-	}
-
 	/*	This matches the lwp_retain in lw_stream_new, allowing the refcount to
-		become 0 and the stream to be destroyed. */
+		become 0 and the stream to be destroyed.
+		However, the stream and its pump watch isn't deleted until all async IO has completed;
+		in Windows, any cancelled write/read op will still fire in the pump, with an op aborted error. */
 	lwp_release (ctx, "lwp_stream_init");
 }
 
