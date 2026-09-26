@@ -67,7 +67,7 @@ namespace BluewingCppServerTasks
 		// ifdef, else, endif must be commented as expected
 		private bool ReplacePreproc(string from, bool isPreprocTrue)
 		{
-			string PreprocMatcher = @"(?m)^[ \t]*#[ \t]*?if(?<n>n?)(?:def)?[ \t]+(?<x>!?)_WIN32\s*\n(?<ifsect>(?:.|\n)*?)" +
+			string PreprocMatcher = @"(?m)^[ \t]*#[ \t]*?if(?<n>n?)(?:def)?[ \t]+(?<x>!?)_WIN32[ \t]*\n(?<ifsect>(?:.|\n)*?)" +
 				@"(?:\n[ \t]*?#[ \t]*?else[ \t]*\/\/[ \t]*!_WIN32[ \t]*\n(?<elsesect>(?:.|\n)+?))?\n" +
 				@"[ \t]*?#[ \t]*?endif[ \t]*?\/\/[ \t]*?!?_WIN32[ \t]*\n(?<afterline>[ \t]*\n)?";
 			Regex winDefClean = new Regex(PreprocMatcher.Replace("_WIN32", from));
@@ -98,8 +98,8 @@ namespace BluewingCppServerTasks
 				if (m.Groups["elsesect"].Success)
 					return m.Groups["elsesect"].Value + extra;
 
-				// No #else, just return blank
-				return "\n";
+				// No #else, discard the block
+				return "";
 			});
 			return true;
 		}
