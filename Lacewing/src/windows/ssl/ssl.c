@@ -158,7 +158,7 @@ size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
 	ctx->status = DecryptMessage (&ctx->context, &buffers_desc, 0, 0);
 
 	if (ctx->status == SEC_E_INCOMPLETE_MESSAGE)
-		return size; /* need more data */
+		return 0; /* retain these bytes until the next socket read completes the message */
 
 	if (ctx->status == _HRESULT_TYPEDEF_ (0x00090317L)) /* SEC_I_CONTENT_EXPIRED */
 	{
@@ -269,6 +269,10 @@ void lwp_ssl_init (lwp_ssl ctx, lw_server_client socket)
 
 	lw_stream_add_filter_downstream
 		((lw_stream)socket, &ctx->downstream, lw_false, lw_true);
+
+	/* If Schannel leaves an incomplete TLS record queued, retry it after the
+	 * next socket read appends more encrypted input. */
+	lw_stream_retry (&ctx->downstream, lw_stream_retry_more_data);
 }
 
 void lwp_ssl_cleanup (lwp_ssl ctx)
@@ -279,4 +283,3 @@ void lwp_ssl_cleanup (lwp_ssl ctx)
 	free (ctx->header);
 	free (ctx->trailer);
 }
-
