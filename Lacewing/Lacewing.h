@@ -117,10 +117,18 @@ extern "C"
 void LacewingFatalErrorMsgBox2(const char* const func, const char* const file, const int line);
 #define LacewingFatalErrorMsgBox() LacewingFatalErrorMsgBox2(__FUNCTION__, __FILE__, __LINE__)
 
+#if !defined(__cplusplus) && (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L)
 typedef lw_i8 lw_bool;
-
 #define  lw_true ((lw_bool) 1)
 #define lw_false ((lw_bool) 0)
+#else
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+typedef bool lw_bool;
+#define lw_true true
+#define lw_false false
+#endif
 
 #ifdef _WIN32
 	typedef HANDLE lw_fd;
