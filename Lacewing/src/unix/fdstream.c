@@ -14,6 +14,34 @@
 
 extern const lw_streamdef def_fdstream;
 
+static lw_i64 sendfile_error_result (int error)
+{
+	// Not fatal error; just out of room, resume later
+	if (error == EAGAIN)
+		return 0;
+
+	// Any of these (that the OS supports) are sink unsupported
+	#ifdef ENOSYS
+		if (error == ENOSYS)
+			return lw_stream_sink_stream_unsupported;
+	#endif
+	#ifdef EINVAL
+		if (error == EINVAL)
+			return lw_stream_sink_stream_unsupported;
+	#endif
+	#ifdef EOPNOTSUPP
+		if (error == EOPNOTSUPP)
+			return lw_stream_sink_stream_unsupported;
+	#endif
+	#ifdef ENOTSUP
+		if (error == ENOTSUP)
+			return lw_stream_sink_stream_unsupported;
+	#endif
+	
+	// Any errors that aren't any of those are assumed unrecoverable failures
+	return lw_stream_sink_stream_error;
+}
+
 /* FDStream makes the assumption that this will fail for anything but a regular
  * file (i.e. something that is always considered read ready)
  *
@@ -27,7 +55,7 @@ static lw_i64 lwp_sendfile (int source, int dest, lw_i64 size)
 	 ssize_t sent = 0;
 
 	 if ((sent = sendfile (dest, source, 0, (size_t)size)) == -1)
-		 return errno == EAGAIN ? 0 : -1;
+		 return sendfile_error_result (errno);
 
 	 return sent;
 
@@ -38,8 +66,9 @@ static lw_i64 lwp_sendfile (int source, int dest, lw_i64 size)
 	 if (sendfile (source, dest, lseek (source, 0, SEEK_CUR),
 					 size, 0, &sent, 0) != 0)
 	 {
-		if (errno != EAGAIN)
-			return -1;
+		lw_i64 result = sendfile_error_result (errno);
+		if (result != 0)
+			return result;
 	 }
 
 	 lseek (source, sent, SEEK_CUR);
@@ -52,8 +81,9 @@ static lw_i64 lwp_sendfile (int source, int dest, lw_i64 size)
 	 if (sendfile (source, dest, lseek (source, 0, SEEK_CUR),
 					 &bytes, 0, 0) != 0)
 	 {
-		if (errno != EAGAIN)
-			return -1;
+		lw_i64 result = sendfile_error_result (errno);
+		if (result != 0)
+			return result;
 	 }
 
 	 lseek (source, bytes, SEEK_CUR);
@@ -62,7 +92,7 @@ static lw_i64 lwp_sendfile (int source, int dest, lw_i64 size)
 	#endif
 
 	errno = EINVAL;
-	return -1;
+	return lw_stream_sink_stream_unsupported;
 }
 
 static void write_ready (void * tag)
@@ -280,14 +310,14 @@ static lw_i64 def_sink_stream (lw_stream _dest,
 								size_t size)
 {
 	if (lw_stream_get_def (_src) != &def_fdstream)
-		return -1;
+		return lw_stream_sink_stream_unsupported;
 
 	if (size == SIZE_MAX)
 	{
 		size = lw_stream_bytes_left (_src);
 
 		if (size == SIZE_MAX)
-		 return -1;
+		 return lw_stream_sink_stream_unsupported;
 	}
 
 	lw_fdstream source = (lw_fdstream) _src;

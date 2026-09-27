@@ -888,10 +888,33 @@ void lw_stream_retry (lw_stream ctx, int when)
 	if (when == lw_stream_retry_now)
 	{
 		// Drain immediately; other retry modes are policies used by the writer.
-		if (!lwp_stream_write_direct (ctx))
+		lw_i64 direct_result = lwp_stream_write_direct (ctx);
+
+		if (direct_result == lw_stream_sink_stream_unsupported)
 		{
-			lwp_trace("stream_retry returned false.");
-			/* TODO: ??? */
+			/* Direct transfer is an optimization. If it is no longer supported,
+			 * resume by reading the remaining bytes through the ordinary graph. */
+			lw_stream source = ctx->prev_direct;
+			size_t bytes_left = ctx->direct_bytes_left;
+
+			ctx->prev_direct = 0;
+			ctx->direct_bytes_left = 0;
+
+			if (source && bytes_left)
+				lw_stream_read (source, bytes_left);
+		}
+		else if (direct_result == lw_stream_sink_stream_deferred)
+		{
+			/* The graph link remains unconsumed and will be retried by the
+			 * asynchronous transfer's completion callback. */
+			ctx->graph->retry_deferred = lw_true;
+			return;
+		}
+		else if (direct_result < 0)
+		{
+			/* A real transfer error cannot be repaired by replaying the bytes. */
+			lw_stream_close (ctx, lw_true);
+			return;
 		}
 
 		lwp_stream_write_queued (ctx);
@@ -901,18 +924,18 @@ void lw_stream_retry (lw_stream ctx, int when)
 	ctx->retry = when;
 }
 
-lw_bool lwp_stream_write_direct (lw_stream ctx)
+lw_i64 lwp_stream_write_direct (lw_stream ctx)
 {
 	if (!ctx->prev_direct)
-		return lw_true;
+		return 0;
 
 	if (!ctx->def->sink_stream)
-		return lw_false;
+		return lw_stream_sink_stream_unsupported;
 
 	lw_i64 written = ctx->def->sink_stream (ctx, ctx->prev_direct,
 											ctx->direct_bytes_left);
 
-	if (written != -1)
+	if (written >= 0)
 	{
 		/*	Pushing with a buffer of 0 pushes without any data (so the stream
 			logic can operate even though the data was already transmitted). */
@@ -922,10 +945,10 @@ lw_bool lwp_stream_write_direct (lw_stream ctx)
 		if (ctx->direct_bytes_left != SIZE_MAX)
 			ctx->direct_bytes_left -= (size_t)written;
 
-		return lw_true;
+		return written;
 	}
 
-	return lw_false;
+	return written;
 }
 
 lw_bool lwp_stream_may_close (lw_stream ctx)

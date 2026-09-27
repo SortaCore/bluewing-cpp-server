@@ -324,8 +324,17 @@ static void graph_read (lwp_streamgraph graph, int this_expand,
 
 		lwp_trace ("Next direct from %p -> %p", stream, next);
 
-		if ( (!next) || next->prev_direct)
+		if (!next)
 			break;
+
+		if (next->prev_direct)
+		{
+			/* Another deferred direct link already owns this sink. Keep this
+			 * link untouched; its completion will retry the graph. */
+			graph->retry_deferred = lw_true;
+			wrote_direct = lw_true;
+			break;
+		}
 
 		/* Only one non-transparent stream follows.  It may be possible to
 		* shift the data directly (without having to read it first).
@@ -339,18 +348,39 @@ static void graph_read (lwp_streamgraph graph, int this_expand,
 
 		lwp_trace ("Attempting to read direct for %p -> %p", stream, next);
 
-		if (lwp_stream_write_direct (next))
+		lw_i64 direct_result = lwp_stream_write_direct (next);
+
+		if (direct_result >= 0)
 		{
 			lwp_trace ("write_direct succeeded for %p -> %p", stream, next);
 
 			wrote_direct = lw_true;
 			break;
 		}
+		else if (direct_result == lw_stream_sink_stream_deferred)
+		{
+			lwp_trace ("write_direct deferred for %p -> %p", stream, next);
+
+			/* Do not consume this graph link or fall back to a normal write.
+			 * The sink will become available when its pending transfer completes. */
+			graph->retry_deferred = lw_true;
+			wrote_direct = lw_true;
+			break;
+		}
+		else if (direct_result == lw_stream_sink_stream_unsupported)
+		{
+			lwp_trace ("write_direct unsupported for %p -> %p", stream, next);
+
+			next->prev_direct = 0;
+		}
 		else
 		{
 			lwp_trace ("write_direct failed for %p -> %p", stream, next);
 
 			next->prev_direct = 0;
+			wrote_direct = lw_true; /* do not retry a failed transfer as a read */
+			lw_stream_close (next, lw_true);
+			break;
 		}
 
 	} while (0);

@@ -409,6 +409,12 @@ typedef enum _lw_addr_tostring_flags
 	lw_import void lw_stream_remove_hook_close (lw_stream, lw_stream_hook_close, void * tag);
 
 	/* For stream implementors */
+	/* sink_stream returns bytes transferred, -1 for an I/O failure, -2 when
+	 * direct transfer is unsupported, or -3 when it must be deferred until the
+	 * current asynchronous transfer completes. */
+	#define lw_stream_sink_stream_error ((lw_i64)-1)
+	#define lw_stream_sink_stream_unsupported ((lw_i64)-2)
+	#define lw_stream_sink_stream_deferred ((lw_i64)-3)
 
 	typedef struct lw_streamdef
 	{

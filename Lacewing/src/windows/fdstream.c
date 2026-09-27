@@ -113,12 +113,23 @@ static void completion (void * tag, OVERLAPPED * _overlapped,
 	case overlapped_type_transmitfile:
 	{
 		assert (overlapped == &ctx->transmitfile_overlapped);
+		lwp_streamgraph graph = ctx->stream.graph;
+		lwp_retain (graph, "deferred TransmitFile graph retry");
 
 		ctx->transmit_file_from->transmit_file_to = 0;
 		write_completed (ctx->transmit_file_from);
 		ctx->transmit_file_from = 0;
 
 		write_completed (ctx);
+
+		if (!graph->dead && graph->retry_deferred)
+		{
+			graph->retry_deferred = lw_false;
+			lwp_streamgraph_expand (graph);
+			lwp_streamgraph_read (graph);
+		}
+
+		lwp_release (graph, "deferred TransmitFile graph retry");
 
 		break;
 	}
@@ -479,14 +490,14 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 static lw_i64 def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
 {
 	if (lw_stream_get_def (_src) != &def_fdstream)
-		return -1;
+		return lw_stream_sink_stream_unsupported;
 
 	if (size == -1)
 	{
 		size = lw_stream_bytes_left (_src);
 
 		if (size == -1)
-			return -1;
+			return lw_stream_sink_stream_unsupported;
 	}
 
 	lw_pump_thread_check(_src->pump);
@@ -496,18 +507,18 @@ static lw_i64 def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
 	lw_fdstream dest = (lw_fdstream) _dest;
 
 	if (size >= (((size_t) 1024) * 1024 * 1024 * 2))
-		return -1;
+		return lw_stream_sink_stream_unsupported;
 
 	/* TransmitFile can only send from a file to a socket */
 
 	if (source->flags & lwp_fdstream_flag_is_socket)
-		return -1;
+		return lw_stream_sink_stream_unsupported;
 
 	if (! (dest->flags & lwp_fdstream_flag_is_socket))
-		return -1;
+		return lw_stream_sink_stream_unsupported;
 
 	if (dest->transmitfile_from || source->transmitfile_to)
-		return -1;  /* source or dest stream already performing a TransmitFile */
+		return lw_stream_sink_stream_deferred; /* retry after the active transfer completes */
 
 	fdstream_overlapped overlapped = &dest->transmitfile_overlapped;
 
@@ -535,7 +546,13 @@ static lw_i64 def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
 		int error = WSAGetLastError ();
 
 		if (error != WSA_IO_PENDING)
-			return -1;
+		{
+			if (error == WSAEOPNOTSUPP || error == WSAEINVAL ||
+				error == ERROR_NOT_SUPPORTED || error == ERROR_INVALID_FUNCTION)
+				return lw_stream_sink_stream_unsupported;
+
+			return lw_stream_sink_stream_error;
+		}
 	}
 
 	/* OK, looks like the TransmitFile call succeeded. */

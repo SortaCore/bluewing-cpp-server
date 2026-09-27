@@ -26,6 +26,9 @@ typedef struct _lwp_streamgraph
 {
 	lwp_refcounted;
 	lw_bool dead;
+	/* A direct transfer was blocked by an in-flight operation and must be
+	 * retried when that operation completes. */
+	lw_bool retry_deferred;
 
 	/* Each StreamGraph actually stores two graphs - one public without the
 	* filters, and an internally expanded version with the filters included.
@@ -72,5 +75,4 @@ void lwp_streamgraph_delete (lwp_streamgraph);
  void lwp_streamgraph_print (lwp_streamgraph);
 
 #endif
-
 

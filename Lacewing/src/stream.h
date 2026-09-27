@@ -181,11 +181,12 @@ void lwp_stream_init (lw_stream, const lw_streamdef *, lw_pump);
 	(lw_stream, const char * buffer, size_t size, int flags);
 
 
-/* Attempts to write data from PrevDirect, returning false on failure. If
- * successful, DirectBytesLeft will be adjusted.
+/* Attempts a direct transfer from PrevDirect. Returns bytes transferred, or
+ * a sink_stream error/unsupported/deferred result. On nonnegative results,
+ * DirectBytesLeft is adjusted.
  */
 
- lw_bool lwp_stream_write_direct (lw_stream);
+ lw_i64 lwp_stream_write_direct (lw_stream);
 
 /* Returns true if this stream is ready to be closed - i.e. nothing is
  * queued or currently being written.
