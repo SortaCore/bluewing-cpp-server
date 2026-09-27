@@ -252,9 +252,8 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 		lwp_trace ("%p is filtered upstream by %p; writing " lwp_fmt_size " to that",
 			ctx, ctx->head_upstream, size);
 
-		/*	There's a filter to write the data to first.
-			At the end of the chain of filters, the data will be written back
-			to us again with the write_ignore_filters flag. */
+		/* Writes go through upstream filters first. Filter-produced bytes
+		 * travel forward through the expanded graph with lw_stream_data(). */
 
 		if (flags & lwp_stream_write_partial)
 		{
@@ -284,7 +283,8 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 			return size;
 		}
 
-		// Something is behind us and gave us this data.
+		// This write came from a graph predecessor. If it cannot be fully
+		// consumed, its remainder must precede later data from that source.
 
 		if ((! (flags & lwp_stream_write_ignore_queue))
 				&& list_length (ctx->front_queue) > 0)
@@ -320,7 +320,11 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 			return written;
 
 		if (written < size)
+		{
+			// Keep an unconsumed graph-input suffix ahead of later input. The
+			// retry mode controls when this queue is attempted again.
 			queue_front (ctx, buffer + written, size - written);
+		}
 
 		return size;
 	}
@@ -362,26 +366,42 @@ size_t lwp_stream_write (lw_stream ctx, const char * buffer, size_t size, int fl
 	{
 		if (flags & lwp_stream_write_ignore_queue)
 		{
-			if (lwp_heapbuffer_length (&list_front (struct _lwp_stream_queued, ctx->back_queue).buffer) == 0)
+			/* Ignore-queue means attempt this write ahead of queued output;
+			 * it does not permit dropping a short-write remainder. Put that
+			 * remainder before the old back-queue contents. */
+			lwp_stream_queued first = list_length (ctx->back_queue) ?
+				list_elem_front (struct _lwp_stream_queued, ctx->back_queue) : 0;
+			size_t remaining = size - written;
+
+			if (first && first->type == lwp_stream_queued_data &&
+				lwp_heapbuffer_length (&first->buffer) == 0)
 			{
-				lwp_heapbuffer_add (&list_elem_front (struct _lwp_stream_queued, ctx->back_queue)->buffer,
-									buffer + written, size - written);
+				lwp_heapbuffer_add (&first->buffer, buffer + written, remaining);
+			}
+			else if (first && first->type == lwp_stream_queued_data && first->buffer &&
+				first->buffer->offset >= remaining)
+			{
+				// Reuse bytes consumed from the front of this buffer as prefix room.
+				first->buffer->offset -= remaining;
+				memmove (first->buffer->buffer + first->buffer->offset,
+						 buffer + written, remaining);
 			}
 			else
 			{
-				// TODO: rewind offset where possible instead of creating a new Queued?
-
+				// No data buffer with enough prefix room (or the first item is
+				// a stream/barrier), so preserve order with a new front item.
 				struct _lwp_stream_queued queued = {0};
 
 				queued.type = lwp_stream_queued_data;
 
-				lwp_heapbuffer_add (&queued.buffer, buffer + written, size - written);
+				lwp_heapbuffer_add (&queued.buffer, buffer + written, remaining);
 
 				list_push_front (struct _lwp_stream_queued, ctx->back_queue, queued);
 			}
 		}
 		else
 		{
+			// Ordinary short writes join the tail, behind data already queued.
 			queue_back(ctx, buffer + written, size - written);
 		}
 	}
@@ -786,7 +806,7 @@ list_type (struct _lwp_stream_queued) lwp_stream_write_queue(lw_stream ctx,
 				lwp_heapbuffer_trim_left(&queued->buffer, written);
 
 				if (lwp_heapbuffer_length(&queued->buffer) > 0)
-					break; /* couldn't write everything */
+					break; /* Retain this item; its offset now marks the unwritten suffix. */
 
 				lwp_heapbuffer_free(&queued->buffer);
 			}
@@ -843,6 +863,7 @@ void lwp_stream_write_queued (lw_stream ctx)
 	if (list_length (ctx->front_queue) == 0
 			&& list_length (ctx->prev) == 0)
 	{
+		// Back-queue writes wait until no source is currently feeding this stream.
 		lwp_retain (ctx, "write back queue");
 
 		ctx->back_queue = lwp_stream_write_queue (ctx, ctx->back_queue);
@@ -866,6 +887,7 @@ void lw_stream_retry (lw_stream ctx, int when)
 
 	if (when == lw_stream_retry_now)
 	{
+		// Drain immediately; other retry modes are policies used by the writer.
 		if (!lwp_stream_write_direct (ctx))
 		{
 			lwp_trace("stream_retry returned false.");
