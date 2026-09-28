@@ -188,6 +188,9 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 		lw_error_addf(error, "Creating ICMPv6 port");
 		if (ctx->on_error)
 			ctx->on_error (ctx, error);
+
+		lw_error_delete (error);
+		error = lw_error_new ();
 		// non-fatal, we don't need ICMP
 	}
 	if ((ctx->icmpfd = lwp_create_server_socket
@@ -228,9 +231,6 @@ void lw_udp_unhost (lw_udp ctx)
 	if (ctx->fd != -1)
 		shutdown(ctx->fd, SHUT_RDWR);
 
-	lw_pump_remove(ctx->pump, ctx->pump_watch, "udp unhost");
-	ctx->pump_watch = NULL;
-
 	lwp_close_socket(ctx->fd);
 	lwp_close_socket(ctx->icmpfd);
 	lwp_close_socket(ctx->icmpv6fd);
@@ -238,6 +238,11 @@ void lw_udp_unhost (lw_udp ctx)
 
 	lw_filter_delete (ctx->filter);
 	ctx->filter = 0;
+
+	// Close pump only after sockets are closed; epoll and kqueue will automatically remove their FDs,
+	// but select is also an event model
+	lw_pump_remove(ctx->pump, ctx->pump_watch, "udp unhost");
+	ctx->pump_watch = NULL;
 }
 
 lw_udp lw_udp_new (lw_pump pump)
