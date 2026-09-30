@@ -63,6 +63,7 @@ static void completion (void * tag, OVERLAPPED * _overlapped,
 		if (error == ERROR_OPERATION_ABORTED || error == ERROR_HANDLES_CLOSED)
 			break;
 
+		// TODO: Can this even happen, as pump thread handles cleanup now, and op aborted is already handled?
 		if (ctx->stream.flags & lwp_stream_flag_dead)
 			break;
 

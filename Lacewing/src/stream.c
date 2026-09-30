@@ -10,6 +10,7 @@
 
 #include "common.h"
 #include "stream.h"
+#include "pump.h"
 
 #ifdef _MSC_VER
 	// Disable warning about use of alloca over _malloca
@@ -65,6 +66,12 @@ lw_stream lw_stream_from_tail (void * tail)
 	return ((lw_stream) tail) - 1;
 }
 
+static void stream_delete_on_pump (lw_stream stream)
+{
+	lw_stream_delete(stream);
+	lwp_release(stream, "stream delete post");
+}
+
 void lw_stream_delete (lw_stream ctx)
 {
 	// WARNING: Does not call close hooks consistently. Instead of using lw_stream_delete to kill
@@ -75,6 +82,13 @@ void lw_stream_delete (lw_stream ctx)
 
 	if (!ctx)
 		return;
+
+	if (!lw_pump_is_thread(ctx->pump))
+	{
+		lwp_retain (ctx, "stream delete post");
+		lw_pump_post (ctx->pump, (void *)stream_delete_on_pump, ctx);
+		return;
+	}
 
 	if (ctx->flags & lwp_stream_flag_dead)
 		return;
@@ -958,8 +972,34 @@ lw_bool lwp_stream_may_close (lw_stream ctx)
 			list_length (ctx->front_queue) == 0;
 }
 
+struct stream_close_post
+{
+	lw_stream stream;
+	lw_bool immediate;
+};
+
+static void stream_close_on_pump (struct stream_close_post * post)
+{
+	lw_stream_close (post->stream, post->immediate);
+	lwp_release (post->stream, "stream close post");
+	free (post);
+}
+
 lw_bool lw_stream_close (lw_stream ctx, lw_bool immediate)
 {
+	/* Socket close hooks mutate stream graphs and pump watches. Keep that work
+	 * on the owning pump thread, including closes initiated by server clients. */
+	if (ctx && !lw_pump_is_thread(ctx->pump))
+	{
+		struct stream_close_post * post =
+			(struct stream_close_post *) lw_malloc_or_exit(sizeof (*post));
+		post->stream = ctx;
+		post->immediate = immediate;
+		lwp_retain (ctx, "stream close post");
+		lw_pump_post (ctx->pump, (void *)stream_close_on_pump, post);
+		return lw_false;
+	}
+
 	if (ctx->flags & lwp_stream_flag_closing)
 		return lw_false;
 

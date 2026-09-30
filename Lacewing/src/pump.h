@@ -27,7 +27,7 @@ struct _lw_pump
 };
 
 void lwp_pump_init (lw_pump ctx, const lw_pumpdef * def);
+lw_bool lw_pump_is_thread (lw_pump ctx);
 
 #endif
-
 

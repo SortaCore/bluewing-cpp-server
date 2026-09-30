@@ -161,9 +161,19 @@ void lw_pump_set_tag (lw_pump ctx, void * tag)
 
 void lw_pump_thread_check (lw_pump ctx)
 {
-	if (!lw_thread_id_equal(ctx->thread_id, lw_thread_id_current()))
+	if (!lw_pump_is_thread(ctx))
 	{
 		always_log("Thread check failed\n");
 		assert(!"Thread check failed");
 	}
+}
+
+lw_bool lw_pump_is_thread (lw_pump ctx)
+{
+#ifdef ENABLE_THREADS
+	return lw_thread_id_equal(ctx->thread_id, lw_thread_id_current());
+#else
+	(void)ctx;
+	return lw_true;
+#endif
 }

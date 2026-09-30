@@ -10,6 +10,7 @@
 
 #include "../common.h"
 #include "../address.h"
+#include "../pump.h"
 #include "fdstream.h"
 
 #define lw_client_flag_connecting	((lw_i8)1)
@@ -42,6 +43,36 @@ struct _lw_client
 	// Binds to a specific port, reset to 0 during connect attempt
 	lw_ui16 local_port_next_connect;
 };
+
+struct client_connect_post
+{
+	lw_client client;
+	lw_addr address;
+	lw_ui16 local_port;
+};
+
+static void client_connect_addr_internal (lw_client, lw_addr, lw_addr *, lw_ui16);
+
+static void client_connect_on_pump (struct client_connect_post * post)
+{
+	client_connect_addr_internal(post->client, post->address, &post->address, post->local_port);
+	lw_addr_delete(post->address);
+	lwp_release(post->client, "client connect post");
+	free(post);
+}
+
+static void client_connect_address_error_on_pump (lw_client client)
+{
+	if (client->on_error)
+	{
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "Unable to copy remote address for asynchronous connect");
+		client->on_error(client, error);
+		lw_error_delete(error);
+	}
+
+	lwp_release(client, "client connect post");
+}
 
 void lw_client_connect_timeout(lw_timer timer)
 {
@@ -87,6 +118,12 @@ void lw_client_delete (lw_client ctx)
 	if (!ctx)
 		return;
 
+	if (!lw_pump_is_thread(ctx->fdstream.stream.pump))
+	{
+		lw_pump_post(ctx->fdstream.stream.pump, (void *)lw_client_delete, ctx);
+		return;
+	}
+
 	lw_timer_delete (ctx->connect_timer);
 	ctx->connect_timer = NULL;
 
@@ -107,6 +144,7 @@ void lw_client_connect (lw_client ctx, const char * host, lw_ui16 port)
 	lw_addr address = lw_addr_new_port (host, port);
 
 	lw_client_connect_addr (ctx, address);
+	lw_addr_delete(address);
 }
 
 // Connection handshake is done
@@ -174,6 +212,33 @@ static void first_time_write_ready (void * tag)
 
 void lw_client_connect_addr (lw_client ctx, lw_addr address)
 {
+	if (!lw_pump_is_thread(ctx->fdstream.stream.pump))
+	{
+		lw_addr address_copy = address ? lw_addr_clone(address) : NULL;
+		if (!address_copy)
+		{
+			lwp_retain(ctx, "client connect post");
+			lw_pump_post(ctx->fdstream.stream.pump,
+				(void *)client_connect_address_error_on_pump, ctx);
+			return;
+		}
+		struct client_connect_post * post =
+			(struct client_connect_post *)lw_malloc_or_exit(sizeof (*post));
+		post->client = ctx;
+		post->address = address_copy;
+		post->local_port = ctx->local_port_next_connect;
+		ctx->local_port_next_connect = 0;
+		lwp_retain(ctx, "client connect post");
+		lw_pump_post(ctx->fdstream.stream.pump, (void *)client_connect_on_pump, post);
+		return;
+	}
+
+	client_connect_addr_internal(ctx, address, NULL, ctx->local_port_next_connect);
+}
+
+static void client_connect_addr_internal (lw_client ctx, lw_addr address,
+	lw_addr * owned_address, lw_ui16 local_port_next_connect)
+{
 	if (lw_client_connected (ctx) || lw_client_connecting (ctx))
 	{
 		lw_error error = lw_error_new ();
@@ -209,7 +274,13 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 	}
 
 	lw_addr_delete (ctx->remote_address);
-	ctx->remote_address = lw_addr_clone (address);
+	if (owned_address)
+	{
+		ctx->remote_address = *owned_address;
+		*owned_address = NULL;
+	}
+	else
+		ctx->remote_address = lw_addr_clone (address);
 
 	if (!ctx->remote_address->info)
 	{
@@ -257,7 +328,7 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 
 	// Lock to last outgoing local address if local port is being re-used,
 	// which only happens for hole punch
-	if (ctx->local_address && ctx->local_port_next_connect)
+	if (ctx->local_address && local_port_next_connect)
 	{
 		memcpy(&local_address, ctx->local_address->info->ai_addr, ctx->local_address->info->ai_addrlen);
 		assert(lw_addr_ipv6(address) == lw_addr_ipv6(ctx->local_address));
@@ -268,18 +339,19 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 	else if (lw_addr_ipv6(ctx->remote_address))
 	{
 		((struct sockaddr_in6 *)&local_address)->sin6_family = AF_INET6;
-		((struct sockaddr_in6 *)&local_address)->sin6_port = htons(ctx->local_port_next_connect);
+		((struct sockaddr_in6 *)&local_address)->sin6_port = htons(local_port_next_connect);
 	}
 	else
 	{
 		((struct sockaddr_in *)&local_address)->sin_family = AF_INET;
-		((struct sockaddr_in *)&local_address)->sin_port = htons(ctx->local_port_next_connect);
+		((struct sockaddr_in *)&local_address)->sin_port = htons(local_port_next_connect);
 	}
 
 	// Reuse port or not, based on reserved port being non-zero
-	const int was_locked_local = ctx->local_port_next_connect != 0 ? 1 : 0;
+	const int was_locked_local = local_port_next_connect != 0 ? 1 : 0;
 	lwp_setsockopt(ctx->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&was_locked_local, sizeof(was_locked_local));
-	ctx->local_port_next_connect = 0;
+	if (!owned_address)
+		ctx->local_port_next_connect = 0;
 
 	if (bind(ctx->socket, (struct sockaddr *)&local_address,
 		// sizeof sockaddr_storage doesn't work cross-platform
@@ -428,4 +500,3 @@ void lw_client_on_disconnect (lw_client ctx,
 
 lwp_def_hook (client, connect)
 lwp_def_hook (client, error)
-
