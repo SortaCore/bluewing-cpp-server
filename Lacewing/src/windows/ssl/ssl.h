@@ -31,8 +31,8 @@ typedef struct _lwp_ssl
 									const char * buffer,
 									size_t size);
 
-	struct _lw_stream upstream;
-	struct _lw_stream downstream;
+	struct _lw_stream outbound;
+	struct _lw_stream inbound;
 
 } * lwp_ssl;
 

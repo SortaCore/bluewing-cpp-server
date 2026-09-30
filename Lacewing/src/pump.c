@@ -171,7 +171,7 @@ void lw_pump_thread_check (lw_pump ctx)
 lw_bool lw_pump_is_thread (lw_pump ctx)
 {
 #ifdef ENABLE_THREADS
-	return lw_thread_id_equal(ctx->thread_id, lw_thread_id_current());
+	return !ctx || lw_thread_id_equal(ctx->thread_id, lw_thread_id_current());
 #else
 	(void)ctx;
 	return lw_true;

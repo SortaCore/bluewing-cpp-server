@@ -11,24 +11,27 @@
 #include "../../common.h"
 #include "ssl.h"
 
-static size_t proc_message_data
-	(lwp_ssl, const char * buffer, size_t size);
-
 // MSVC CRT debug memory does not have workarounds for malloca
 #ifdef _CRTDBG_MAP_ALLOC
 	#define _malloca(x) malloc(x)
 	#define _freea(x) free(x)
 #endif
+// Built into MSVC, but not others
+#ifndef _countof
+	#define _countof(x) (sizeof(x) / sizeof(x[0]))
+#endif
+#ifndef SP_PROT_TLS1_3_SERVER
+	#define SP_PROT_TLS1_3_SERVER 0x00001000
+#endif
 
-static size_t def_upstream_sink_data (lw_stream upstream,
-									  const char * buffer,
-									  size_t size)
+// Encrypting outbound stream; depends on handshake done by inbound stream
+static size_t def_outbound_sink_data(lw_stream outbound, const char * buffer, size_t size)
 {
-	lwp_ssl ctx = container_of
-	  (upstream, struct _lwp_ssl, upstream);
+	lwp_ssl ctx = container_of(outbound, struct _lwp_ssl, outbound);
 
+	// can't send anything until inbound finishes handshake
 	if (!ctx->handshake_complete)
-	  return 0; /* can't send anything right now */
+		return 0;
 
 	// We cannot encrypt in-place, as the buffer is const, and anything reading back from it will get indecipherable data
 	// In Blue, this caused a bug when a secure WebSocket client was in peer list, a peer join/leave would be sent to all
@@ -46,6 +49,7 @@ static size_t def_upstream_sink_data (lw_stream upstream,
 	}
 	memcpy(copy, buffer, size);
 
+	// 4 buffers required for EncryptMessage, in this exact order
 	SecBuffer buffers [4];
 
 	  buffers [0].pvBuffer = ctx->header;
@@ -61,15 +65,15 @@ static size_t def_upstream_sink_data (lw_stream upstream,
 	  buffers [2].BufferType = SECBUFFER_STREAM_TRAILER;
 
 	  buffers [3].BufferType = SECBUFFER_EMPTY;
-	  buffers [3].cbBuffer = 0;
+	  // MSDN example doesn't bother initing 3 fully
 
 	SecBufferDesc buffers_desc = {0};
 
-	buffers_desc.cBuffers = 4;
+	buffers_desc.cBuffers = _countof(buffers);
 	buffers_desc.pBuffers = buffers;
 	buffers_desc.ulVersion = SECBUFFER_VERSION;
 
-	SECURITY_STATUS status = EncryptMessage (&ctx->context, 0, &buffers_desc, 0);
+	SECURITY_STATUS status = EncryptMessage(&ctx->context, 0, &buffers_desc, 0);
 
 	if (status != SEC_E_OK)
 	{
@@ -84,83 +88,66 @@ static size_t def_upstream_sink_data (lw_stream upstream,
 		return size;
 	}
 
-	lw_stream_data (upstream, (char *) buffers [0].pvBuffer, buffers [0].cbBuffer);
-	lw_stream_data (upstream, (char *) buffers [1].pvBuffer, buffers [1].cbBuffer);
-	lw_stream_data (upstream, (char *) buffers [2].pvBuffer, buffers [2].cbBuffer);
-	lw_stream_data (upstream, (char *) buffers [3].pvBuffer, buffers [3].cbBuffer);
+	// 4th buffer is internal usage only, not output
+	for (const SecBuffer * b = buffers; b != buffers + (_countof(buffers) - 1); ++b)
+		if (b->cbBuffer > 0)
+			lw_stream_data(outbound, (char *)b->pvBuffer, b->cbBuffer);
 
 	_freea(copy);
 	return size;
 }
 
-static size_t def_downstream_sink_data (lw_stream downstream,
-										const char * buffer,
-										size_t size)
+// Decrypting inbound stream; also handles TLS handshake and notifying outbound when handshake is done
+static size_t def_inbound_sink_data(lw_stream inbound, const char * buffer, size_t input_left)
 {
-	lwp_ssl ctx =
-	  container_of (downstream, struct _lwp_ssl, downstream);
+	lwp_ssl ctx = container_of(inbound, struct _lwp_ssl, inbound);
 
 	size_t processed = 0;
 
-	if (! (ctx->handshake_complete))
+	if (!ctx->handshake_complete)
 	{
-	  processed += ctx->proc_handshake_data (ctx, buffer, size);
+		processed += ctx->proc_handshake_data(ctx, buffer, input_left);
 
-	  if (!ctx->handshake_complete)
-		 return processed;
+		// Need more data before handshake is done
+		if (!ctx->handshake_complete)
+			return processed;
 
-	  buffer += processed;
-	  size -= processed;
+		// We read some data for the handshake, so advance the buffer
+		buffer += processed;
+		input_left -= processed;
 
-	  /* Handshake complete!  Find out the maximum message size and
-		* how big the header/trailer will be.
-		*/
-	  if ((ctx->status = QueryContextAttributes (&ctx->context,
-												 SECPKG_ATTR_STREAM_SIZES,
-												 &ctx->sizes)) != SEC_E_OK)
-	  {
-		 lw_error err = lw_error_new();
-		 lw_error_add(err, ctx->status);
-		 lw_error_addf(err, "Secure handshake failure");
-		 if (ctx->handle_error)
-			 ctx->handle_error(ctx->client, err);
-		 lw_error_delete(err);
-		 return size;
-	  }
-
-	  ctx->header = (char *) lw_malloc_or_exit (ctx->sizes.cbHeader);
-	  ctx->trailer = (char *) lw_malloc_or_exit (ctx->sizes.cbTrailer);
+		// Now our incoming inbound has finished handshake, tell outbound to try sending again
+		lw_stream_retry(&ctx->outbound, lw_stream_retry_now);
 	}
+	if (input_left == 0)
+		return processed;
 
-	processed += proc_message_data (ctx, buffer, size);
+	// Process the incoming message data. 4 buffers are required.
+	SecBuffer buffers[4];
 
-	return processed;
-}
+	buffers[0].pvBuffer = (BYTE*)buffer;
+	buffers[0].cbBuffer = (unsigned long)input_left;
+	buffers[0].BufferType = SECBUFFER_DATA;
 
-size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
-{
-	SecBuffer buffers [4];
+	buffers[1].BufferType = SECBUFFER_EMPTY;
+	buffers[2].BufferType = SECBUFFER_EMPTY;
+	buffers[3].BufferType = SECBUFFER_EMPTY;
 
-	buffers [0].pvBuffer = (BYTE *) buffer;
-	buffers [0].cbBuffer = (unsigned long)size;
-	buffers [0].BufferType = SECBUFFER_DATA;
+	SecBufferDesc buffers_desc = { 0 };
 
-	buffers [1].BufferType = SECBUFFER_EMPTY;
-	buffers [2].BufferType = SECBUFFER_EMPTY;
-	buffers [3].BufferType = SECBUFFER_EMPTY;
-
-	SecBufferDesc buffers_desc = {0};
-
-	buffers_desc.cBuffers = 4;
+	buffers_desc.cBuffers = _countof(buffers);
 	buffers_desc.pBuffers = buffers;
 	buffers_desc.ulVersion = SECBUFFER_VERSION;
 
-	ctx->status = DecryptMessage (&ctx->context, &buffers_desc, 0, 0);
+	ctx->status = DecryptMessage(&ctx->context, &buffers_desc, 0, 0);
 
+	// Not enough input to decrypt
 	if (ctx->status == SEC_E_INCOMPLETE_MESSAGE)
-		return 0; /* retain these bytes until the next socket read completes the message */
+		return processed;
 
-	if (ctx->status == _HRESULT_TYPEDEF_ (0x00090317L)) /* SEC_I_CONTENT_EXPIRED */
+	// TLS context was closed by peer; this is a clean shutdown on the TLS level,
+	// as opposed to the TCP level.
+	if (ctx->status == SEC_I_CONTEXT_EXPIRED)
 	{
 		lw_error err = lw_error_new();
 		lw_error_add(err, ctx->status);
@@ -168,30 +155,43 @@ size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
 		if (ctx->handle_error)
 			ctx->handle_error(ctx->client, err);
 		lw_error_delete(err);
-		return size;
+		return input_left + processed; // Eat the entire thing
 	}
 
 	if (ctx->status == SEC_I_RENEGOTIATE)
 	{
-		/* TODO: "The DecryptMessage (Schannel) function returns
-		* SEC_I_RENEGOTIATE when the message sender wants to renegotiate the
-		* connection (security context). An application handles a requested
-		* renegotiation by calling AcceptSecurityContext (Schannel) (server
-		* side) or InitializeSecurityContext (Schannel) (client side) and
-		* passing in empty input buffers. After this initial call returns a
-		* value, proceed as though your application were creating a new
-		* connection. For more information, see Creating an Schannel Security
-		* Context"
-		*
-		* http://msdn.microsoft.com/en-us/library/aa374781%28v=VS.85%29.aspx
-		*/
-
-		// TODO: Phi note: when TLS cert expires, this may trigger for existing connections. I've rewritten this, but not tested yet.
 		ctx->handshake_complete = lw_false;
-		return ctx->proc_handshake_data(ctx, NULL, 0);
+
+		/* Schannel may leave the next handshake token in SECBUFFER_EXTRA,
+		   to be submitted as a handshake token.
+		   If it did not return EXTRA, the modified input buffer is the token. */
+		const char* handshake_buffer = buffer;
+		size_t handshake_size = input_left, handshake_offset = 0;
+		for (const SecBuffer * b = buffers; b != buffers + _countof(buffers); ++b)
+		{
+			if (b->BufferType == SECBUFFER_EXTRA)
+			{
+				assert(b->cbBuffer > 0); // idiot check
+				handshake_buffer = (const char*)b->pvBuffer;
+				handshake_size = b->cbBuffer;
+				handshake_offset = input_left - handshake_size;
+				break;
+			}
+		}
+
+		// Resubmit the handshake data
+		const size_t handshake_processed = ctx->proc_handshake_data(ctx, handshake_buffer, handshake_size);
+
+		processed = handshake_offset + handshake_processed;
+
+		// Now our incoming inbound has finished handshake, tell outbound to try sending again
+		if (ctx->handshake_complete)
+			lw_stream_retry(&ctx->outbound, lw_stream_retry_now);
+
+		return processed;
 	}
 
-	if (FAILED (ctx->status))
+	if (FAILED(ctx->status))
 	{
 		lw_error err = lw_error_new();
 		lw_error_add(err, ctx->status);
@@ -199,41 +199,28 @@ size_t proc_message_data (lwp_ssl ctx, const char * buffer, size_t size)
 		if (ctx->handle_error)
 			ctx->handle_error(ctx->client, err);
 		lw_error_delete(err);
-		return size;
+		return processed + input_left;
 	}
 
-	/* Find the decrypted data
-	*/
-	for (int i = 0; i < 4; ++ i)
+	// We expect 0-1 decrypted buffer DATA, 0-1 extra unprocessed input EXTRA,
+	// and it's not worth tracking match count when the loop is only 4
+	processed += input_left;
+	for (const SecBuffer* b = buffers; b != buffers + _countof(buffers); ++b)
 	{
-		SecBuffer * buffer = (buffers + i);
-
-		if (buffer->BufferType == SECBUFFER_DATA)
-		{
-			lw_stream_data (&ctx->downstream, (char *) buffer->pvBuffer, buffer->cbBuffer);
-			break;
-		}
+		// Send decrypted data
+		if (b->BufferType == SECBUFFER_DATA)
+			lw_stream_data(&ctx->inbound, (char*)b->pvBuffer, b->cbBuffer);
+		// Retain extra input that wasn't processed
+		else if (b->BufferType == SECBUFFER_EXTRA)
+			processed -= b->cbBuffer;
 	}
 
-	/* Check for any trailing data that wasn't part of the message
-	*/
-	for (int i = 0; i < 4; ++ i)
-	{
-		SecBuffer * buffer = (buffers + i);
-
-		if (buffer->BufferType == SECBUFFER_EXTRA && buffer->cbBuffer > 0)
-		{
-			size -= buffer->cbBuffer;
-			break;
-		}
-	}
-
-	return size;
+	return processed;
 }
 
-const static lw_streamdef def_upstream =
+const static lw_streamdef def_outbound =
 {
-	def_upstream_sink_data,
+	def_outbound_sink_data,
 	0, /* sink_stream */
 	0, /* retry */
 	0, /* is_transparent */
@@ -243,9 +230,9 @@ const static lw_streamdef def_upstream =
 	0  /* cleanup */
 };
 
-const static lw_streamdef def_downstream =
+const static lw_streamdef def_inbound =
 {
-	def_downstream_sink_data,
+	def_inbound_sink_data,
 	0, /* sink_stream */
 	0, /* retry */
 	0, /* is_transparent */
@@ -255,31 +242,31 @@ const static lw_streamdef def_downstream =
 	0  /* cleanup */
 };
 
-void lwp_ssl_init (lwp_ssl ctx, lw_server_client socket)
+void lwp_ssl_init(lwp_ssl ctx, lw_server_client socket)
 {
-	memset (ctx, 0, sizeof (*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
 	ctx->status = SEC_I_CONTINUE_NEEDED;
 
-	lwp_stream_init (&ctx->upstream, &def_upstream, 0);
-	lwp_stream_init (&ctx->downstream, &def_downstream, 0);
+	lwp_stream_init(&ctx->outbound, &def_outbound, 0);
+	lwp_stream_init(&ctx->inbound, &def_inbound, 0);
 
 	lw_stream_add_filter_upstream
-		((lw_stream)socket, &ctx->upstream, lw_false, lw_true);
+		((lw_stream)socket, &ctx->outbound, lw_false, lw_true);
 
 	lw_stream_add_filter_downstream
-		((lw_stream)socket, &ctx->downstream, lw_false, lw_true);
+		((lw_stream)socket, &ctx->inbound, lw_false, lw_true);
 
 	/* If Schannel leaves an incomplete TLS record queued, retry it after the
-	 * next socket read appends more encrypted input. */
-	lw_stream_retry (&ctx->downstream, lw_stream_retry_more_data);
+	   next socket read appends more encrypted input. */
+	lw_stream_retry(&ctx->inbound, lw_stream_retry_more_data);
 }
 
-void lwp_ssl_cleanup (lwp_ssl ctx)
+void lwp_ssl_cleanup(lwp_ssl ctx)
 {
-	lw_stream_close (&ctx->downstream, lw_true);
-	lw_stream_close (&ctx->upstream, lw_true);
+	lw_stream_close(&ctx->inbound, lw_true);
+	lw_stream_close(&ctx->outbound, lw_true);
 
-	free (ctx->header);
-	free (ctx->trailer);
+	free(ctx->header);
+	free(ctx->trailer);
 }

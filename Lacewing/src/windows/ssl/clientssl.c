@@ -111,7 +111,7 @@ size_t proc_handshake_data (lwp_ssl ssl, const char * buffer, size_t size)
 
 	  if (out [0].cbBuffer && out [0].pvBuffer)
 	  {
-		 lw_stream_data (&ctx->ssl.upstream, (char *) out [0].pvBuffer, out [0].cbBuffer);
+		 lw_stream_data (&ctx->ssl.outbound, (char *) out [0].pvBuffer, out [0].cbBuffer);
 
 		 FreeContextBuffer (out [0].pvBuffer);
 	  }

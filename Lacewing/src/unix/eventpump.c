@@ -72,13 +72,14 @@ static void def_cleanup (lw_pump pump)
 	{
 		// Drain the signal queue; it may have sig_remove, may have sig_post with a post_remove,
 		// may have an extra event loop exit
-		for (size_t i = 0, j; i < 3; ++i)
+		for (size_t i = 0; i < 3; ++i)
 		{
 			lw_sync_lock(ctx->sync_signals);
-			j = ctx->waiting_pipe_bytes;
+			int j = ctx->waiting_pipe_bytes;
 			lw_sync_release(ctx->sync_signals);
 			if (j == 0)
 				break;
+			assert(j > 0);
 
 			// Send a null event which will run all signals at end
 			// Only way this doesn't fully clear is a sig_post that has a sig_remove
@@ -116,7 +117,7 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 
 	lw_pump_watch watch = (lw_pump_watch)lwp_eventqueue_event_tag (event);
 
-	/* fudge: nothing kqueue specific belongs in this file, but since the
+	/* TODO: nothing kqueue specific belongs in this file, but since the
 	* kqueue code doesn't actually look at the events it's the only place
 	* we can put it.
 	*/

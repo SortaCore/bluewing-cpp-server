@@ -40,12 +40,12 @@ struct _lwp_sslclient
 	  unsigned char npn [32];
 	#endif
 
-	struct _lw_stream upstream;
-	struct _lw_stream downstream;
+	struct _lw_stream outbound;
+	struct _lw_stream inbound;
 };
 
-extern lw_streamdef def_upstream;
-extern lw_streamdef def_downstream;
+extern lw_streamdef def_outbound;
+extern lw_streamdef def_inbound;
 
 static void pumpclient (lwp_sslclient);
 
@@ -79,20 +79,20 @@ lwp_sslclient lwp_sslclient_new (SSL_CTX * server_context, lw_server_client sock
 
 	SSL_set_accept_state (ctx->ssl);
 
-	lwp_stream_init (&ctx->upstream, &def_upstream, 0);
-	lwp_stream_init (&ctx->downstream, &def_downstream, 0);
+	lwp_stream_init (&ctx->outbound, &def_outbound, 0);
+	lwp_stream_init (&ctx->inbound, &def_inbound, 0);
 
 	/* Retain our streams indefinitely, since we'll be in charge of releasing
 	* their memory.  This doesn't stop stream_delete from working.
 	*/
-	lwp_retain (&ctx->upstream, "lwp_sslclient upstream");
-	lwp_retain (&ctx->downstream, "lwp_sslclient downstream");
+	lwp_retain (&ctx->outbound, "lwp_sslclient upstream");
+	lwp_retain (&ctx->inbound, "lwp_sslclient inbound");
 
 	lw_stream_add_filter_upstream
-	  ((lw_stream)socket, &ctx->upstream, lw_false, lw_false);
+	  ((lw_stream)socket, &ctx->outbound, lw_false, lw_false);
 
 	lw_stream_add_filter_downstream
-	  ((lw_stream)socket, &ctx->downstream, lw_false, lw_false);
+	  ((lw_stream)socket, &ctx->inbound, lw_false, lw_false);
 
 	pumpclient (ctx);
 
@@ -115,8 +115,8 @@ void lwp_sslclient_delete (lwp_sslclient ctx)
 	SSL_free (ctx->ssl);
 	BIO_free (ctx->bio_external);
 
-	lw_stream_delete (&ctx->upstream);
-	lw_stream_delete (&ctx->downstream);
+	lw_stream_delete (&ctx->outbound);
+	lw_stream_delete (&ctx->inbound);
 
 	free (ctx);
 }
@@ -135,11 +135,11 @@ const char * lwp_sslclient_npn (lwp_sslclient ctx)
 	#endif
 }
 
-static size_t downstream_sink_data (lw_stream downstream,
+static size_t downstream_sink_data (lw_stream inbound,
 									const char * buffer, size_t size)
 {
 	lwp_sslclient ctx = container_of
-	  (downstream, struct _lwp_sslclient, downstream);
+	  (inbound, struct _lwp_sslclient, inbound);
 
 	int bytes = BIO_write (ctx->bio_external, buffer, (int)size);
 
@@ -154,13 +154,13 @@ static size_t downstream_sink_data (lw_stream downstream,
 	if (bytes < 0)
 	{
 		lw_error err = lw_error_new();
-		lw_error_addf(err, "SSL downstream write error %d", SSL_get_error(ctx->ssl, bytes));
+		lw_error_addf(err, "SSL inbound write error %d", SSL_get_error(ctx->ssl, bytes));
 
 		if (ctx->on_error)
 			ctx->on_error(ctx->client, err);
 		lw_error_delete (err);
 
-	  lw_stream_close (&ctx->downstream, lw_true);
+	  lw_stream_close (&ctx->inbound, lw_true);
 
 	  return size;
 	}
@@ -175,17 +175,17 @@ static size_t downstream_sink_data (lw_stream downstream,
 	{
 	  ctx->write_condition = -1;
 
-	  lw_stream_retry (&ctx->upstream, lw_stream_retry_now);
+	  lw_stream_retry (&ctx->outbound, lw_stream_retry_now);
 	}
 
 	return (size_t)bytes;
 }
 
-static size_t upstream_sink_data (lw_stream upstream,
+static size_t upstream_sink_data (lw_stream outbound,
 								  const char * buffer, size_t size)
 {
 	lwp_sslclient ctx = container_of
-	  (upstream, struct _lwp_sslclient, upstream);
+	  (outbound, struct _lwp_sslclient, outbound);
 
 	int bytes = SSL_write (ctx->ssl, buffer, (int)size);
 	int error = bytes < 0 ? SSL_get_error (ctx->ssl, bytes) : -1;
@@ -273,7 +273,7 @@ void pumpclient (lwp_sslclient ctx)
 		 {
 			exit = lw_false;
 
-			lw_stream_data (&ctx->upstream, buffer, (size_t)bytes);
+			lw_stream_data (&ctx->outbound, buffer, (size_t)bytes);
 
 			/* Pushing data may end up destroying the SSLClient user, which
 			 * will then set the _dead flag.
@@ -300,7 +300,7 @@ void pumpclient (lwp_sslclient ctx)
 		 if (bytes > 0)
 		 {
 			exit = lw_false;
-			lw_stream_data (&ctx->downstream, buffer, (size_t)bytes);
+			lw_stream_data (&ctx->inbound, buffer, (size_t)bytes);
 
 			if (ctx->flags & lwp_sslclient_flag_dead)
 				return;
@@ -311,7 +311,7 @@ void pumpclient (lwp_sslclient ctx)
 			{
 				lwp_trace ("SSL shutdown!");
 
-				lw_stream_close (&ctx->downstream, lw_true);
+				lw_stream_close (&ctx->inbound, lw_true);
 			}
 			else
 			{
@@ -341,12 +341,12 @@ void pumpclient (lwp_sslclient ctx)
 	ctx->flags &= ~ lwp_sslclient_flag_pumping;
 }
 
-lw_streamdef def_upstream =
+lw_streamdef def_outbound =
 {
 	.sink_data = upstream_sink_data
 };
 
-lw_streamdef def_downstream =
+lw_streamdef def_inbound =
 {
 	.sink_data = downstream_sink_data
 };

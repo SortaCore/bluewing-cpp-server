@@ -76,55 +76,70 @@ size_t proc_handshake_data (lwp_ssl ssl, const char * buffer, size_t size)
 
 	ctx->ssl.status = AcceptSecurityContext
 	(
-	  &ctx->server_creds,
-	  ctx->ssl.got_context ? &ctx->ssl.context : 0,
-	  &in_desc,
-	  flags,
-	  SECURITY_NATIVE_DREP,
-	  ctx->ssl.got_context ? 0 : &ctx->ssl.context,
-	  &out_desc,
-	  &out_flags,
-	  &expiry_time
+		&ctx->server_creds,
+		ctx->ssl.got_context ? &ctx->ssl.context : 0,
+		&in_desc,
+		flags,
+		SECURITY_NATIVE_DREP,
+		ctx->ssl.got_context ? 0 : &ctx->ssl.context,
+		&out_desc,
+		&out_flags,
+		&expiry_time
 	);
 
 	ctx->ssl.got_context = lw_true;
 
 	if (FAILED (ctx->ssl.status))
 	{
-	  if (ctx->ssl.status == SEC_E_INCOMPLETE_MESSAGE)
-		 return 0; /* need more data */
+		if (ctx->ssl.status == SEC_E_INCOMPLETE_MESSAGE)
+			return 0; // need more data to encrypt
 
-	  lw_error error = lw_error_new();
-	  lw_error_add(error, GetLastError() );
-	  lw_error_addf(error, "Secure handshake failure");
-
-	  if (ctx->ssl.handle_error)
-		 ctx->ssl.handle_error(ctx->socket, error);
-
-	  lw_error_delete(error);
-
-	  return size;
+		goto perish;
 	}
 
-	if (ctx->ssl.status == SEC_E_OK || ctx->ssl.status == SEC_I_CONTINUE_NEEDED)
+	if (ctx->ssl.status != SEC_E_OK && ctx->ssl.status != SEC_I_CONTINUE_NEEDED)
+		goto perish;
+
+	// Did AcceptSecurityContext give us back a response to send?
+	if (out [0].cbBuffer && out [0].pvBuffer)
 	{
-	  /* Did AcceptSecurityContext give us back a response to send?
-		*/
-	  if (out [0].cbBuffer && out [0].pvBuffer)
-	  {
-		 lw_stream_data (&ctx->ssl.upstream, (char *) out [0].pvBuffer, out [0].cbBuffer);
+		lw_stream_data (&ctx->ssl.outbound, (char *) out [0].pvBuffer, out [0].cbBuffer);
 
-		 FreeContextBuffer (out [0].pvBuffer);
-	  }
-
-	  /* Is there any data left over?
-		*/
-	  if (in [1].BufferType == SECBUFFER_EXTRA)
-		 size -= in [1].cbBuffer;
-
-	  if (ctx->ssl.status == SEC_E_OK)
-		 ctx->ssl.handshake_complete = lw_true;
+		FreeContextBuffer (out [0].pvBuffer);
 	}
+
+	// Is there any input data left over?
+	if (in [1].BufferType == SECBUFFER_EXTRA)
+		size -= in [1].cbBuffer;
+
+	// We're OK but handshake isn't done yet, must call Accept again
+	if (ctx->ssl.status == SEC_I_CONTINUE_NEEDED)
+		return size;
+
+	// Reads Schannel's max message size, and desired header/trailer sizes;
+	// if this doesn't work, then we have no continue scenario
+	if ((ctx->ssl.status = QueryContextAttributes(&ctx->ssl.context,
+		SECPKG_ATTR_STREAM_SIZES, &ctx->ssl.sizes)) != SEC_E_OK)
+	{
+		goto perish;
+	}
+
+	ctx->ssl.handshake_complete = lw_true;
+
+	ctx->ssl.header = (char*)lw_realloc_or_exit(ctx->ssl.header, ctx->ssl.sizes.cbHeader);
+	ctx->ssl.trailer = (char*)lw_realloc_or_exit(ctx->ssl.trailer, ctx->ssl.sizes.cbTrailer);
+
+	return size;
+perish:
+
+	lw_error error = lw_error_new();
+	lw_error_add(error, GetLastError());
+	lw_error_addf(error, "Secure handshake failure");
+
+	if (ctx->ssl.handle_error)
+		ctx->ssl.handle_error(ctx->socket, error);
+
+	lw_error_delete(error);
 
 	return size;
 }
