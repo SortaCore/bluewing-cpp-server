@@ -708,8 +708,8 @@ int main(const int argcf, lw_char* argv[])
 		}
 	}
 
-	// If console output, and no cmd args were passed at all, ask user for input
-	if (argc <= 1)
+	// If console input, and no cmd args were passed at all, ask user for input
+	if (argc <= 1 && requestUserInput)
 	{
 		if (!GetPortFromInput(u8"main"sv, &mainPort, false, 6121) ||
 			!GetPortFromInput(u8"WebSocket insecure"sv, &websocketNonSecurePort, false, 80) ||
@@ -877,7 +877,8 @@ int main(const int argcf, lw_char* argv[])
 		std::cout << u8"\x1b[?25l"sv;
 
 		// In case this is set to false due to running under debugger, enable it again
-		requestUserInput = true;
+		if (!requestUserInput && !requestUserInputUnderDebugger)
+			requestUserInput = true;
 	}
 
 	// Start main event loop

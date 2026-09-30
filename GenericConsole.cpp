@@ -844,6 +844,9 @@ int main(const int argcf, lw_char* argv[])
 			std::cout << red << "Failed to get terminal settings (error "sv << errno << "). Aborting server start."sv << lineEnd();
 			return -1;
 		}
+
+		// Disable requesting user input if not a console input
+		requestUserInput &= !isatty(fileno(stdin));
 #endif // _WIN32
 
 		// Same as outputting gray but without time buffer
@@ -917,8 +920,8 @@ int main(const int argcf, lw_char* argv[])
 #endif // _WIN32
 	}
 
-	// If console output, and no cmd args were passed at all, ask user for input
-	if (argc <= 1)
+	// If console input, and no cmd args were passed at all, ask user for input
+	if (argc <= 1 && requestUserInput)
 	{
 		if (!GetPortFromInput("main"sv, &mainPort, false, 6121) ||
 			!GetPortFromInput("WebSocket insecure"sv, &websocketNonSecurePort, false, 80) ||
@@ -1125,8 +1128,11 @@ int main(const int argcf, lw_char* argv[])
 		SetConsoleCursorInfo(hStdOut, &info);
 #endif // lw_utf8_console
 
+#ifdef _WIN32
 		// In case this is set to false due to running under debugger, enable it again
-		requestUserInput = true;
+		if (!requestUserInput && !requestUserInputUnderDebugger)
+			requestUserInput = true;
+#endif // !_WIN32
 	}
 
 	// Start main event loop
