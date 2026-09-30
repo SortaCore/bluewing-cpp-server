@@ -62,6 +62,8 @@ lw_eventpump lw_eventpump_new ()
 	return ctx;
 }
 
+lw_bool process_event(lw_eventpump ctx, lwp_eventqueue_event event);
+
 static void def_cleanup (lw_pump pump)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
@@ -179,7 +181,12 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 			void* param = list_front(void*, ctx->signalparams);
 			list_pop_front(void*, ctx->signalparams);
 
+			// Release in case the function causes signal
+			lw_sync_release (ctx->sync_signals);
+
 			((void* (*) (void*)) func) (param);
+
+			lw_sync_lock (ctx->sync_signals); // regain for re-read of waiting_pipe_bytes
 
 			break; // out of switch
 		}
