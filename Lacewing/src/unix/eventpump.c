@@ -70,6 +70,22 @@ static void def_cleanup (lw_pump pump)
 
 	if (ctx->signalpipe_read != -1)
 	{
+		// Drain the signal queue; it may have sig_remove, may have sig_post with a post_remove,
+		// may have an extra event loop exit
+		for (size_t i = 0, j; i < 3; ++i)
+		{
+			lw_sync_lock(ctx->sync_signals);
+			j = ctx->waiting_pipe_bytes;
+			lw_sync_release(ctx->sync_signals);
+			if (j == 0)
+				break;
+
+			// Send a null event which will run all signals at end
+			// Only way this doesn't fully clear is a sig_post that has a sig_remove
+			lwp_eventqueue_event clear = { 0 };
+			process_event(ctx, clear);
+		}
+		
 		close(ctx->signalpipe_read);
 		close(ctx->signalpipe_write);
 	}
