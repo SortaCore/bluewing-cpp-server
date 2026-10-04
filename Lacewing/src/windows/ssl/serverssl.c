@@ -34,6 +34,9 @@ void lwp_serverssl_cleanup (lwp_serverssl ctx)
 size_t proc_handshake_data (lwp_ssl ssl, const char * buffer, size_t size)
 {
 	lwp_serverssl ctx = (lwp_serverssl) ssl;
+	// A completed context plus an empty input marks the SCHANNEL_SHUTDOWN
+	// exchange. Renegotiation clears handshake_complete before arriving here.
+	const lw_bool shutting_down = ctx->ssl.handshake_complete && !buffer && !size;
 
 	SecBuffer in [2];
 
@@ -97,7 +100,9 @@ size_t proc_handshake_data (lwp_ssl ssl, const char * buffer, size_t size)
 		goto perish;
 	}
 
-	if (ctx->ssl.status != SEC_E_OK && ctx->ssl.status != SEC_I_CONTINUE_NEEDED)
+	if (ctx->ssl.status != SEC_E_OK &&
+		ctx->ssl.status != SEC_I_CONTINUE_NEEDED &&
+		!(shutting_down && ctx->ssl.status == SEC_I_CONTEXT_EXPIRED))
 		goto perish;
 
 	// Did AcceptSecurityContext give us back a response to send?
@@ -116,10 +121,25 @@ size_t proc_handshake_data (lwp_ssl ssl, const char * buffer, size_t size)
 	if (ctx->ssl.status == SEC_I_CONTINUE_NEEDED)
 		return size;
 
+	// Shutdown is complete; the output token above is queued, so defer stream
+	// closure until that output has drained.
+	if (shutting_down)
+	{
+		lw_stream_close((lw_stream)ctx->socket, lw_false);
+		return size;
+	}
+
 	// Reads Schannel's max message size, and desired header/trailer sizes;
 	// if this doesn't work, then we have no continue scenario
 	if ((ctx->ssl.status = QueryContextAttributes(&ctx->ssl.context,
 		SECPKG_ATTR_STREAM_SIZES, &ctx->ssl.sizes)) != SEC_E_OK)
+	{
+		goto perish;
+	}
+
+	// Read Schannel's protocol; this is used during TLS-level shutdown (close_notify)
+	if ((ctx->ssl.status = QueryContextAttributes(&ctx->ssl.context,
+		SECPKG_ATTR_CONNECTION_INFO, &ctx->ssl.conInfo)) != SEC_E_OK)
 	{
 		goto perish;
 	}
@@ -143,4 +163,3 @@ perish:
 
 	return size;
 }
-

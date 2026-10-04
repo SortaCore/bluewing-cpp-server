@@ -145,16 +145,43 @@ static size_t def_inbound_sink_data(lw_stream inbound, const char * buffer, size
 	if (ctx->status == SEC_E_INCOMPLETE_MESSAGE)
 		return processed;
 
-	// TLS context was closed by peer; this is a clean shutdown on the TLS level,
-	// as opposed to the TCP level.
+	// TLS context was closed by peer; this is a close_notify,
+	// a clean shutdown on the TLS level, as opposed to the TCP level.
 	if (ctx->status == SEC_I_CONTEXT_EXPIRED)
 	{
-		lw_error err = lw_error_new();
-		lw_error_add(err, ctx->status);
-		lw_error_addf(err, "Secure content expired");
-		if (ctx->handle_error)
-			ctx->handle_error(ctx->client, err);
-		lw_error_delete(err);
+		// All protocols require discarding pending writes for a close_notify,
+		// but we can't do that as we're using async IOCP. Our best shot is CancelIoEx.
+		fn_CancelIoEx cancel_io_ex = compat_CancelIoEx();
+		if (cancel_io_ex)
+			cancel_io_ex(ctx->client, NULL);
+		else
+			CancelIo(ctx->client);
+		if (!lw_stream_close((lw_stream)ctx->client, lw_false))
+		// On receipt, TLS 1.0-1.2 and SSL3 require an immediate close_notify reply;
+		// DTLS 1.0/1.2 inherit this. TLS 1.3 does not require a reply.
+		// DTLS alerts are unreliable, but send the reply for versions that require it.
+		// It may arrive after some writes (not exactly spec), but we'll attempt to comply.
+		if (ctx->conInfo.dwProtocol != SP_PROT_TLS1_3_SERVER)
+		{
+			// Reply with our own close_notify before closing the transport.
+			DWORD shutdown = SCHANNEL_SHUTDOWN;
+			SecBuffer shutdown_buffer = { sizeof(shutdown), SECBUFFER_TOKEN, &shutdown };
+			SecBufferDesc shutdown_desc = { SECBUFFER_VERSION, 1, &shutdown_buffer };
+
+			ctx->status = ApplyControlToken(&ctx->context, &shutdown_desc);
+			if (ctx->status == SEC_E_OK)
+				ctx->proc_handshake_data(ctx, 0, 0);
+			else
+			{
+				lw_error err = lw_error_new();
+				lw_error_add(err, ctx->status);
+				lw_error_addf(err, "Starting TLS shutdown failed");
+				if (ctx->handle_error)
+					ctx->handle_error(ctx->client, err);
+				lw_error_delete(err);
+			}
+		}
+
 		return input_left + processed; // Eat the entire thing
 	}
 

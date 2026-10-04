@@ -24,6 +24,7 @@ typedef struct _lwp_ssl
 	CtxtHandle context;
 
 	SecPkgContext_StreamSizes sizes;
+	SecPkgContext_ConnectionInfo conInfo;
 
 	char * header, * trailer;
 
