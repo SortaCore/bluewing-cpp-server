@@ -268,3 +268,22 @@ extern lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg);
 	{	ctx->on_##hook = hook;												\
 	}																		 \
 
+#ifdef _WIN32
+	// If we CancelIoEx() or closesocket(), IOCP will produce op aborted for pending overlaps.
+	// On Wine, Linux has no overlapped equivalent, so it produces async handles closed.
+	// @remarks This is because Wine emulates IOCP using wineserver:
+	// https://github.com/wine-mirror/wine/blob/6d1b09405774c4f234ed3fa0088a9706deb7ad49/server/sock.c#L3973
+	// https://github.com/wine-mirror/wine/blob/6d1b09405774c4f234ed3fa0088a9706deb7ad49/server/async.c#L280
+	// We may cancel IO without closing the socket, i.e. TLS <1.3 socket sent a close_notify, which requires
+	// a close_notify reply sent and strictly nothing else.
+	// 
+	// WSAESHUTDOWN can only mean shutdown() was called by us; we do that in graceful close.
+	// Treat it as non-error, whatever is closing down is responsible for closure.
+	//
+	// In all these error codes, don't report as error.
+	#define lwp_op_aborted(err) (err == ERROR_OPERATION_ABORTED || err == ERROR_HANDLES_CLOSED || err == WSAESHUTDOWN)
+#else
+	// In theory all cancelled ops in Linux will never trigger a reply; the handle closure will trigger
+	// the event loops to discard any pending ops, and not trigger a callback for the discarded op in event pump.
+	#define lwp_op_aborted(err) (err == EBADF)
+#endif
