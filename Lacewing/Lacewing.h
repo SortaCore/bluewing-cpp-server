@@ -232,7 +232,7 @@ typedef enum _lw_addr_tostring_flags
 
 /* Thread */
 
-	lw_import	   lw_thread  lw_thread_new		(const char * name, void * proc);
+	lw_import	   lw_thread  lw_thread_new		(const char * name, unsigned (* proc)(void *));
 	lw_import			void  lw_thread_delete	(lw_thread);
 	lw_import			void  lw_thread_start	(lw_thread, void * parameter);
 	lw_import		 lw_bool  lw_thread_started	(lw_thread);
@@ -758,7 +758,7 @@ typedef enum _lw_addr_tostring_flags
 	void * lw_calloc_or_exit (const size_t count, const size_t size);
 	void * lw_realloc_or_exit (void * const origptr, const size_t newsize);
 	// Returns 1+ if success, -1 if not found, -2 if error; use 0 for default
-	lw_ui32 lwp_get_ifidx (struct sockaddr_storage* s);
+	lw_i32 lwp_get_ifidx (struct sockaddr_storage* s);
 
 #ifdef __cplusplus
 } /* extern "C" */
@@ -962,7 +962,7 @@ struct _thread
 	lw_import void * tag ();
 };
 
-lw_import thread thread_new (const char * name, void * proc);
+lw_import thread thread_new (const char * name, unsigned(*proc)(void*));
 lw_import void thread_delete (thread&);
 
 
@@ -2191,7 +2191,7 @@ struct relayserver
 
 		std::shared_ptr<client> readpeer(messagereader &r);
 
-		void PeerToChannel(relayserver &server_, std::shared_ptr<relayserver::client> client,
+		void PeerToChannel(std::shared_ptr<relayserver::client> client,
 			bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message);
 	};
 
@@ -2257,6 +2257,7 @@ struct relayserver
 		~client() noexcept;
 	protected:
 		lacewing::server_client socket = nullptr;
+		// TODO: We shouldn't need to keep this. If we are, PeerToPeer doesn't need a server param.
 		relayserverinternal &server;
 		// Can't use socket->address, as when server_client is free'd it is no longer valid
 		// Since there's a logical use for looking up address during closing, we'll keep a copy.
@@ -2300,13 +2301,13 @@ struct relayserver
 		// on client machines. These are not set until UDPHello is received.
 		lacewing::address udplocaladdress = nullptr;
 		// Local network interface index. 0 is any (OS picks), neg is invalid, 1+ is index.
-		lw_ui32 ifidx = -1;
+		lw_i32 ifidx = -1;
 		// Specific socket if it is a direct hole punch connection
 		lacewing::udp udppunch = nullptr;
 
 		lw_ui16 _id = 0xFFFF;
 
-		void PeerToPeer(relayserver &server, std::shared_ptr<relayserver::channel> viachannel, std::shared_ptr<relayserver::client> receivingclient,
+		void PeerToPeer(std::shared_ptr<relayserver::channel> viachannel, std::shared_ptr<relayserver::client> receivingclient,
 			bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message);
 
 		// Checks if name can be set to given name, by this client.

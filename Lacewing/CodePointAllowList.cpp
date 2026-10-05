@@ -143,7 +143,7 @@ std::string lacewing::codepointsallowlist::setcodepointsallowedlist(std::string 
 			cur = endPtr;
 			if (cur[0] == '\0' || cur[0] == ',')
 			{
-				if (std::find(specificCodePoints.cbegin(), specificCodePoints.cend(), codePointAllowed) != specificCodePoints.cend())
+				if (std::find(specificCodePoints.cbegin(), specificCodePoints.cend(), (int)codePointAllowed) != specificCodePoints.cend())
 					return CPALMakeError(this, acTemp, "Specific codepoint %lu was added twice in list \"%hs\".", codePointAllowed, acStr.c_str());
 
 				specificCodePoints.push_back((int)codePointAllowed);

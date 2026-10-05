@@ -18,8 +18,10 @@ OVERLAPPED lwp_network_changed_overlapped;
 
 static HANDLE networkChanged;
 
-void WINAPI lwp_networkChangedCallback(void* CallerContext, PMIB_IPINTERFACE_ROW row, int type)
+void WINAPI lwp_networkChangedCallback(void* CallerContext, void * rowP, int type)
 {
+	const PMIB_IPINTERFACE_ROW row = (PMIB_IPINTERFACE_ROW)rowP; // rowP is void * to match func declaration
+
 	if (type != MibDeleteInstance && type != MibAddInstance)
 		return;
 

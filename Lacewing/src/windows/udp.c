@@ -225,9 +225,11 @@ static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
 				// To avoid flooding server with reports, we don't report in release builds.
 				if (!lw_filter_check_remote_addr(ctx->filter, &remoteAddr))
 				{
+#ifdef _lacewing_debug
 					lw_addr filter_addr = lw_filter_remote(ctx->filter);
 					lwp_trace("UDP from unexpected source \"%s\", outside of filter \"%s\".\n",
 						lw_addr_tostring(&addr), lw_addr_tostring(filter_addr));
+#endif // _lacewing_debug
 				}
 				else if (ctx->on_data)
 				{
@@ -390,7 +392,7 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 	ctx->port = lwp_socket_port(ctx->socket);
 
 	// Not available on WinXP, but all IPv6 stuff is half-baked there
-	ctx->WSASendMsgPtr = compat_WSASendMsg(ctx->socket);
+	ctx->WSASendMsgPtr = compat_WSASendMsg();
 	ctx->WSARecvMsgPtr = compat_WSARecvMsg(ctx->socket);
 
 	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, "lw_udp_host", ctx, udp_socket_completion);

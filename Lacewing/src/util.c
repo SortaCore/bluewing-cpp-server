@@ -361,7 +361,7 @@ static lw_thread lw_udp_public_hunter = NULL;
 #include "address.h"
 extern lw_addr lwp_addr_new_sockaddr(struct sockaddr* sockaddr);
 // Hunt for a public IPv6 address that does not have a time limit or is LAN-only
-static DWORD WINAPI publicFixedIPv6AddressHunterThread(LPVOID data)
+static UINT WINAPI publicFixedIPv6AddressHunterThread(LPVOID data)
 {
 	PIP_ADAPTER_ADDRESSES addr = (PIP_ADAPTER_ADDRESSES)malloc(16 * 1024);
 	if (!addr)
@@ -457,7 +457,7 @@ static DWORD WINAPI publicFixedIPv6AddressHunterThread(LPVOID data)
 	free(addr);
 	return 0;
 }
-lw_ui32 lwp_get_ifidx(struct sockaddr_storage* ss)
+lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)
 {
 	PIP_ADAPTER_ADDRESSES addr = (PIP_ADAPTER_ADDRESSES)malloc(16 * 1024);
 	if (!addr)
@@ -871,7 +871,7 @@ static void * publicFixedIPv6AddressHunterThread(void * data)
 	return 0;
 }
 
-lw_ui32 lwp_get_ifidx(struct sockaddr_storage* ss)
+lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)
 {
 	if (ss->ss_family != AF_INET && ss->ss_family != AF_INET6)
 		return -2;
@@ -970,7 +970,7 @@ lw_ui32 lwp_get_ifidx(struct sockaddr_storage* ss)
 			lw_addr_tostring(netAddr, lw_addr_tostring_flag_remove_port));
 		if (lwp_sockaddr_equal_netmask((struct sockaddr *)ss, ifa->ifa_addr, ifa->ifa_netmask))
 		{
-			ret = if_nametoindex(ifa->ifa_name);
+			ret = (lw_i32)if_nametoindex(ifa->ifa_name);
 			break;
 		}
 	}
@@ -1277,7 +1277,7 @@ void lwp_trigger_public_address_hunt(lw_bool block)
 
 	if (!lw_udp_public_hunter)
 	{
-		lw_udp_public_hunter = lw_thread_new("IPv6 adapter address finder", (void*)publicFixedIPv6AddressHunterThread);
+		lw_udp_public_hunter = lw_thread_new("IPv6 adapter address finder", publicFixedIPv6AddressHunterThread);
 		lw_thread_start(lw_udp_public_hunter, NULL);
 	}
 	if (block)

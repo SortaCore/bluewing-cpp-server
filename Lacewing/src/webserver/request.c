@@ -355,13 +355,13 @@ static lw_bool get_field (const char * URL, struct http_parser_url * parsed,
 	return lw_true;
 }
 
-lw_bool lwp_ws_req_in_url (lw_ws_req ctx, size_t length, const char * url)
+lw_bool lwp_ws_req_in_url (lw_ws_req ctx, size_t in_length, const char * url)
 {
 	struct http_parser_url parsed;
 
 	/* Check for any directory traversal in the URL. */
 
-	for (size_t i = 0; i < (length - 1); ++ i)
+	for (size_t i = 0; i < (in_length - 1); ++ i)
 	{
 		if (url [i] == '.' && url [i + 1] == '.')
 			return lw_false;
@@ -369,7 +369,7 @@ lw_bool lwp_ws_req_in_url (lw_ws_req ctx, size_t length, const char * url)
 
 	/* Now hand it over to the URL parser */
 
-	if (http_parser_parse_url (url, length, 0, &parsed))
+	if (http_parser_parse_url (url, in_length, 0, &parsed))
 		return lw_false;
 
 

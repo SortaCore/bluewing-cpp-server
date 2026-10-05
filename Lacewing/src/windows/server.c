@@ -78,7 +78,7 @@ struct _lw_server_client
 	  When looking up string representation make sure to check. */
 	lw_addr remote_addr;
 	lw_addr local_addr;
-	lw_ui32 ifidx;
+	lw_i32 ifidx;
 
 	lw_server_client * elem;
 
@@ -508,7 +508,7 @@ static lw_bool add_client_internal(lw_server ctx, accept_overlapped overlapped,
 	client->remote_addr = lwp_addr_new_sockaddr((struct sockaddr*)remote_addr);
 	client->ifidx = lwp_get_ifidx(realLocal);
 	lw_addr_tostring_flags flags = lw_addr_tostring_flag_box_ipv6;
-	lw_log_if_debug("%s first incoming TCP data. Socket ID %i (used %i), local address \"%s\", ifidx %u, remote address \"%s\".\n",
+	lw_log_if_debug("%s first incoming TCP data. Socket ID %i (used %i), local address \"%s\", ifidx %d, remote address \"%s\".\n",
 		overlapped->is_hole_punch ? "Hole punch" : "Regular client",
 		(int)overlapped->socket, (int)curSocket,
 		lw_addr_tostring(client->local_addr, flags), client->ifidx,
@@ -986,7 +986,7 @@ static lw_error read_cert_file(CRYPT_DATA_BLOB * res, const char* filenameUTF8, 
 			break;
 
 		DWORD expDERSize = 0;
-		if (!CryptStringToBinaryA(res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
+		if (!CryptStringToBinaryA((LPCSTR)res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
 			NULL, &expDERSize, NULL, NULL))
 		{
 			ret = lw_error_new();
@@ -1002,7 +1002,7 @@ static lw_error read_cert_file(CRYPT_DATA_BLOB * res, const char* filenameUTF8, 
 			break;
 		}
 
-		if (!CryptStringToBinaryA(res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
+		if (!CryptStringToBinaryA((LPCSTR)res->pbData, res->cbData, CRYPT_STRING_BASE64HEADER,
 			DERdata, &expDERSize, NULL, NULL))
 		{
 			ret = lw_error_new();
@@ -1032,7 +1032,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 								  const char * passphrase)
 {
 	if (filename_cert_chain == filename_privkey ||
-		filename_privkey && (filename_privkey[0] == '\0' || !strcmp(filename_cert_chain, filename_privkey)))
+		(filename_privkey && (filename_privkey[0] == '\0' || !strcmp(filename_cert_chain, filename_privkey))))
 		filename_privkey = NULL;
 	if (passphrase && passphrase[0] == '\0')
 		passphrase = NULL;
@@ -1177,7 +1177,7 @@ lw_bool lw_server_load_cert_file (lw_server ctx,
 					break;
 				}
 			}
-			if (!CryptImportKey(cryptProvHandle, privKeyBlob, privKeyBlobLen, (HCRYPTKEY)NULL, 0, &keyHandle))
+			if (!CryptImportKey(cryptProvHandle, (const BYTE *)privKeyBlob, privKeyBlobLen, (HCRYPTKEY)NULL, 0, &keyHandle))
 			{
 				error = lw_error_new();
 				lw_error_add(error, GetLastError());

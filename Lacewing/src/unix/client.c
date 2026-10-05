@@ -32,7 +32,7 @@ struct _lw_client
 
 	lw_addr remote_address;
 	lw_addr local_address;
-	lw_ui32 ifidx;
+	lw_i32 ifidx;
 
 	lwp_socket socket;
 	//lw_bool connecting; // part of flags, see lw_client_flag_connecting

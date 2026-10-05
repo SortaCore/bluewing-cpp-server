@@ -20,7 +20,7 @@ struct _lw_thread
 	void * tag;
 };
 
-lw_thread lw_thread_new (const char * name, void * proc)
+lw_thread lw_thread_new (const char * name, unsigned (* proc)(void *))
 {
 	lw_thread ctx = (lw_thread) calloc (sizeof (*ctx), 1);
 
@@ -78,11 +78,14 @@ static void SetThreadName(DWORD dwThreadID, const char* threadName) {
 	}
 }
 
-static int thread_proc (lw_thread ctx)
+static unsigned __stdcall thread_proc (void * ctxP)
 {
+	const lw_thread ctx = (lw_thread)ctxP; // ctx is void * to match beginthreadex func declaration
+
 	SetThreadName(GetCurrentThreadId(), ctx->name);
 
-	return ((int (__stdcall *) (void *)) ctx->proc) (ctx->param);
+	// not stdcall
+	return ((unsigned (*) (void *)) ctx->proc) (ctx->param);
 }
 
 void lw_thread_start (lw_thread ctx, void * param)
@@ -92,8 +95,7 @@ void lw_thread_start (lw_thread ctx, void * param)
 
 	ctx->param = param;
 
-	ctx->thread = (HANDLE) _beginthreadex (0, 0,
-		 (unsigned (__stdcall *) (void *)) thread_proc, ctx, 0, 0);
+	ctx->thread = (HANDLE) _beginthreadex (0, 0, thread_proc, ctx, 0, 0);
 }
 
 lw_bool lw_thread_started (lw_thread ctx)

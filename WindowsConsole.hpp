@@ -14,7 +14,7 @@
 #include <Windows.h>
 
 // For icon file
-#include "resource.h"
+#include "Resource.h"
 
 // For memory leak finding
 #ifdef _CRTDBG_MAP_ALLOC

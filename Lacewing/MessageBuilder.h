@@ -44,17 +44,17 @@ public:
 		buffer = nullptr;
 	}
 
-	void add(const char * const buffer, size_t sizeP)
+	void add(const char * const bufferParam, size_t sizeParam)
 	{
-		if (sizeP == SIZE_MAX)
-			sizeP = (lw_ui32)strlen(buffer);
+		if (sizeParam == SIZE_MAX)
+			sizeParam = (lw_ui32)strlen(bufferParam);
 
-		if constexpr (sizeof(sizeP) > 4)
-			assert(sizeP < 0xFFFFFFFF);
+		if constexpr (sizeof(sizeParam) > 4)
+			assert(sizeParam < 0xFFFFFFFF);
 
-		const lw_ui32 size = (lw_ui32)sizeP;
+		const lw_ui32 sizeLocal = (lw_ui32)sizeParam;
 
-		if (this->size + size > allocated)
+		if (this->size + sizeLocal > allocated)
 		{
 			const int origalloc = allocated;
 			if (!allocated)
@@ -62,15 +62,15 @@ public:
 			else
 				allocated *= 3;
 
-			if (this->size + size > allocated)
-				allocated += size;
+			if (this->size + sizeLocal > allocated)
+				allocated += sizeLocal;
 
 			this->buffer = (lw_ui8 *)lw_realloc_or_exit(this->buffer, allocated);
 			memset(this->buffer + origalloc, 0, allocated - origalloc);
 		}
 
-		memcpy(this->buffer + this->size, buffer, size);
-		this->size += size;
+		memcpy(this->buffer + this->size, bufferParam, sizeLocal);
+		this->size += sizeLocal;
 	}
 
 	template<typename t>

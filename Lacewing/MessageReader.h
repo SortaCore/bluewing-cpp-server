@@ -45,12 +45,12 @@ public:
 		tofree.clear();
 	}
 
-	inline bool check(const size_t size)
+	inline bool check(const size_t sizeParam)
 	{
 		if (failed)
 			return false;
 
-		if (offset + size > this->size)
+		if (offset + sizeParam > this->size)
 		{
 			failed = true;
 			return false;
@@ -70,13 +70,13 @@ public:
 		return value;
 	}
 
-	std::string_view get (size_t size)
+	std::string_view get (size_t sizeParam)
 	{
-		if (!check(size))
+		if (!check(sizeParam))
 			return std::string_view();
 
-		std::string_view output (buffer + offset, size);
-		offset += size;
+		const std::string_view output (buffer + offset, sizeParam);
+		offset += sizeParam;
 
 		return output;
 	}

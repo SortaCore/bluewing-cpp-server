@@ -165,7 +165,7 @@ std::string lw_u8str_simplify(const std::string_view first, bool destructive, bo
 			continue;
 		}
 		// horizontal ellipsis (U+2026) to "..."
-		if (u8str.size() > i + 2 && c == ((char)0xE2)  && u8str[i + 1] == ((char)0x80) && u8str[i + 2] == ((char)0xA6))
+		if (u8str.size() > i + 2 && (lw_ui8)c == (lw_ui8)0xE2 && (lw_ui8)u8str[i + 1] == (lw_ui8)0x80 && (lw_ui8)u8str[i + 2] == (lw_ui8)0xA6)
 		{
 			u8str[i] = '.';
 			u8str[++i] = '.';

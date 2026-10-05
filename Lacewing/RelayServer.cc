@@ -755,11 +755,11 @@ void serverpingtimertick (lacewing::timer timer)
 	((relayserverinternal *) timer->tag())->pingtimertick();
 }
 
-std::shared_ptr<relayserver::channel> relayserver::client::readchannel(messagereader &reader)
+std::shared_ptr<relayserver::channel> relayserver::client::readchannel(messagereader &readerParam)
 {
-	int channelid = reader.get <lw_ui16> ();
+	int channelid = readerParam.get <lw_ui16> ();
 
-	if (reader.failed)
+	if (readerParam.failed)
 		return nullptr;
 
 	// TODO: Add code to slow-release channel IDs like client IDs?
@@ -767,27 +767,25 @@ std::shared_ptr<relayserver::channel> relayserver::client::readchannel(messagere
 		if (e->_id == channelid)
 			return e;
 
-	reader.failed = true;
+	readerParam.failed = true;
 	return nullptr;
 }
 
-void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relayserver::channel> channel,
+void relayserver::client::PeerToPeer(std::shared_ptr<relayserver::channel> channel,
 	std::shared_ptr<relayserver::client> receivingClient,
 	bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message)
 {
-	relayserverinternal & serverinternal = *(relayserverinternal *)server.internaltag;
-
 	if (_id == receivingClient->_id)
 	{
 		lacewing::error error = lacewing::error_new();
 		error->add("Client ID %hu attempted to send peer message to ID %hu, e.g. themselves. Message dropped", _id, receivingClient->_id);
-		serverinternal.handlererror(server, error);
+		server.handlererror(server.server, error);
 		lacewing::error_delete(error);
 		return;
 	}
 
 	int rejectedCodePoint;
-	if (variant == 0 && serverinternal.checkcodepointsallowed(codepointsallowlistindex::MessagesSentToClients, message, &rejectedCodePoint) != -1)
+	if (variant == 0 && server.checkcodepointsallowed(codepointsallowlistindex::MessagesSentToClients, message, &rejectedCodePoint) != -1)
 	{
 		utf8proc_uint8_t rejectCharAsStr[5] = u8"(?)";
 		if (utf8proc_codepoint_valid(rejectedCodePoint))
@@ -802,7 +800,7 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 		error->add("Dropped peer text message \"%.*hs...\" from client %hs (ID %hu) -> client %hs (ID %hu), invalid char U+%0.4X '%hs' rejected.",
 			msgPartSize, message.data(), name().c_str(), id(), receivingClient->name().c_str(), receivingClient->id(),
 			rejectedCodePoint, rejectCharAsStr);
-		serverinternal.handlererror(server, error);
+		server.handlererror(server.server, error);
 		lacewing::error_delete(error);
 		return;
 	}
@@ -815,7 +813,6 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 	builder.add <lw_ui16>(_id);
 	builder.add(message);
 
-
 	auto channelReadLock = channel->lock.createReadLock();
 	if (channel->_readonly)
 		return;
@@ -827,8 +824,8 @@ void relayserver::client::PeerToPeer(relayserver &server, std::shared_ptr<relays
 
 	if (blasted && !receivingClient->pseudoUDP)
 	{
-		auto serverUDPWriteLock = server.lock_udp.createWriteLock();
-		builder.send(receivingClient->udppunch ? receivingClient->udppunch : server.udp,
+		auto serverUDPWriteLock = server.server.lock_udp.createWriteLock();
+		builder.send(receivingClient->udppunch ? receivingClient->udppunch : server.server.udp,
 			receivingClient->udplocaladdress, receivingClient->ifidx, receivingClient->udpremoteaddress);
 	}
 	else
@@ -976,7 +973,7 @@ void relayserverinternal::generic_handlerconnect(lacewing::server, lacewing::ser
 	//	serverinternal.handlerconnect(serverinternal.server, c->public_);
 }
 extern "C" void always_log(const char* c, ...);
-void relayserverinternal::generic_handlerdisconnect(lacewing::server server, lacewing::server_client clientsocket)
+void relayserverinternal::generic_handlerdisconnect(lacewing::server serverParam, lacewing::server_client clientsocket)
 {
 	// Should store the relayclient * address...
 
@@ -1015,7 +1012,7 @@ void relayserverinternal::generic_handlerdisconnect(lacewing::server server, lac
 
 	cliWriteLock.lw_unlock();
 
-	if (client->connectRequestApproved && handlerdisconnect && server->hosting())
+	if (client->connectRequestApproved && handlerdisconnect && serverParam->hosting())
 	{
 		// We want count of clients to be accurate for the ondisconnect handler.
 		// Note close_client() will also remove it, if it's the else block.
@@ -1040,7 +1037,7 @@ bool icmp(const std::string_view& a, const std::string_view& b) noexcept
 	return strcasecmp(a.data(), b.data()) == 0;
 }
 
-void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewing::server_client clientsocket, std::string_view data)
+void relayserverinternal::generic_handlerreceive(lacewing::server serverParam, lacewing::server_client clientsocket, std::string_view data)
 {
 	// Null when closing down server
 	auto clientPtr = (relayserver::client *)lw_server_client_get_relay_tag((lw_server_client)clientsocket);
@@ -1121,7 +1118,7 @@ void relayserverinternal::generic_handlerreceive(lacewing::server server, lacewi
 			return;
 	}
 
-	relayserverinternal & internal = *(relayserverinternal *)server->relay_tag();
+	relayserverinternal & internal = *(relayserverinternal *)serverParam->relay_tag();
 
 	if (internal.handlererror)
 	{
@@ -1224,7 +1221,7 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 	}
 	req->finish();
 }
-bool handlerwebsocketaccept(lacewing::webserver websocket, lacewing::webserver_request req)
+bool handlerwebsocketaccept(lacewing::webserver, lacewing::webserver_request req)
 {
 	return !strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing");
 }
@@ -2300,8 +2297,6 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 						// TODO: PHI DEBUG NOTE 29TH DEC 2020: Shouldn't send this if user requests to leave multiple times,
 						// it might cause confusion in client.
 
-						framebuilder builder(true);
-
 						builder.addheader(0, 0);  /* response */
 						builder.add <lw_ui8>(3);  /* leavechannel */
 						builder.add <lw_ui8>(0);  /* failed */
@@ -3342,6 +3337,8 @@ static void validateorreplacestringview(std::string_view toValidate,
 	std::string_view functionName, std::string_view paramName,
 	relayserverinternal &serverI, std::shared_ptr<relayserver::client> client)
 {
+	(void)client; // used for debug output
+
 	// No embedded nulls, valid UTF-8
 	if (toValidate.find_first_of('\0') == std::string_view::npos &&
 		lw_u8str_validate(toValidate))
@@ -3524,7 +3521,7 @@ void relayserver::channelmessage_permit(std::shared_ptr<relayserver::client> sen
 {
 	if (!accept || channel->_readonly || sendingclient->_readonly)
 		return;
-	channel->PeerToChannel(*this, sendingclient, blasted, subchannel, variant, data);
+	channel->PeerToChannel(sendingclient, blasted, subchannel, variant, data);
 }
 
 void relayserver::clientmessage_permit(std::shared_ptr<relayserver::client> sendingclient, std::shared_ptr<relayserver::channel> channel,
@@ -3534,7 +3531,7 @@ void relayserver::clientmessage_permit(std::shared_ptr<relayserver::client> send
 	if (!accept || channel->_readonly || receivingclient->_readonly)
 		return;
 
-	sendingclient->PeerToPeer(*this, channel, receivingclient, blasted, subchannel, variant, data);
+	sendingclient->PeerToPeer(channel, receivingclient, blasted, subchannel, variant, data);
 }
 
 void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
@@ -3693,7 +3690,7 @@ void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
 	}
 }
 
-void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<relayserver::client> client,
+void relayserver::channel::PeerToChannel(std::shared_ptr<relayserver::client> client,
 	bool blasted, lw_ui8 subchannel, lw_ui8 variant, std::string_view message)
 {
 	//auto channelReadLock = lock.createReadLock();
@@ -3723,7 +3720,7 @@ void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<re
 			size_t msgPartSize = message.size(); msgPartSize = lw_min_size_t(msgPartSize, 15);
 			error->add("Dropped channel text message \"%.*hs...\" from client %hs (ID %hu) -> channel %hs (ID %hu), invalid char U+%0.4X '%hs' rejected.",
 				msgPartSize, message.data(), client->name().c_str(), client->id(), name().c_str(), rejectedCodePoint, rejectCharAsStr);
-			((relayserverinternal *)server.internaltag)->handlererror(server, error);
+			server.handlererror(server.server, error);
 			lacewing::error_delete(error);
 			return;
 		}
@@ -3740,7 +3737,7 @@ void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<re
 	// Loop through and send message to all clients that aren't this one
 
 	// Only need server write lock for shared lw_udp socket
-	auto serverUDPWriteLock = server.lock_udp.createWriteLock();
+	auto serverUDPWriteLock = server.server.lock_udp.createWriteLock();
 	if (!blasted)
 		serverUDPWriteLock.lw_unlock();
 
@@ -3754,7 +3751,7 @@ void relayserver::channel::PeerToChannel(relayserver &server, std::shared_ptr<re
 			continue;
 
 		if (blasted && !e->pseudoUDP)
-			builder.send(e->udppunch ? e->udppunch : server.udp, e->udplocaladdress, e->ifidx, e->udpremoteaddress, false);
+			builder.send(e->udppunch ? e->udppunch : server.server.udp, e->udplocaladdress, e->ifidx, e->udpremoteaddress, false);
 		else
 			builder.send(e->socket, false);
 	}

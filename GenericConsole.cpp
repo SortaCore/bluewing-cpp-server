@@ -1513,6 +1513,8 @@ void OnTimerTick(lacewing::timer timer)
 */
 void OnError(lacewing::relayserver &server, lacewing::error error)
 {
+	(void)server;
+
 	std::string_view err = error->tostring();
 	if (err.back() == '.')
 		err.remove_suffix(1);
@@ -1533,6 +1535,7 @@ void OnError(lacewing::relayserver &server, lacewing::error error)
 void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::relayserver::client> senderclient,
 	bool blasted, lw_ui8 subchannel, std::string_view data, lw_ui8 variant)
 {
+	(void)server;
 	serverstats.in.cur.AddMsg(data.size());
 
 	// If you want to log all incoming messages to console e.g. for debug, here is a way

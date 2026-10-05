@@ -47,11 +47,14 @@ static lw_bool process (lw_eventpump ctx, OVERLAPPED * overlapped,
 						unsigned int bytes_transferred, lw_pump_watch watch,
 						int error)
 {
+	(void)ctx;
+
 	// when bytes_transferred is 0xFF, it indicates that watch points to a timer completion function,
 	// and that overlapped is a lw_timer address.
 	if (bytes_transferred == 0xFFFFFFFF)
 	{
 		/* See eventpump_post */
+		// TODO: Casting to a func ptr is a non-standard extension
 		((void * (*) (void *)) watch) (overlapped);
 
 		return lw_true;

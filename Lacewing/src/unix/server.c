@@ -73,7 +73,7 @@ struct _lw_server_client
 
 	lw_addr remote_address;
 	lw_addr local_address;
-	lw_ui32 ifidx;
+	lw_i32 ifidx;
 
 	lw_server_client * elem;
 };

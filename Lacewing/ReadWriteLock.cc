@@ -200,6 +200,7 @@ lacewing::readwritelock::~readwritelock() noexcept(false)
 // Debug breakpoint if writelock is not held by current thread.
 bool lacewing::readwritelock::checkHoldsWrite(bool excIfNot /* = true */) const
 {
+	(void)excIfNot;
 	// Writers might be incrementing/decrementing, but if one is held on this thread, this'll definitely be > 0.
 	if (writers == 0)
 		goto nope;
@@ -228,6 +229,7 @@ bool lacewing::readwritelock::checkHoldsWrite(bool excIfNot /* = true */) const
 // Debug breakpoint if readlock is not held by current thread.
 bool lacewing::readwritelock::checkHoldsRead(bool excIfNot /* = true */) const
 {
+	(void)excIfNot;
 	// Readers might be coming and going, but if one is held on this thread, this'll definitely be > 0.
 	if (readers == 0)
 		goto nope;
