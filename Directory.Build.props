@@ -26,8 +26,9 @@
 		</Task>
 	</UsingTask>
 
-	<!-- Converts Generic CPP file to specific CPP files. ClCompile for Windows, _ValidateSources for Linux. -->
+	<!-- Converts Generic CPP file to specific CPP files. ClCompile for Windows, _ValidateSources for Linux. ValidateSources also runs for design-time build. -->
 	<Target Name="GenericToSpecific" BeforeTargets="ClCompile;_ValidateSources"
+		Condition="'$(DesignTimeBuild)' != 'true'"
 		Inputs="GenericConsole.cpp;Directory.Build.props"
 		Outputs="LinuxConsole.cpp;WindowsWideConsole.cpp;WindowsUTF8Console.cpp">
 
