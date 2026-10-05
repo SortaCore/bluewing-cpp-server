@@ -46,17 +46,26 @@
 	  #define _GNU_SOURCE
 	#endif
 
-#ifdef __ANDROID__
-	#include "unix/android config.h"
-#elif defined(__unix__)
-	#include "unix/unix config.h"
-#endif
+	#ifdef HAVE_CONFIG_H
+	  #include "../config.h"
+	#endif
 
-#if defined(__APPLE__)
-	#include "unix/ios config.h"
-#else
-	#include <sys/sendfile.h>
-#endif
+	// Custom Fusion extension configurations
+	#ifdef COXSDK
+		#ifdef __ANDROID__
+			#include "fusion/android config.h"
+		#elif defined(__unix__)
+			#include "fusion/unix config.h"
+		#elif defined(__APPLE__)
+			#include "fusion/ios config.h"
+		#else
+			#error No configuration file
+		#endif
+	#endif
+
+	#ifdef HAVE_SYS_SENDFILE_H
+		#include <sys/sendfile.h>
+	#endif
 
 #endif
 
@@ -70,13 +79,13 @@
 		typedef thrd_t lw_thread_id;
 		#define lw_thread_id_current() thrd_current()
 		#define lw_thread_id_equal(a, b) thrd_equal((a), (b))
-	#elif __has_include(<pthread.h>)
+	#elif HAVE_PTHREADS
 		#include <pthread.h>
 		typedef pthread_t lw_thread_id;
 		#define lw_thread_id_current() pthread_self()
 		#define lw_thread_id_equal(a, b) pthread_equal((a), (b))
 	#else
-		#error Unknown threading model
+		#error Threads enabled, but unknown threading model
 	#endif
 #endif
 

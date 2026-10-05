@@ -326,7 +326,6 @@
     <ClInclude Include="Lacewing\src\unix\eventpump.h" />
     <ClInclude Include="Lacewing\src\unix\eventqueue\eventqueue.h" />
     <ClInclude Include="Lacewing\src\unix\fdstream.h" />
-    <ClInclude Include="Lacewing\src\unix\unix config.h" />
     <ClInclude Include="Lacewing\src\webserver\common.h" />
     <ClInclude Include="Lacewing\src\webserver\http\http.h" />
     <ClInclude Include="Lacewing\src\webserver\multipart.h" />
@@ -334,7 +333,7 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas -pthread %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -348,7 +347,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas -pthread %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -361,7 +360,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -373,7 +372,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -385,7 +384,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -397,7 +396,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -410,7 +409,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
@@ -422,7 +421,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
     <ClCompile>
-      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>PROJECT_NAME="$(ProjectName)";_lacewing_static;ENABLE_CXX;ENABLE_THREADS;USE_EPOLL;HAVE_MALLOC_H;HAVE_NETDB_H;HAVE_SYS_PRCTL_H;HAVE_SYS_SENDFILE_H;HAVE_SYS_TIMERFD_H;HAVE_DECL_PR_SET_NAME;HAVE_DECL_TCP_CORK;HAVE_DECL_MSG_NOSIGNAL;HAVE_TIMEGM;HAVE_PTHREADS;ENABLE_SSL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStandard>c++17</CppLanguageStandard>
       <AdditionalOptions>-Wno-unknown-pragmas %(AdditionalOptions)</AdditionalOptions>
       <CLanguageStandard>c11</CLanguageStandard>
