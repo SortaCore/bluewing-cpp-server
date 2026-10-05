@@ -296,20 +296,16 @@ time_t lwp_parse_time (const char * string)
 		tm.tm_min  = atoi (time + 3);
 		tm.tm_sec  = atoi (time + 6);
 
-		#if defined(__ANDROID__)
-			return timegm (&tm);
-		#elif defined (_WIN32)
+		#ifdef _WIN32
 			#ifndef __MINGW_H
 				return _mkgmtime64 (&tm);
 			#else
 				return compat_mkgmtime64 () (&tm);
 			#endif
+		#elif defined(HAVE_TIMEGM)
+			return timegm (&tm);
 		#else
-			#ifdef HAVE_TIMEGM
-				return timegm (&tm);
-			#else
-				#error Cannot find a suitable way to convert a tm to a UTC UNIX time
-			#endif
+			#error Cannot find a suitable way to convert a tm to a UTC UNIX time
 		#endif
 	}
 

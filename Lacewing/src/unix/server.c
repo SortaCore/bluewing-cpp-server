@@ -538,6 +538,11 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 								  const char * passphrase)
 {
 	#ifndef ENABLE_SSL
+	  lw_error error = lw_error_new ();
+	  lw_error_addf(error, "SSL support is disabled");
+	  if (ctx->on_error)
+		ctx->on_error(ctx, error);
+	  lw_error_delete(error);
 	  return lw_false;
 	#else
 
@@ -594,34 +599,47 @@ lw_bool lw_server_load_cert_file (lw_server ctx, const char * filename_cert_chai
 		return lw_false;
 	}
 
+	// time_t is the number of seconds since 1970 on POSIX platforms.
+	struct tm utc_tm, epoch_tm = { .tm_year = 70, .tm_mday = 1 };
 	X509* x509 = SSL_CTX_get0_certificate(ctx->ssl_context);
 	const ASN1_TIME* notAfter = X509_getm_notAfter(x509);
-	struct tm tm;
-	if (ASN1_TIME_to_tm(notAfter, &tm))
-	{
-		int day, sec;
-		// time must be valid
-		if (!ASN1_TIME_diff(&day, &sec, NULL, notAfter)) {
-			assert(lw_false);
-			abort();
-		}
+	int remaining_day, remaining_sec, epoch_day, epoch_sec;
 
+	if (ASN1_TIME_to_tm(notAfter, &utc_tm)
+		&& ASN1_TIME_diff(&remaining_day, &remaining_sec, NULL, notAfter)
+		&& OPENSSL_gmtime_diff(&epoch_day, &epoch_sec, &epoch_tm, &utc_tm))
+	{
 		char buff[50];
 		// Unix, iOS: int return; Android: size_t return
-		if (strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", &tm) <= 0)
+		if (strftime(buff, sizeof(buff), "%I:%M:%S%p on %A %d %B %Y AD", &utc_tm) <= 0)
 			always_log("time conversion failed, error %d", errno);
 		else
-			always_log("TLS certificate will expire at %s (local time).", buff);
+			always_log("TLS certificate will expire at %s (UTC).", buff);
 
-		if (day > 0 || sec > 0)
-			ctx->cert_expiry_time = timegm(&tm);
+		if (remaining_day > 0 || remaining_sec > 0)
+		{
+			lw_i64 expiry_time = (lw_i64)epoch_day * 86400 + epoch_sec;
+			ctx->cert_expiry_time = (time_t)expiry_time;
+			if ((lw_i64)ctx->cert_expiry_time != expiry_time)
+			{
+				SSL_CTX_free(ctx->ssl_context);
+				ctx->ssl_context = 0;
+
+				lw_error error = lw_error_new ();
+				lw_error_addf(error, "TLS certificate expiration time is outside the supported time_t range");
+				if (ctx->on_error)
+					ctx->on_error(ctx, error);
+				lw_error_delete(error);
+				return lw_false;
+			}
+		}
 		else
 		{
 			SSL_CTX_free(ctx->ssl_context);
 			ctx->ssl_context = 0;
 
 			lw_error error = lw_error_new ();
-			lw_error_addf(error, "TLS certificate has already expired, at %s (local time)", buff);
+			lw_error_addf(error, "TLS certificate has already expired, at %s (UTC)", buff);
 			if (ctx->on_error)
 				ctx->on_error(ctx, error);
 			lw_error_delete(error);
@@ -845,4 +863,3 @@ void lw_server_on_data (lw_server ctx, lw_server_hook_data on_data)
 lwp_def_hook (server, connect)
 lwp_def_hook (server, disconnect)
 lwp_def_hook (server, error)
-
