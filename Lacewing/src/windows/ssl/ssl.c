@@ -33,9 +33,9 @@ static size_t def_outbound_sink_data(lw_stream outbound, const char * buffer, si
 	if (!ctx->handshake_complete)
 		return 0;
 
-	// We cannot encrypt in-place, as the buffer is const, and anything reading back from it will get indecipherable data
-	// In Blue, this caused a bug when a secure WebSocket client was in peer list, a peer join/leave would be sent to all
-	// before WS client fine, but the encryption would corrupt the message for clients after.
+	// We cannot encrypt in-place, as the buffer is const, and anything
+	// reading back from it will get indecipherable data. In Blue, this
+	// caused a bug when a secure WebSocket client was in the peer list.
 	BYTE* copy = _malloca(size);
 	if (!copy)
 	{
@@ -48,51 +48,69 @@ static size_t def_outbound_sink_data(lw_stream outbound, const char * buffer, si
 		return size;
 	}
 	memcpy(copy, buffer, size);
-
-	// 4 buffers required for EncryptMessage, in this exact order
+	
+	// 4 buffers required for EncryptMessage, in the exact order of header-data-trailer-empty
 	SecBuffer buffers [4];
-
-	  buffers [0].pvBuffer = ctx->header;
-	  buffers [0].cbBuffer = ctx->sizes.cbHeader;
-	  buffers [0].BufferType = SECBUFFER_STREAM_HEADER;
-
-	  buffers [1].pvBuffer = copy;
-	  buffers [1].cbBuffer = (unsigned long)size;
-	  buffers [1].BufferType = SECBUFFER_DATA;
-
-	  buffers [2].pvBuffer = ctx->trailer;
-	  buffers [2].cbBuffer = ctx->sizes.cbTrailer;
-	  buffers [2].BufferType = SECBUFFER_STREAM_TRAILER;
-
-	  buffers [3].BufferType = SECBUFFER_EMPTY;
-	  // MSDN example doesn't bother initing 3 fully
-
-	SecBufferDesc buffers_desc = {0};
-
+	
+	// This is depicted as an in-out parameter, but in theory only the buffers will be edited,
+	// not the desc/ulVersion.
+	SecBufferDesc buffers_desc;
 	buffers_desc.cBuffers = _countof(buffers);
 	buffers_desc.pBuffers = buffers;
 	buffers_desc.ulVersion = SECBUFFER_VERSION;
-
-	SECURITY_STATUS status = EncryptMessage(&ctx->context, 0, &buffers_desc, 0);
-
-	if (status != SEC_E_OK)
-	{
-		_freea(copy);
-		lw_error err = lw_error_new();
-		lw_error_add(err, status);
-		lw_error_addf(err, "Encrypting message failed");
-		if (ctx->handle_error && ctx->client)
-			ctx->handle_error(ctx->client, err);
-		lw_error_delete(err);
-
+	
+	// Split large TLS packets (generally, 16KiB limit). We could partly write as Linux does,
+	// but since Windows expects full submission in FDStream, no WriteReady calls due to
+	// expected use of IOCP to immediately offload the data, it may get complicated.
+	assert(ctx->sizes.cbMaximumMessage > 0);
+	if (!ctx->sizes.cbMaximumMessage)
 		return size;
+	
+	// OPTIMIZE: If we ever split off the pre-encrypt queue with the outgoing IOCP queue,
+	// we may want to revisit this so the earlier pipeline can return a partial write.
+	// It's worth noting that a close_notify TLS < 1.3 reply must discard pending writes in that scenario,
+	// it may include tossing partial writes or just stopping at end.
+		
+	for (size_t processed = 0; processed < size;)
+	{
+		const size_t chunk_size = (size - processed < ctx->sizes.cbMaximumMessage) ? size - processed : ctx->sizes.cbMaximumMessage;
+
+		buffers [0].pvBuffer = ctx->header;
+		buffers [0].cbBuffer = ctx->sizes.cbHeader;
+		buffers [0].BufferType = SECBUFFER_STREAM_HEADER;
+
+		buffers [1].pvBuffer = copy + processed;
+		buffers [1].cbBuffer = (unsigned long)chunk_size;
+		buffers [1].BufferType = SECBUFFER_DATA;
+
+		buffers [2].pvBuffer = ctx->trailer;
+		buffers [2].cbBuffer = ctx->sizes.cbTrailer;
+		buffers [2].BufferType = SECBUFFER_STREAM_TRAILER;
+
+		buffers [3].BufferType = SECBUFFER_EMPTY;
+		// MSDN example doesn't bother initing 3 fully
+
+		SECURITY_STATUS status = EncryptMessage(&ctx->context, 0, &buffers_desc, 0);
+
+		if (status != SEC_E_OK)
+		{
+			lw_error err = lw_error_new();
+			lw_error_add(err, status);
+			lw_error_addf(err, "Encrypting message failed");
+			if (ctx->handle_error && ctx->client)
+				ctx->handle_error(ctx->client, err);
+			lw_error_delete(err);
+			break;
+		}
+
+		// 4th buffer is internal usage only, not output
+		for (const SecBuffer * b = buffers; b != buffers + (_countof(buffers) - 1); ++b)
+			if (b->cbBuffer > 0)
+				lw_stream_data(outbound, (char *)b->pvBuffer, b->cbBuffer);
+
+		processed += chunk_size;
 	}
-
-	// 4th buffer is internal usage only, not output
-	for (const SecBuffer * b = buffers; b != buffers + (_countof(buffers) - 1); ++b)
-		if (b->cbBuffer > 0)
-			lw_stream_data(outbound, (char *)b->pvBuffer, b->cbBuffer);
-
+	
 	_freea(copy);
 	return size;
 }
