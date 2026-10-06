@@ -98,12 +98,13 @@ lw_bool lw_file_open (lw_file ctx, const char * filename, const char * mode)
 
 	HANDLE fd = INVALID_HANDLE_VALUE;
 	const void * filename2 = filename;
+	(void)filename2;
 #if defined(_WIN32) && defined(_UNICODE)
 	filename2 = lw_char_to_wchar(filename, -1);
-	if (filename != NULL)
+	if (filename2 != NULL)
 	{
 #endif
-		fd = CreateFile ((LPCTSTR)filename,
+		fd = CreateFile ((LPCTSTR)filename2,
 						 dwDesiredAccess,
 						 dwShareMode,
 						 0,
