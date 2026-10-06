@@ -2997,8 +2997,8 @@ void relayserver::client::disconnect(std::shared_ptr<relayserver::client> cli, i
 	if (cli == nullptr && !server.isactiontimerthread())
 	{
 		const auto readLock = server.server.lock_clientlist.createReadLock();
-		const auto cliIt = std::find_if(server.clients.cbegin(), server.clients.cend(), [=](auto a) {
-			return this == &*cli;
+		const auto cliIt = std::find_if(server.clients.cbegin(), server.clients.cend(), [this](auto& a) {
+			return this == &*a;
 		});
 		assert(cliIt != server.clients.cend());
 		cli = *cliIt;
