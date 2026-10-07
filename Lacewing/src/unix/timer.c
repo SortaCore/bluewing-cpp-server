@@ -50,7 +50,7 @@ static void timer_tick (lw_timer ctx)
 	#endif
 }
 
-static void timer_thread (void * ptr)
+static unsigned int timer_thread (void * ptr)
 {
 	lw_timer ctx = (lw_timer)ptr;
 

@@ -16,7 +16,7 @@ client lacewing::client_new (lacewing::pump pump)
 }
 void lacewing::client_delete (lacewing::client &cli)
 {
-	lw_stream_delete((lw_stream)cli);
+	lw_client_delete((lw_client)cli);
 	cli = nullptr;
 }
 
@@ -34,6 +34,7 @@ void _client::setlocalport (lw_ui16 port)
 {
 	lw_client_set_local_port ((lw_client)this, port);
 }
+
 
 bool _client::connected ()
 {
@@ -79,4 +80,3 @@ void _client::on_error (_client::hook_error hook)
 {
 	lw_client_on_error ((lw_client) this, (lw_client_hook_error) hook);
 }
-

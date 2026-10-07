@@ -202,7 +202,7 @@ struct relayserverinternal
 		std::vector<std::shared_ptr<relayserver::client>> pingUnresponsivesToDisconnect;
 		std::vector<std::shared_ptr<relayserver::client>> inactivesToDisconnects;
 
-		framebuilder msgBuilderTCP(false), msgBuilderUDP(true);
+		framebuilder msgBuilderTCP(server.pmp, false), msgBuilderUDP(server.pmp, true);
 		msgBuilderTCP.addheader(11, 0);			/* ping header */
 		msgBuilderUDP.addheader(11, 0, true);	/* ping header, true for UDP */
 
@@ -805,7 +805,7 @@ void relayserver::client::PeerToPeer(std::shared_ptr<relayserver::channel> chann
 		return;
 	}
 
-	framebuilder builder(!blasted);
+	framebuilder builder(server.server.pmp, !blasted);
 	builder.addheader(3, variant, blasted); /* binarypeermessage */
 
 	builder.add <lw_ui8>(subchannel);
@@ -1338,6 +1338,7 @@ void relayserver::host(lw_ui16 port)
 	host(filter);
 	filter_delete(filter);
 }
+
 void relayserver::host(lacewing::filter &_filter)
 {
 	// temp copy to override port
@@ -1346,6 +1347,21 @@ void relayserver::host(lacewing::filter &_filter)
 	// If port is 0, make it 6121
 	if (!filter->local_port())
 		filter->local_port(6121);
+
+	if (!lw_pump_is_thread((lw_pump)pmp))
+	{
+		struct delayedhostparams {
+			lacewing::relayserver* server;
+			lacewing::filter filter;
+		};
+		const auto delayedHost = [](void* paramsV) -> void* {
+			const std::unique_ptr<delayedhostparams> params((delayedhostparams*)paramsV);
+			params->server->host(params->filter);
+			lacewing::filter_delete(params->filter);
+			return nullptr;
+		};
+		return pmp->post(delayedHost, new delayedhostparams { this, filter });
+	}
 
 	socket->host(filter);
 	assert(socket->hosting());
@@ -1573,7 +1589,7 @@ void relayserverinternal::close_channel(std::shared_ptr<relayserver::channel> ch
 	// Message and remove channel from all clients
 	if (!channel->clients.empty())
 	{
-		framebuilder builder(true);
+		framebuilder builder(server.pmp, true);
 		builder.addheader(0, 0);   /* response */
 		builder.add <lw_ui8>(3);   /* leavechannel */
 		builder.add <lw_ui8>(1);   /* success */
@@ -1667,7 +1683,7 @@ void relayserverinternal::channel_addclient(std::shared_ptr<relayserver::channel
 		return;
 
 	// Join channel is OK
-	framebuilder builder(true);
+	framebuilder builder(server.pmp, true);
 	builder.addheader(0, 0);  /* response */
 	builder.add <lw_ui8>(2);  /* joinchannel */
 	builder.add <lw_ui8>(1);  /* success */
@@ -1840,7 +1856,7 @@ void relayserverinternal::channel_removeclient(std::shared_ptr<relayserver::chan
 	if (channel->_readonly /* || client->_readonly */)
 		return;
 
-	framebuilder builder(true);
+	framebuilder builder(server.pmp, true);
 
 	for (auto e = channel->clients.begin(); e != channel->clients.end(); ++e)
 	{
@@ -1932,7 +1948,7 @@ bool relayserver::client::checkname(std::string_view name)
 	auto cliWriteLock = lock.createWriteLock();
 	if (name.size() > 255U)
 	{
-		framebuilder builder(true);
+		framebuilder builder(server.server.pmp, true);
 
 		builder.addheader(0, 0);  /* response */
 		builder.add <lw_ui8>(1);  /* setname */
@@ -1953,7 +1969,7 @@ bool relayserver::client::checkname(std::string_view name)
 	int badCharIndex = -1, rejectedCodePoint;
 	if (lw_u8str_trim(name, true).empty() || (badCharIndex = this->server.checkcodepointsallowed(codepointsallowlistindex::ClientNames, name, &rejectedCodePoint)) != -1)
 	{
-		framebuilder builder(true);
+		framebuilder builder(server.server.pmp, true);
 
 		builder.addheader(0, 0);  /* response */
 		builder.add <lw_ui8>(1);  /* setname */
@@ -2008,7 +2024,7 @@ bool relayserver::client::checkname(std::string_view name)
 		if (lw_sv_cmp(e2->_namesimplified, nameSimplified))
 		{
 			srvCliReadLock.lw_unlock();
-			framebuilder builder(true);
+			framebuilder builder(server.server.pmp, true);
 
 			builder.addheader (0, 0);  /* response */
 			builder.add <lw_ui8> (1);  /* setname */
@@ -2038,7 +2054,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 	lw_ui8 variant		 = (type & 0xF);
 
 	messagereader reader (messageP.data(), messageP.size());
-	framebuilder builder(true);
+	framebuilder builder(server.pmp, true);
 
 	if (messagetypeid != 0 && messagetypeid != 9 && !client->connectRequestApproved)
 	{
@@ -2723,7 +2739,7 @@ inline int relayserverinternal::checkcodepointsallowed(relayserver::codepointsal
 
 void relayserver::client::send(lw_ui8 subchannel, std::string_view message, lw_ui8 variant)
 {
-	framebuilder builder(true);
+	framebuilder builder(server.server.pmp, true);
 
 	builder.addheader (1, variant); /* binaryservermessage */
 	builder.add<lw_ui8> (subchannel);
@@ -2742,7 +2758,7 @@ void relayserver::client::blast(lw_ui8 subchannel, std::string_view message, lw_
 		return;
 	}
 
-	framebuilder builder(false);
+	framebuilder builder(server.server.pmp, false);
 
 	builder.addheader(1, variant, true); /* binaryservermessage */
 	builder.add<lw_ui8>(subchannel);
@@ -2761,7 +2777,7 @@ void relayserver::client::blast(lw_ui8 subchannel, std::string_view message, lw_
 
 void relayserver::channel::send(lw_ui8 subchannel, std::string_view message, lw_ui8 variant)
 {
-	framebuilder builder(true);
+	framebuilder builder(server.server.pmp, true);
 
 	builder.addheader (4, variant); /* binaryserverchannelmessage */
 	builder.add <lw_ui8>(subchannel);
@@ -2792,7 +2808,7 @@ void relayserver::channel::blast(lw_ui8 subchannel, std::string_view message, lw
 		return;
 	}
 
-	framebuilder builder(false);
+	framebuilder builder(server.server.pmp, false);
 
 	builder.addheader (4, variant, true); /* binaryserverchannelmessage */
 	builder.add<lw_ui8>(subchannel);
@@ -2843,7 +2859,7 @@ void relayserver::channel::close()
 }
 
 relayserver::client::client(relayserverinternal &internal, lacewing::server_client _socket) noexcept
-	: socket(_socket), server(internal),
+	: socket(_socket), server(internal), reader(internal.server.pmp),
 	udpremoteaddress(lacewing::address_new(socket->remote_address())),
 	udplocaladdress(lacewing::address_new(socket->local_address())),
 	ifidx(socket->ifidx())
@@ -3241,7 +3257,7 @@ void relayserver::connect_response(
 		return;
 	}
 
-	framebuilder builder(true);
+	framebuilder builder(pmp, true);
 
 	// Force a connect refusal if not hosting server
 	// TODO: Is this necessary? Client should've been d/c'd on unhost
@@ -3434,7 +3450,7 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		validateorreplacestringview(denyReason, denyReason, "Server specified an invalid reason"sv,
 			"Join Channel"sv, "deny reason"sv, serverinternal, client);
 
-		framebuilder builder(true);
+		framebuilder builder(pmp, true);
 		builder.addheader(0, 0);  /* response */
 		builder.add <lw_ui8>(2);  /* joinchannel */
 		builder.add <lw_ui8>(0);  /* failed */
@@ -3488,7 +3504,7 @@ void relayserver::leavechannel_response(std::shared_ptr<relayserver::channel> ch
 			"Channel leave refused by server for unspecified reason"sv,
 			"Leave Channel"sv, "deny reason"sv, serverinternal, client);
 
-		framebuilder builder(true);
+		framebuilder builder(pmp, true);
 
 		builder.addheader(0, 0);			 /* response */
 		builder.add <lw_ui8>(3);			 /* leavechannel */
@@ -3598,7 +3614,7 @@ void relayserver::nameset_response(std::shared_ptr<relayserver::client> client,
 	}
 
 
-	framebuilder builder(true);
+	framebuilder builder(pmp, true);
 	if (!denyReason.empty())
 	{
 		builder.addheader(0, 0);  /* response */
@@ -3735,7 +3751,7 @@ void relayserver::channel::PeerToChannel(std::shared_ptr<relayserver::client> cl
 		}
 	}
 
-	framebuilder builder(!blasted);
+	framebuilder builder(server.server.pmp, !blasted);
 	builder.addheader(2, variant, blasted); /* binarychannelmessage */
 
 	builder.add <lw_ui8>(subchannel);

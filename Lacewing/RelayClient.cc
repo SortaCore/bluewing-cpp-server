@@ -14,13 +14,25 @@
 #include "src/common.h" // lwp_trace
 #include <vector>
 #include <algorithm>
+#include <iterator>
 
 namespace lacewing
 {
 	struct relayclientinternal
 	{
 		lacewing::relayclient &		client;
-		lacewing::client			socket;
+		struct tcp_session
+		{
+			lacewing::client socket;
+			bool in_use = false;
+			tcp_session(lacewing::pump pump) : socket(lacewing::client_new(pump)) { }
+		};
+		tcp_session tcp[2];
+		// User-thread connect selects the TCP slot; pump callbacks may read it.
+		lacewing::client socket = nullptr;
+		// Clear Relay state after disconnect, or before reconnect while the old socket drains.
+		bool disconnect_cleanup_pending = false;
+
 		lacewing::udp 				udp;
 		lacewing::timer				udphellotimer;
 
@@ -103,6 +115,9 @@ namespace lacewing
 		}
 
 		void clear();
+		void connect_on_pump(lacewing::client socket, lacewing::address address);
+		void disconnect_on_pump(lacewing::client socket);
+		void cleanup_socket_on_pump(lacewing::client socket);
 
 		std::string name;
 		lw_ui16 id = 0xFFFF, local_port = 0;
@@ -127,15 +142,8 @@ namespace lacewing
 			lacewing::timer_delete(udphellotimer);
 
 			// Lacewing client delete
-			if (socket)
-			{
-				socket->on_connect(nullptr);
-				socket->on_disconnect(nullptr);
-				socket->on_data(nullptr);
-				socket->on_error(nullptr);
-
-				lacewing::client_delete(socket);
-			}
+			for (auto &session : tcp)
+				lacewing::client_delete(session.socket);
 
 			// UDP has no "close" as it's a connectionless protocol, so Lacewing doesn't clean it up automatically
 			udp->on_data(nullptr);
@@ -143,6 +151,16 @@ namespace lacewing
 			lacewing::udp_delete(udp);
 		}
 	};
+
+	struct relayclient_post
+	{
+		relayclientinternal * internal;
+		lacewing::client socket;
+		lacewing::address address;
+	};
+	static void * relayclient_connect_on_pump(void *);
+	static void * relayclient_disconnect_on_pump(void *);
+	static void * relayclient_cleanup_on_pump(void *);
 
 	void relayclientinternal::clear()
 	{
@@ -174,7 +192,8 @@ namespace lacewing
 
 	void relayclientinternal::scanforservers(lw_ui16 port, lw_ui16 timeoutMS)
 	{
-		if (socket->connected() || socket->connecting() || netscanning)
+		lacewing::client socket = this->socket;
+		if ((socket && (socket->connected() || socket->connecting())) || netscanning)
 		{
 			lacewing::error err = lacewing::error_new();
 			err->add("Can't scan for servers when connected, connecting or already scanning");
@@ -234,6 +253,9 @@ namespace lacewing
 	void handlerconnect(client socket)
 	{
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
+		lacewing::writelock cliWriteLock = internal.client.lock.createWriteLock();
+		if (socket != internal.socket)
+			return;
 
 		/* opening 0 byte */
 		socket->write("", 1);
@@ -248,9 +270,6 @@ namespace lacewing
 		internal.udpremoteaddress = lacewing::address_new(address);
 		internal.udplocaladdress = lacewing::address_new(socket->local_address());
 		internal.ifidx = socket->ifidx();
-		if (internal.local_port)
-			internal.udplocaladdress->port(internal.local_port);
-
 		framebuilder& message = internal.message;
 
 		// Update thread to whatever thread the event pump is using,
@@ -261,34 +280,44 @@ namespace lacewing
 		message.add<lw_ui8>(0);		 /* connect */
 		message.add("revision 3"sv); /* version, not null terminated */
 
-		message.send(internal.socket);
+		message.send(socket);
 	}
 
 	void handlerdisconnect(client socket)
 	{
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
-
 		auto cliWriteLock = internal.client.lock.createWriteLock();
 
-		assert(internal.socket == socket);
-
-		internal.udphellotimer->stop();
-
-		internal.connected = false;
-
-		internal.disconnect_mark_all_as_readonly();
+		if (internal.socket == socket)
+		{
+			internal.disconnect_cleanup_pending = true;
+			internal.udphellotimer->stop();
+			internal.udp->unhost();
+			internal.connected = false;
+			internal.disconnect_mark_all_as_readonly();
+		}
 
 		cliWriteLock.lw_unlock();
-		if (internal.handler_disconnect)// && handlerNeedsRunning)
+		if (internal.socket == socket && internal.handler_disconnect)
 			internal.handler_disconnect(internal.client);
 
-		cliWriteLock.lw_relock();
-		internal.clear(); // cleans udp
+		if (internal.disconnect_cleanup_pending && internal.socket == socket)
+		{
+			cliWriteLock.lw_relock();
+			internal.clear();
+			internal.disconnect_cleanup_pending = false;
+			cliWriteLock.lw_unlock();
+		}
+
+		auto cleanup = new relayclient_post{ &internal, socket, nullptr };
+		lw_pump_post((lw_pump)socket->pump(), relayclient_cleanup_on_pump, cleanup);
 	}
 
 	void handlerreceive(client socket, const char * data, size_t size)
 	{
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
+		if (socket != internal.socket)
+			return;
 
 		// To prevent stack overflow from a big TCP packet with multiple Lacewing messages, I've reworked
 		// this function to prevent it recursively calling process() after shaving a message off.
@@ -317,6 +346,8 @@ namespace lacewing
 	void handlererror(client socket, error error)
 	{
 		relayclientinternal &internal = *(relayclientinternal *)socket->tag();
+		if (socket != internal.socket)
+			return;
 
 		error->add("socket error");
 		lwp_trace("Error event: \"%s\".", error->tostring());
@@ -451,40 +482,61 @@ namespace lacewing
 
 	void relayclient::connect(address address)
 	{
-		if (!address->port())
-			address->port(6121);
-
 		relayclientinternal& internal = *((relayclientinternal*)internaltag);
+		lacewing::address addressCopy = lacewing::address_new(address);
+		if (!addressCopy->port())
+			addressCopy->port(6121);
 
-		// We may re-use this address for hole punch, so resolve it once
-		lacewing::error err = address->resolve();
+		lacewing::error err = addressCopy->resolve();
 		if (err)
 		{
 			err->add("Error resolving address to connect to");
-			internal.handler_error(internal.client, err);
+			if (internal.handler_error)
+				internal.handler_error(internal.client, err);
 			lacewing::error_delete(err);
+			lacewing::address_delete(addressCopy);
 			return;
 		}
 
-		lacewing::writelock wl = this->lock.createWriteLock();
-
-		// If this is set, we're currently scanning for servers, and udphellotimer is set to network scan
-		if (internal.netscanning)
+		lacewing::client socket = internal.socket == internal.tcp[0].socket ?
+			internal.tcp[1].socket : internal.tcp[0].socket;
+		internal.socket = socket;
+		if (internal.tcp[0].socket == socket ? internal.tcp[0].in_use : internal.tcp[1].in_use)
 		{
-			internal.udphellotimer->stop();
-			internal.netscanning = false;
-			internal.udphellotimer->force_tick(); // make udphellotimer clean up itself and switch to normal ticker
+			err = lacewing::error_new();
+			err->add("Cannot connect: TCP session slot is still in use");
+			if (internal.handler_error)
+				internal.handler_error(internal.client, err);
+			lacewing::error_delete(err);
+			lacewing::address_delete(addressCopy);
+			return;
+		}
+		lw_ui16 local_port;
+		{
+			lacewing::writelock writeLock = lock.createWriteLock();
+			local_port = internal.local_port;
+			internal.local_port = 0;
+		}
+		// lw_client_set_local_port is a caller-thread setting. The queued relay
+		// connect will consume it when the pump starts this socket's connect.
+		socket->setlocalport(local_port);
+		lw_pump pump = (lw_pump)socket->pump();
+		if (lw_pump_is_thread(pump))
+		{
+			internal.connect_on_pump(socket, addressCopy);
+			lacewing::address_delete(addressCopy);
+			return;
 		}
 
-		// Socket will fuss if we're connecting/connected already, so don't bother checking.
-		internal.socket->connect(address);
+		auto post = new relayclient_post{ &internal, newSocket, addressCopy };
+		lw_pump_post(pump, relayclient_connect_on_pump, post);
 	}
 
 	void relayclient::setlocalport(lw_ui16 port)
 	{
 		relayclientinternal& internal = *((relayclientinternal*)internaltag);
+		lacewing::writelock wl = lock.createWriteLock();
 		internal.local_port = port;
-		internal.socket->setlocalport(port);
 	}
 
 	void relayclient::scanforservers(lw_ui16 port, lw_ui16 timeoutMS)
@@ -494,37 +546,18 @@ namespace lacewing
 	}
 
 	void relayclient::disconnect()
-	{ 
+	{
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
-
-		lacewing::writelock wl = this->lock.createWriteLock();
-
-		// If you run relayclient::disconnect() while a connection/connect attempt isn't pending,
-		// the disconnect is effectively "stored" inside the socket, causing the next
-		// successful connection to be met with an instant disconnect.
-		// So, make it a no-op when not trying to use a connection yet.
-		if (!internal.socket->connecting() && !internal.socket->connected())
+		lacewing::client socket = internal.socket;
+		// Queue a disconnect even if the queued connect has not started the socket yet.
+		lw_pump pump = (lw_pump)socket->pump();
+		if (lw_pump_is_thread(pump))
+		{
+			internal.disconnect_on_pump(socket);
 			return;
-
-		bool connected = internal.connected;
-		internal.connected = false;
-
-		if (internal.udphellotimer)
-			internal.udphellotimer->stop();
-
-		// Killing a client connection gracefully while still in the connecting phase is a bad idea,
-		// as sockets by default have a connect timeout of ~21 seconds on Windows, sending 4 TCP SYNs,
-		// and a graceful close will wait until they're all sent and timed-out before closing.
-		internal.socket->close(!connected);
-
-		// TODO: In future versions we could use a timer to immediate close after a while,
-		// in case server is lagging with the polite close response, but we'd have
-		// to watch it on app close.
-		// Phi note 16th Dec 2025: that might be unnecessary as stream delete happens with dtor.
-
-		// lacewing::stream_delete(internal.socket);
-		internal.udp->unhost();
-		// lacewing::udp_delete(internal.udp);
+		}
+		auto post = new relayclient_post{ &internal, socket, nullptr };
+		lw_pump_post(pump, relayclient_disconnect_on_pump, post);
 	}
 
 	bool relayclient::connected()
@@ -538,7 +571,8 @@ namespace lacewing
 		lacewing::readlock rl = this->lock.createReadLock();
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
 		// RelayClient takes a bit longer than raw socket to make a connection, so we check both.
-		return (!connected()) && (internal.socket->connected() || internal.socket->connecting());
+		lacewing::client socket = internal.socket;
+		return (!connected()) && socket && (socket->connected() || socket->connecting());
 	}
 
 	std::string relayclient::name() const
@@ -829,7 +863,8 @@ namespace lacewing
 	{
 		lacewing::readlock rl = lock.createReadLock();
 		relayclientinternal &internal = *((relayclientinternal *)internaltag);
-		return internal.socket->server_address();
+		lacewing::client socket = internal.socket;
+		return socket ? socket->server_address() : nullptr;
 	}
 
 	std::string relayclient::welcomemessage() const
@@ -911,18 +946,22 @@ namespace lacewing
 
 					// Hole punch setup: use port and specify we want a certain IPvX level
 					// Using dual-stack IPv6 default when remote address is IPv4 causes "pointer is invalid" errors
-					// Worth noting that we could lock down remote IP with host(udpremoteaddress, local_port),
-					// but if there is any sort of NAT on other side - such as CG-NAT - the remote IP or port won't match.
-					if (local_port)
+					// Use the local TCP port for UDP hole punching. Remote address stays unlocked
+					// because CG-NAT can present a different UDP address from TCP.
+					lacewing::client activeTcp = socket;
+					assert(activeTcp && activeTcp->connected());
+					const lw_ui16 udpLocalPort = lw_client_get_local_port((lw_client)activeTcp);
+					if (udpLocalPort)
 					{
+						// Hole punching with an explicitly selected TCP source port needs UDP on that port too.
 						lacewing::filter filt = lacewing::filter_new();
 						// TODO: This locks down outgoing local IP, merging UDP + TCP. Worth for IPv6 due to Privacy Extensions,
 						// probably irrelevant for IPv4 as outgoing public IP will be determined by router/ISP NAT.
-						// filt->local(socket->local_address());
-						filt->local_port(local_port);
+						// filt->local(tcpLocalAddress);
+						filt->local_port(udpLocalPort);
 						filt->ipv6(udpremoteaddress->ipv6());
 						udp->host(filt);
-						local_port = 0;
+						lacewing::filter_delete(filt);
 					}
 					else
 						udp->host(udpremoteaddress);
@@ -1463,7 +1502,8 @@ namespace lacewing
 			}
 
 			// UDP connection completed before TCP, possibly from bad use of hole punch.
-			if (!socket->connected())
+			lacewing::client tcpSocket = socket;
+			if (!tcpSocket || !tcpSocket->connected())
 			{
 				lw_log_if_debug("Discarding UDPWelcome at message address %p, TCP is not ready.", message);
 				break;
@@ -1563,18 +1603,10 @@ namespace lacewing
 	}
 
 	relayclientinternal::relayclientinternal(relayclient &_client, pump _eventpump) :
-		client(_client), socket(client_new(_eventpump)), udp(udp_new(_eventpump)),
+		client(_client), tcp{ tcp_session(_eventpump), tcp_session(_eventpump) }, udp(udp_new(_eventpump)),
 		udphellotimer(timer_new(_eventpump, "udphello")),
-		message(true), messageMF(true)
+		message(_eventpump, true), messageMF(_eventpump, true)
 	{
-		socket->tag(this);
-		socket->on_connect(lacewing::handlerconnect);
-		socket->on_disconnect(lacewing::handlerdisconnect);
-		socket->on_data(lacewing::handlerreceive);
-		socket->on_error(lacewing::handlererror);
-
-		socket->nagle(false);
-
 		udp->on_data(lacewing::handlerclientudpreceive);
 		udp->on_error(lacewing::handlerclientudperror);
 
@@ -1610,6 +1642,111 @@ namespace lacewing
 		udphellotimer->on_tick(udphellotick);
 
 		clear();
+		for (size_t slot = 0; slot < std::size(tcp); ++slot)
+		{
+			lacewing::client socket = tcp[slot].socket;
+			socket->tag(this);
+			socket->on_connect(lacewing::handlerconnect);
+			socket->on_disconnect(lacewing::handlerdisconnect);
+			socket->on_data(lacewing::handlerreceive);
+			socket->on_error(lacewing::handlererror);
+			socket->nagle(false);
+			if (slot == 1)
+				this->socket = socket;
+		}
+	}
+
+	void relayclientinternal::connect_on_pump(lacewing::client socket, lacewing::address address)
+	{
+		lw_pump_thread_check((lw_pump)socket->pump());
+		lacewing::writelock cliWriteLock = client.lock.createWriteLock();
+		const int slot = tcp[0].socket == socket ? 0 : 1;
+		if (tcp[slot].in_use || (tcp[1 - slot].in_use && !disconnect_cleanup_pending))
+		{
+			lacewing::error err = lacewing::error_new();
+			err->add("Cannot connect: TCP session is still active or slot is in use");
+			if (handler_error)
+				handler_error(client, err);
+			lacewing::error_delete(err);
+			return;
+		}
+
+		if (netscanning)
+		{
+			udphellotimer->stop();
+			netscanning = false;
+			udphellotimer->force_tick();
+		}
+
+		if (disconnect_cleanup_pending)
+		{
+			clear();
+			disconnect_cleanup_pending = false;
+		}
+
+		tcp[slot].in_use = true;
+		socket->connect(address);
+	}
+
+	void relayclientinternal::disconnect_on_pump(lacewing::client socket)
+	{
+		lw_pump_thread_check((lw_pump)socket->pump());
+		lacewing::writelock cliWriteLock = client.lock.createWriteLock();
+		if (!socket->connecting() && !socket->connected())
+			return;
+
+		const bool connected = this->connected;
+		this->connected = false;
+		disconnect_cleanup_pending = true;
+		disconnect_mark_all_as_readonly();
+		if (udphellotimer)
+			udphellotimer->stop();
+
+		// No new TCP write can run concurrently on the pump. Half-close first so
+		// Unix still has a live descriptor, then close and drain the session.
+		// A graceful close can wait for the server's polite close response.
+		// TODO: Add a timeout to force close if the server does not respond, and stop it during app shutdown.
+		socket->close(!connected);
+		udp->unhost();
+	}
+
+	void relayclientinternal::cleanup_socket_on_pump(lacewing::client socket)
+	{
+		lw_pump_thread_check((lw_pump)socket->pump());
+		lacewing::writelock cliWriteLock = client.lock.createWriteLock();
+		const int slot = tcp[0].socket == socket ? 0 : tcp[1].socket == socket ? 1 : -1;
+		if (slot < 0 || (size_t)slot >= std::size(tcp) || tcp[slot].socket != socket ||
+			!tcp[slot].in_use)
+			return;
+
+		// The close callback schedules this only after the old session has drained;
+		// the same Lacewing client object can now be reused for a later connection.
+		tcp[slot].in_use = false;
+	}
+
+	static void * relayclient_connect_on_pump(void * postP)
+	{
+		relayclient_post* const post = (relayclient_post*)postP;
+		post->internal->connect_on_pump(post->socket, post->address);
+		lacewing::address_delete(post->address);
+		delete post;
+		return nullptr;
+	}
+
+	static void * relayclient_disconnect_on_pump(void * postP)
+	{
+		relayclient_post * const post = (relayclient_post*)postP;
+		post->internal->disconnect_on_pump(post->socket);
+		delete post;
+		return nullptr;
+	}
+
+	static void * relayclient_cleanup_on_pump(void * postP)
+	{
+		relayclient_post* const post = (relayclient_post*)postP;
+		post->internal->cleanup_socket_on_pump(post->socket);
+		delete post;
+		return nullptr;
 	}
 
 	bool relayclientinternal::messagehandler(void * tag, lw_ui8 type, const char * message, size_t size)
@@ -1646,7 +1783,9 @@ namespace lacewing
 
 	void relayclientinternal::udphellotick()
 	{
-		if (!socket->connected())
+		lw_pump_thread_check((lw_pump)tcp[0].socket->pump());
+		lacewing::client tcpSocket = socket;
+		if (!tcpSocket || !tcpSocket->connected())
 		{
 			lwp_trace("TCP is not connected, aborted connect midway?");
 			return;
@@ -1673,9 +1812,9 @@ namespace lacewing
 
 			lacewing::error err = lacewing::error_new();
 			err->add("UDP handshake timeout");
-			lacewing::handlererror(socket, err);
+			lacewing::handlererror(tcpSocket, err);
 			lacewing::error_delete(err);
-			socket->close();
+			tcpSocket->close();
 			return;
 		}
 

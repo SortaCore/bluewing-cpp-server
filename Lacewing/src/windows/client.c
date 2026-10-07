@@ -31,6 +31,9 @@ struct _lw_client
 
 	//HANDLE socket;
 	lw_bool connecting;
+
+	// Binds next connect to a specific port, for hole punch.
+	// Kept during connection; reset to 0 on connect fail or disconnect.
 	lw_ui16 local_port_next_connect;
 };
 
@@ -49,19 +52,6 @@ static void client_connect_on_pump (struct client_connect_post * post)
 	lw_addr_delete(post->address);
 	lwp_release(post->client, "client connect post");
 	free(post);
-}
-
-static void client_connect_address_error_on_pump (lw_client client)
-{
-	if (client->on_error)
-	{
-		lw_error error = lw_error_new();
-		lw_error_addf(error, "Unable to copy remote address for asynchronous connect");
-		client->on_error(client, error);
-		lw_error_delete(error);
-	}
-
-	lwp_release(client, "client connect post");
 }
 
 lw_client lw_client_new (lw_pump pump)
@@ -96,17 +86,17 @@ void lw_client_delete (lw_client ctx)
 
 	lw_stream_close ((lw_stream) ctx, lw_true);
 
-	lw_bool isValid = lw_fdstream_valid(&ctx->fdstream);
-	lw_bool canClose = lwp_stream_may_close((lw_stream)ctx);
-
 	lw_addr_delete (ctx->remote_address);
 	ctx->remote_address = NULL;
 	lw_addr_delete (ctx->local_address);
 	ctx->local_address = NULL;
 	ctx->ifidx = -1;
 
+	/* Drop the stream's owning reference instead of freeing the client inline.
+	 * Pending pump writes/completions retain this same allocation and release it
+	 * when their work is finished. */
+	lw_stream_delete((lw_stream)ctx);
 	lwp_deinit();
-	free (ctx);
 }
 
 void lw_client_connect (lw_client ctx, const char * host, lw_ui16 port)
@@ -180,9 +170,13 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 		lw_addr address_copy = address ? lw_addr_clone(address) : NULL;
 		if (!address_copy)
 		{
-			lwp_retain(ctx, "client connect post");
-			lw_pump_post(ctx->fdstream.stream.pump,
-				(void *)client_connect_address_error_on_pump, ctx);
+			if (ctx->on_error)
+			{
+				lw_error error = lw_error_new();
+				lw_error_addf(error, "Unable to copy remote address for asynchronous connect");
+				ctx->on_error(ctx, error);
+				lw_error_delete(error);
+			}
 			return;
 		}
 		struct client_connect_post * post =
@@ -232,6 +226,16 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 		lw_error_delete(error);
 		return;
 	}
+	ctx->local_port_next_connect = local_port_next_connect;
+
+	/* A previous session's completion watch belongs to its old socket handle.
+	 * RelayClient only reuses this client after the old session has drained. */
+	if (ctx->fdstream.fd == INVALID_HANDLE_VALUE && ctx->fdstream.stream.watch)
+	{
+		lw_pump_remove(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch,
+			"lw_client reconnect after drained session");
+		ctx->fdstream.stream.watch = NULL;
+	}
 
 	ctx->connecting = lw_true;
 
@@ -242,6 +246,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 		if (error)
 		{
 			ctx->connecting = lw_false;
+			ctx->local_port_next_connect = 0;
 			if (ctx->on_error)
 				ctx->on_error (ctx, error);
 
@@ -254,6 +259,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	if (!address->info)
 	{
 		ctx->connecting = lw_false;
+		ctx->local_port_next_connect = 0;
 
 		lw_error error = lw_error_new ();
 		lw_error_addf (error, "The provided remote address is not ready for use");
@@ -271,6 +277,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 			 0, 0, WSA_FLAG_OVERLAPPED)) == INVALID_HANDLE_VALUE)
 	{
 		ctx->connecting = lw_false;
+		ctx->local_port_next_connect = 0;
 		lw_error error = lw_error_new ();
 
 		lw_error_add (error, WSAGetLastError ());
@@ -340,8 +347,6 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 
 	// Reuse port or not, based on reserved port being non-zero
 	const int was_locked_local = local_port_next_connect != 0 ? 1 : 0;
-	if (!owned_address)
-		ctx->local_port_next_connect = 0;
 	lwp_setsockopt((SOCKET)ctx->fdstream.fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&was_locked_local, sizeof(was_locked_local));
 
 	if (bind ((SOCKET)ctx->fdstream.fd, (struct sockaddr *) &local_address,
@@ -349,6 +354,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 			lw_addr_ipv6(address) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in)) == -1)
 	{
 		ctx->connecting = lw_false;
+		ctx->local_port_next_connect = 0;
 
 		lw_error error = lw_error_new ();
 
@@ -383,6 +389,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 			return; // No problem
 
 		ctx->connecting = lw_false;
+		ctx->local_port_next_connect = 0;
 
 		// Note: Connecting errors also occur in the first_time_write_ready callback.
 		lw_error error = lw_error_new();
@@ -401,6 +408,12 @@ void lw_client_set_local_port (lw_client ctx, lw_ui16 localport)
 {
 	ctx->local_port_next_connect = localport;
 }
+
+lw_ui16 lw_client_get_local_port (lw_client ctx)
+{
+	return ctx->local_port_next_connect;
+}
+
 
 lw_bool lw_client_connected (lw_client ctx)
 {
@@ -452,7 +465,8 @@ static void on_close (lw_stream stream, void * tag)
 {
 	lw_client ctx = (lw_client) tag;
 
-	// ctx->connecting reset to false by first_time_write_ready callback
+	ctx->connecting = lw_false;
+	ctx->local_port_next_connect = 0;
 	ctx->on_disconnect (ctx);
 }
 

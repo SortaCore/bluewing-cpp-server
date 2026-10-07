@@ -205,6 +205,7 @@ static size_t def_inbound_sink_data(lw_stream inbound, const char * buffer, size
 
 	if (ctx->status == SEC_I_RENEGOTIATE)
 	{
+		// TODO: Verify this path with an actual Schannel renegotiation.
 		ctx->handshake_complete = lw_false;
 
 		/* Schannel may leave the next handshake token in SECBUFFER_EXTRA,

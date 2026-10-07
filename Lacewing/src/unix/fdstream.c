@@ -382,17 +382,6 @@ static lw_bool def_close (lw_stream stream_ctx, lw_bool immediate)
 
 	lwp_retain (ctx, "fdstream close");
 
-	/* Remove the watch to make sure we don't get any more
-	* callbacks from the pump.
-	*/
-
-	/*
-	if (ctx->stream.watch)
-	{
-		lw_pump_remove (lw_stream_pump ((lw_stream) ctx), ctx->stream.watch);
-		ctx->stream.watch = 0;
-	}*/
-
 	int fd = ctx->fd;
 
 	ctx->fd = -1;
@@ -403,6 +392,12 @@ static lw_bool def_close (lw_stream stream_ctx, lw_bool immediate)
 		{
 		 shutdown (fd, SHUT_RDWR);
 		 close (fd);
+		 if (ctx->stream.watch)
+		 {
+			lw_pump_remove (lw_stream_pump (stream_ctx), ctx->stream.watch,
+				"fdstream close");
+			ctx->stream.watch = NULL;
+		 }
 		}
 	}
 

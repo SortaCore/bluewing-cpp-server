@@ -30,7 +30,11 @@ public:
 	void  * tag = nullptr;
 	bool (* messagehandler) (void * tag, unsigned char type, const char * message, size_t size) = nullptr;
 
-	framereader() {
+	framereader() = delete;
+	framereader(const framereader&) = delete;
+	~framereader() = default;
+
+	framereader(lacewing::pump pump) : buffer(pump) {
 	}
 
 	// Processes a message, returns true if more messages will follow in same data packet.

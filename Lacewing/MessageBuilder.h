@@ -9,6 +9,7 @@
 */
 
 #include "Lacewing.h"
+#include "src/refcount.h"
 #include <vector>
 #include <assert.h>
 
@@ -21,6 +22,11 @@ class messagebuilder
 protected:
 
 	lw_ui32 allocated = 0;
+	lacewing::pump pump;
+	// If true, writes are on pump thread, can be done sync
+	lw_bool use_async_write;
+
+	void lacewing_tcp_write(lw_stream stream, const char* data, size_t size) const;
 
 public:
 
@@ -28,7 +34,10 @@ public:
 	lw_ui32 size = 0U;
 	std::thread::id threadOwner;
 
-	messagebuilder()
+	messagebuilder() = delete;
+	messagebuilder(const messagebuilder&) = delete;
+
+	messagebuilder(lacewing::pump pmp) : pump(pmp)
 	{
 		updatethreadowner();
 	}
@@ -36,6 +45,7 @@ public:
 	void updatethreadowner()
 	{
 		threadOwner = std::this_thread::get_id();
+		use_async_write = !lw_pump_is_thread((lw_pump)pump);
 	}
 
 	~ messagebuilder()
@@ -126,14 +136,9 @@ public:
 		size = 0;
 	}
 
-	void send(lacewing::client socket, int offset = 0)
+	void send(lacewing::stream socket, int offset = 0)
 	{
-		socket->write((char *)buffer + offset, size - offset);
-	}
-
-	void send(lacewing::server_client socket, int offset = 0)
-	{
-		socket->write((char *)buffer + offset, size - offset);
+		lacewing_tcp_write((lw_stream)socket, (char *)buffer + offset, size - offset);
 	}
 
 	void send(lacewing::udp udp, lacewing::address from, lw_ui32 ifidx, lacewing::address to, int offset = 0)
@@ -153,5 +158,37 @@ void messagebuilder::add(std::string_view value)
 	add(value.data(), (lw_i32)value.size());
 }
 
-#endif
+inline void messagebuilder::lacewing_tcp_write(lw_stream stream, const char* data, size_t size) const
+{
+	assert(stream);
 
+	if (!size)
+		return;
+
+	if (!use_async_write)
+	{
+		lw_stream_write(stream, data, size);
+		return;
+	}
+
+	struct async_write_post_param
+	{
+		lw_stream stream;
+		std::string data;
+	};
+
+	const auto async_write_post_func = [](void* postP) -> void *
+	{
+		const std::unique_ptr<async_write_post_param> post((async_write_post_param*)postP);
+
+		lw_stream_write(post->stream, post->data.data(), post->data.size());
+		lwp_release(post->stream, "relay TCP write post");
+		return nullptr;
+	};
+	const auto post = new async_write_post_param { stream, std::string(data, size) };
+	lwp_retain(stream, "relay TCP write post");
+	pump->post(async_write_post_func, post);
+}
+
+
+#endif

@@ -361,7 +361,7 @@ static lw_thread lw_udp_public_hunter = NULL;
 #include "address.h"
 extern lw_addr lwp_addr_new_sockaddr(struct sockaddr* sockaddr);
 // Hunt for a public IPv6 address that does not have a time limit or is LAN-only
-static UINT WINAPI publicFixedIPv6AddressHunterThread(LPVOID data)
+static UINT publicFixedIPv6AddressHunterThread(LPVOID data)
 {
 	PIP_ADAPTER_ADDRESSES addr = (PIP_ADAPTER_ADDRESSES)malloc(16 * 1024);
 	if (!addr)

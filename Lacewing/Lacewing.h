@@ -300,6 +300,7 @@ typedef enum _lw_addr_tostring_flags
 	lw_import	  void *  lw_pump_tag			(lw_pump);
 	lw_import		void  lw_pump_set_tag		(lw_pump, void *);
 	lw_import		void  lw_pump_thread_check  (lw_pump);
+	lw_import	 lw_bool  lw_pump_is_thread		(lw_pump);
 
 	#ifdef _WIN32
 
@@ -508,16 +509,18 @@ typedef enum _lw_addr_tostring_flags
 
 	/* Client
 	 *
-	 * Note: lw_client derives from lw_stream, so all of the stream functions are
-	 * applicable. To delete a lw_client, use lw_stream_delete.
+	 * lw_client derives from lw_stream, so all of the stream functions are applicable.
 	 */
 
 	lw_import	   lw_client  lw_client_new					(lw_pump);
+	lw_import			void  lw_client_delete				(lw_client);
 	lw_import			void  lw_client_connect				(lw_client, const char * host, lw_ui16 port);
 	lw_import			void  lw_client_connect_addr		(lw_client, lw_addr);
 	lw_import			void  lw_client_connect_secure		(lw_client, const char * host, lw_ui16 port);
 	lw_import			void  lw_client_connect_addr_secure	(lw_client, lw_addr);
+	// Set before lw_client_connect, reset on connect fail, or disconnect
 	lw_import			void  lw_client_set_local_port		(lw_client, lw_ui16 localport);
+	lw_import		 lw_ui16  lw_client_get_local_port		(lw_client);
 	lw_import			void  lw_client_disconnect			(lw_client);
 	lw_import		 lw_bool  lw_client_connected			(lw_client);
 	lw_import		 lw_bool  lw_client_connecting			(lw_client);

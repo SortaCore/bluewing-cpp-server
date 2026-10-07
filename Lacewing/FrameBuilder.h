@@ -137,8 +137,8 @@ protected:
 
 public:
 
-	framebuilder(bool isudpclient)
-		: isudpclient(isudpclient)
+	framebuilder(lacewing::pump pump, bool isudpclient)
+		: messagebuilder(pump), isudpclient(isudpclient)
 	{
 		// The dummy byte added should have auto-expand to >= 11 by virtue of add() allocating in 1KiB chunks
 		add<lw_ui8>(0);
@@ -185,7 +185,7 @@ public:
 			preparefortransmission(wasWebLast);
 		}
 
-		client->write((char *)tosend, tosendsize);
+		lacewing_tcp_write((lw_stream)client, (char *)tosend, (size_t)tosendsize);
 
 		if (clear)
 			framereset();
@@ -196,7 +196,7 @@ public:
 		if (threadOwner != std::this_thread::get_id())
 			LacewingFatalErrorMsgBox();
 		preparefortransmission(false);
-		client->write((char *)tosend, tosendsize);
+		lacewing_tcp_write((lw_stream)client, (char *)tosend, (size_t)tosendsize);
 
 		if (clear)
 			framereset();
