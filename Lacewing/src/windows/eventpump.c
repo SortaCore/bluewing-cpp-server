@@ -151,6 +151,8 @@ static void def_cleanup (lw_pump _ctx)
 
 lw_error lw_eventpump_tick (lw_eventpump ctx)
 {
+	ctx->pump.thread_id = lw_thread_id_current();
+
 	if (ctx->on_tick_needed)
 	{
 		/* Process whatever the watcher thread dequeued before telling the caller to tick */
@@ -202,6 +204,8 @@ lw_error lw_eventpump_start_eventloop (lw_eventpump ctx)
 	lw_pump_watch watch;
 
 	lw_bool finished = lw_false;
+
+	ctx->pump.thread_id = lw_thread_id_current();
 
 	for (;;)
 	{

@@ -332,6 +332,7 @@ static lw_callback void hole_punch_socket_first_data(lw_hole_punch_params * para
 
 void lw_server_hole_punch(lw_server ctx, lw_addr addr, lw_ui16 local_port)
 {
+	lw_pump_thread_check(ctx->pump);
 	lwp_retain(ctx, "hole punch");
 	lw_hole_punch_params* params = (lw_hole_punch_params*)lw_malloc_or_exit(sizeof(lw_hole_punch_params));
 	params->server = ctx;
@@ -399,6 +400,8 @@ void lw_server_host (lw_server ctx, long port)
 
 void lw_server_host_filter (lw_server ctx, lw_filter filter)
 {
+	lw_pump_thread_check(ctx->pump);
+
 	lw_server_unhost (ctx);
 
 	lw_error error = lw_error_new ();
@@ -441,6 +444,8 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 
 void lw_server_unhost (lw_server ctx)
 {
+	lw_pump_thread_check(ctx->pump);
+
 	if (!lw_server_hosting (ctx))
 	  return;
 

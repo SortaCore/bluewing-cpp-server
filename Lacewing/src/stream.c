@@ -1000,6 +1000,8 @@ lw_bool lw_stream_close (lw_stream ctx, lw_bool immediate)
 		return lw_false;
 	}
 
+	lw_pump_thread_check(ctx->pump);
+
 	if (ctx->flags & lwp_stream_flag_closing)
 		return lw_false;
 

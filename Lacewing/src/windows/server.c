@@ -178,6 +178,7 @@ static void hole_punch_socket_first_data(void* tag, accept_overlapped overlapped
 }
 void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 {
+	lw_pump_thread_check(ctx->pump);
 	lw_log_if_debug("lw_server_hole_punch() from local port %hu, remote addr \"%s\".\n",
 		local_port, lw_addr_tostring(addr, lw_addr_tostring_flag_box_ipv6));
 	// We don't need a matching IP as IPv6 dual-stack local can connect to IPv4 remote
@@ -596,6 +597,8 @@ void lw_server_host (lw_server ctx, long port)
 
 void lw_server_host_filter (lw_server ctx, lw_filter filter)
 {
+	lw_pump_thread_check(ctx->pump);
+
 	lw_server_unhost (ctx);
 
 	// TODO: LEAK: investigate how fast we can clean up server's accepts without pending ones still making events in pump
@@ -654,6 +657,8 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 
 void lw_server_unhost (lw_server ctx)
 {
+	lw_pump_thread_check(ctx->pump);
+
 	if (!lw_server_hosting (ctx))
 		return;
 
@@ -1582,4 +1587,3 @@ void lw_server_on_data (lw_server ctx, lw_server_hook_data on_data)
 lwp_def_hook (server, connect)
 lwp_def_hook (server, disconnect)
 lwp_def_hook (server, error)
-

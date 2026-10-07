@@ -239,6 +239,8 @@ void lw_client_connect_addr (lw_client ctx, lw_addr address)
 static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	lw_addr * owned_address, lw_ui16 local_port_next_connect)
 {
+	lw_pump_thread_check(ctx->fdstream.stream.pump);
+
 	if (lw_client_connected (ctx) || lw_client_connecting (ctx))
 	{
 		lw_error error = lw_error_new ();
