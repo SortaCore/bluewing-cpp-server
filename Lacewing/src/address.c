@@ -11,12 +11,11 @@
 #include "common.h"
 #include "address.h"
 #include <ctype.h>
-
 #ifndef _WIN32
-#define __stdcall /* hm */
 #include <signal.h>
 #endif
-static int __stdcall resolver(lw_addr);
+
+static void * lw_callback resolver(void *);
 
 void lwp_addr_init (lw_addr ctx, const char * hostname,
 					const char * service, int hints)
@@ -31,7 +30,7 @@ void lwp_addr_init (lw_addr ctx, const char * hostname,
 	ctx->laststringflags = -1;
 	ctx->error = NULL;
 
-	ctx->resolver_thread = lw_thread_new ("resolver", (void *) resolver);
+	ctx->resolver_thread = lw_thread_new ("resolver", resolver);
 	ctx->hints = hints;
 
 	ctx->hostname_to_free = ctx->hostname = strdup (hostname);
@@ -183,7 +182,7 @@ lw_addr lw_addr_clone (lw_addr ctx)
 	if (!addr)
 		return 0;
 
-	addr->resolver_thread = lw_thread_new ("resolver", (void *) resolver);
+	addr->resolver_thread = lw_thread_new ("resolver", resolver);
 
 	if (lw_addr_resolve(ctx))
 	{
@@ -394,8 +393,9 @@ struct in6_addr lw_addr_toin6_addr (lw_addr ctx)
 	return v4;
 }
 
-int __stdcall resolver(lw_addr ctx)
+static void * lw_callback resolver(void * data)
 {
+	lw_addr ctx = (lw_addr)data;
 	struct addrinfo hints;
 	int result;
 	struct addrinfo * info;
@@ -457,7 +457,7 @@ int __stdcall resolver(lw_addr ctx)
 		// Android note: missing INTERNET permission on some Android devices prevents DNS finding any records
 		lw_error_addf(ctx->error, "DNS lookup error - %s", gaierr);
 		free(gaierr);
-		return result;
+		return NULL;
 	}
 
 	for (info = ctx->info_list; info; info = info->ai_next)
@@ -476,7 +476,7 @@ int __stdcall resolver(lw_addr ctx)
 	}
 
 	lw_addr_set_type (ctx, ctx->hints & (lw_addr_type_tcp | lw_addr_type_udp));
-	return 0;
+	return NULL;
 }
 
 lw_bool lw_addr_ready (lw_addr ctx)
@@ -640,4 +640,3 @@ void lw_addr_set_tag (lw_addr ctx, void * tag)
 {
 	ctx->tag = tag;
 }
-

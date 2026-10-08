@@ -11,7 +11,7 @@
 
 #include "../common.h"
 
-static DWORD __stdcall timer_thread (lw_timer);
+static void * lw_callback timer_thread (void *);
 
 struct _lw_timer
 {
@@ -48,7 +48,7 @@ lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
 	char threadName[128];
 	lwp_snprintf (threadName, sizeof(threadName), "lw_thread for lw_timer \"%s\" (0x%" PRIXPTR ")", timer_name, (uintptr_t)ctx);
 
-	ctx->timer_thread = lw_thread_new (threadName, (void *) timer_thread);
+	ctx->timer_thread = lw_thread_new (threadName, timer_thread);
 	lw_thread_start (ctx->timer_thread, ctx);
 
 	return ctx;
@@ -82,8 +82,9 @@ static void timer_completion (void * ptr)
 	}
 }
 
-DWORD __stdcall timer_thread (lw_timer ctx)
+static void * lw_callback timer_thread (void * data)
 {
+	lw_timer ctx = (lw_timer)data;
 	HANDLE events [2] = { ctx->timer_handle, ctx->shutdown_event };
 
 	for (;;)
@@ -99,7 +100,7 @@ DWORD __stdcall timer_thread (lw_timer ctx)
 
 		lw_pump_post (ctx->pump, (void *) timer_completion, ctx);
 	}
-	return 0;
+	return NULL;
 }
 
 void lw_timer_start (lw_timer ctx, long interval)

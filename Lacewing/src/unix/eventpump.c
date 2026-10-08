@@ -19,7 +19,7 @@ enum
 };
 
 #ifdef ENABLE_THREADS
-	static void watcher (lw_eventpump ctx);
+	static void * lw_callback watcher (void *);
 #endif
 
 lw_eventpump lw_eventpump_new ()
@@ -30,7 +30,7 @@ lw_eventpump lw_eventpump_new ()
 	  return NULL;
 
 	#ifdef ENABLE_THREADS
-	  ctx->watcher.thread = lw_thread_new ("watcher", (void *) watcher);
+	  ctx->watcher.thread = lw_thread_new ("watcher", watcher);
 	  ctx->watcher.resume_event = lw_event_new ();
 	#endif
 
@@ -312,8 +312,9 @@ lw_error lw_eventpump_start_sleepy_ticking
 
 #ifdef ENABLE_THREADS
 
-static void watcher (lw_eventpump ctx)
+static void * lw_callback watcher (void * data)
 {
+	lw_eventpump ctx = (lw_eventpump)data;
 	for (;;)
 	{
 		assert (ctx->watcher.num_events == 0);
@@ -342,6 +343,7 @@ static void watcher (lw_eventpump ctx)
 		lw_event_wait (ctx->watcher.resume_event, -1);
 		lw_event_unsignal (ctx->watcher.resume_event);
 	}
+	return NULL;
 }
 
 #endif
@@ -468,4 +470,3 @@ const lw_pumpdef def_eventpump =
 	.post				= def_post,
 	.cleanup			= def_cleanup
 };
-

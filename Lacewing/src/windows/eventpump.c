@@ -69,8 +69,9 @@ static lw_bool process (lw_eventpump ctx, OVERLAPPED * overlapped,
 	return lw_true;
 }
 
-static DWORD WINAPI watcher (lw_eventpump ctx)
+static void * lw_callback watcher (void * data)
 {
+	lw_eventpump ctx = (lw_eventpump)data;
 	for (;;)
 	{
 		ctx->watcher.error = 0;
@@ -99,7 +100,7 @@ static DWORD WINAPI watcher (lw_eventpump ctx)
 		lw_event_unsignal (ctx->watcher.resume_event);
 	}
 
-	return 0;
+	return NULL;
 }
 
 lw_eventpump lw_eventpump_new ()
@@ -112,7 +113,7 @@ lw_eventpump lw_eventpump_new ()
 		return 0;
 
 	ctx->watcher.event = NULL;
-	ctx->watcher.thread = lw_thread_new ("watcher", (void *) watcher);
+	ctx->watcher.thread = lw_thread_new ("watcher", watcher);
 	ctx->watcher.resume_event = lw_event_new ();
 
 	ctx->completion_port = CreateIoCompletionPort (INVALID_HANDLE_VALUE, 0, 4, 0);

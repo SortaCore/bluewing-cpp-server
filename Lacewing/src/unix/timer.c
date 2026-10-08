@@ -50,7 +50,7 @@ static void timer_tick (lw_timer ctx)
 	#endif
 }
 
-static unsigned int timer_thread (void * ptr)
+static void * lw_callback timer_thread (void * ptr)
 {
 	lw_timer ctx = (lw_timer)ptr;
 
@@ -63,6 +63,7 @@ static unsigned int timer_thread (void * ptr)
 
 		lw_pump_post (ctx->pump, (void *)timer_tick, ctx);
 	}
+	return NULL;
 }
 
 lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
@@ -78,7 +79,7 @@ lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
 
 	char buffer[128];
 	lwp_snprintf (buffer, sizeof(buffer), "lw_thread for lw_timer \"%s\" (0x%" PRIXPTR ")", timer_name, (uintptr_t)ctx);
-	ctx->timer_thread = lw_thread_new (buffer, (void *)timer_thread);
+	ctx->timer_thread = lw_thread_new (buffer, timer_thread);
 
 	#ifdef _lacewing_use_timerfd
 		lwp_snprintf(buffer, sizeof(buffer), "lw_timer %s", timer_name);
@@ -222,4 +223,3 @@ void * lw_timer_tag (lw_timer ctx)
 }
 
 lwp_def_hook (timer, tick)
-

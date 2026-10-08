@@ -10,7 +10,7 @@
 
 #include "../common.h"
 
-thread lacewing::thread_new (const char * name, unsigned(*proc)(void *))
+thread lacewing::thread_new (const char * name, lw_thread_proc proc)
 {
 	return (thread) lw_thread_new (name, proc);
 }
@@ -45,4 +45,3 @@ void _thread::tag (void * tag)
 {
 	lw_thread_set_tag ((lw_thread) this, tag);
 }
-

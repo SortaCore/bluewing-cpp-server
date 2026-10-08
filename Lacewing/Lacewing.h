@@ -231,8 +231,9 @@ typedef enum _lw_addr_tostring_flags
 	lw_import		 lw_bool  lw_network_change_sub (lw_bool add, void (*handler)(lw_network_change_type, void*), void * tag);
 
 /* Thread */
+	typedef void * (lw_callback * lw_thread_proc) (void *);
 
-	lw_import	   lw_thread  lw_thread_new		(const char * name, unsigned (* proc)(void *));
+	lw_import	   lw_thread  lw_thread_new		(const char * name, lw_thread_proc proc);
 	lw_import			void  lw_thread_delete	(lw_thread);
 	lw_import			void  lw_thread_start	(lw_thread, void * parameter);
 	lw_import		 lw_bool  lw_thread_started	(lw_thread);
@@ -965,7 +966,7 @@ struct _thread
 	lw_import void * tag ();
 };
 
-lw_import thread thread_new (const char * name, unsigned(*proc)(void*));
+lw_import thread thread_new (const char * name, lw_thread_proc proc);
 lw_import void thread_delete (thread&);
 
 

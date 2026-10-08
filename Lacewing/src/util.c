@@ -361,11 +361,12 @@ static lw_thread lw_udp_public_hunter = NULL;
 #include "address.h"
 extern lw_addr lwp_addr_new_sockaddr(struct sockaddr* sockaddr);
 // Hunt for a public IPv6 address that does not have a time limit or is LAN-only
-static UINT publicFixedIPv6AddressHunterThread(LPVOID data)
+static void * lw_callback publicFixedIPv6AddressHunterThread(void * data)
 {
+	(void)data;
 	PIP_ADAPTER_ADDRESSES addr = (PIP_ADAPTER_ADDRESSES)malloc(16 * 1024);
 	if (!addr)
-		return 0;
+		return NULL;
 	ULONG size = 16 * 1024; // recommended
 	DWORD errcode = (DWORD)GetAdaptersAddresses(AF_INET6,
 		GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
@@ -376,7 +377,7 @@ static UINT publicFixedIPv6AddressHunterThread(LPVOID data)
 	{
 		lwp_trace("Couldn't read IPv6 remote address from adapters. Error %ud.\n", errcode);
 		free(addr);
-		return 0;
+		return NULL;
 	}
 
 	lwp_trace("OK. First adapter:\n");
@@ -455,7 +456,7 @@ static UINT publicFixedIPv6AddressHunterThread(LPVOID data)
 #endif
 	lw_addr_delete(curIPv6Addr);
 	free(addr);
-	return 0;
+	return NULL;
 }
 lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)
 {
@@ -747,8 +748,9 @@ typedef int (*getifaddrs_func)(struct ifaddrs**);
 typedef void (*freeifaddrs_func)(struct ifaddrs*);
 
 // Hunt for a public IPv6 address that does not have a time limit or is LAN-only
-static void * publicFixedIPv6AddressHunterThread(void * data)
+static void * lw_callback publicFixedIPv6AddressHunterThread(void * data)
 {
+	(void)data;
 	struct ifaddrs* ifaddr = NULL, * ifa;
 	char addr_str[INET6_ADDRSTRLEN];
 
@@ -796,12 +798,12 @@ static void * publicFixedIPv6AddressHunterThread(void * data)
 		}
 
 		if (!my_getifaddrs2)
-			return (void*)-1;
+			return (void *)(intptr_t)-1;
 
 		if (my_getifaddrs2(&ifaddr) == -1)
 		{
 			lwp_trace("netlink_getifaddrs also failed with error %d", errno);
-			return (void*)-1;
+			return (void *)(intptr_t)-1;
 		}
 
 		my_freeifaddrs = my_freeifaddrs2;
@@ -868,7 +870,7 @@ static void * publicFixedIPv6AddressHunterThread(void * data)
 	my_freeifaddrs(ifaddr);
 	if (libc)
 		dlclose(libc);
-	return 0;
+	return NULL;
 }
 
 lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)

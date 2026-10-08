@@ -43,7 +43,7 @@ void WINAPI lwp_networkChangedCallback(void* CallerContext, void * rowP, int typ
 }
 
 lw_thread networkLostModeMonitorThread;
-int __stdcall xpNetworkLostMode(void* p)
+static void * lw_callback xpNetworkLostMode(void* p)
 {
 	while (1)
 	{
@@ -77,7 +77,7 @@ int __stdcall xpNetworkLostMode(void* p)
 	networkChanged = NULL;
 
 	lwp_on_network_changed(lw_network_change_type_handlergone);
-	return -1;
+	return (void *)(intptr_t)-1;
 }
 
 void lwp_init ()
@@ -108,7 +108,7 @@ void lwp_init ()
 		res = NotifyAddrChange(&networkChanged, &lwp_network_changed_overlapped);
 		if (res == 0 || res == WSA_IO_PENDING)
 		{
-			networkLostModeMonitorThread = lw_thread_new("Network status monitor", (void*)xpNetworkLostMode);
+			networkLostModeMonitorThread = lw_thread_new("Network status monitor", xpNetworkLostMode);
 			lw_thread_start(networkLostModeMonitorThread, NULL);
 		}
 	}
@@ -246,4 +246,3 @@ void lw_sha1 (char * output, const char * input, size_t length)
 	CryptGetHashParam (hash_prov, HP_HASHVAL, (BYTE *) output, &hash_length, 0);
 	CryptDestroyHash (hash_prov);
 }
-

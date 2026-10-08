@@ -12,7 +12,8 @@
 
 struct _lw_thread
 {
-	void * proc, * param;
+	lw_thread_proc proc;
+	void * param, * result;
 	char * name;
 
 	HANDLE thread;
@@ -20,7 +21,7 @@ struct _lw_thread
 	void * tag;
 };
 
-lw_thread lw_thread_new (const char * name, unsigned (* proc)(void *))
+lw_thread lw_thread_new (const char * name, lw_thread_proc proc)
 {
 	lw_thread ctx = (lw_thread) calloc (sizeof (*ctx), 1);
 
@@ -84,8 +85,10 @@ static unsigned __stdcall thread_proc (void * ctxP)
 
 	SetThreadName(GetCurrentThreadId(), ctx->name);
 
-	// not stdcall
-	return ((unsigned (*) (void *)) ctx->proc) (ctx->param);
+	// The Windows entry thunk is __stdcall; user callbacks remain cdecl and
+	// return a pointer. Preserve that result separately from the 32-bit OS code.
+	ctx->result = ctx->proc(ctx->param);
+	return 0;
 }
 
 void lw_thread_start (lw_thread ctx, void * param)
@@ -108,14 +111,13 @@ void * lw_thread_join (lw_thread ctx)
 	if (!lw_thread_started (ctx))
 	  return (void *) -1;
 
-	DWORD exit_code = -1;
-
-	if (WaitForSingleObject (ctx->thread, INFINITE) == WAIT_OBJECT_0)
-	  GetExitCodeThread (ctx->thread, &exit_code);
+	if (WaitForSingleObject (ctx->thread, INFINITE) != WAIT_OBJECT_0)
+		return (void *)(size_t)-1;
+	void * result = ctx->result;
 	CloseHandle(ctx->thread);
 	ctx->thread = INVALID_HANDLE_VALUE;
 
-	return (void *) (size_t)exit_code;
+	return result;
 }
 
 void lw_thread_set_tag (lw_thread ctx, void * tag)
@@ -127,4 +129,3 @@ void * lw_thread_tag (lw_thread ctx)
 {
 	return ctx->tag;
 }
-

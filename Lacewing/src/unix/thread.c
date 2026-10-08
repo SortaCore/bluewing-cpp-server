@@ -12,7 +12,8 @@
 
 struct _lw_thread
 {
-	void * proc, * param;
+	lw_thread_proc proc;
+	void * param, * result;
 	char * name;
 
 	pthread_t thread;
@@ -21,7 +22,7 @@ struct _lw_thread
 	void * tag;
 };
 
-lw_thread lw_thread_new (const char * name, void * proc)
+lw_thread lw_thread_new (const char * name, lw_thread_proc proc)
 {
 	lw_thread ctx = (lw_thread)calloc (sizeof (*ctx), 1);
 
@@ -45,19 +46,19 @@ void lw_thread_delete (lw_thread ctx)
 	free (ctx);
 }
 
-static int thread_proc (void * ctxP)
+static void * thread_proc (void * ctxP)
 {
-	const lw_thread ctx = ctxP; // ctxP is void * to match beginthreadex func declaration
+	const lw_thread ctx = ctxP; // pthread entry point receives void *
 
 	#ifdef HAVE_DECL_PR_SET_NAME
 	  prctl (PR_SET_NAME, (unsigned long) ctx->name, 0, 0, 0);
 	#endif
 
-	int exit_code = ((int (*) (void *)) ctx->proc) (ctx->param);
+	ctx->result = ctx->proc(ctx->param);
 
 	ctx->started = lw_false;
 
-	return exit_code;
+	return ctx->result;
 }
 
 void lw_thread_start (lw_thread ctx, void * param)
@@ -67,8 +68,7 @@ void lw_thread_start (lw_thread ctx, void * param)
 
 	ctx->param = param;
 
-	ctx->started = pthread_create
-	  (&ctx->thread, 0, (void * (*) (void *)) thread_proc, ctx) == 0;
+	ctx->started = pthread_create(&ctx->thread, 0, thread_proc, ctx) == 0;
 }
 
 lw_bool lw_thread_started (lw_thread ctx)
@@ -81,12 +81,12 @@ void * lw_thread_join (lw_thread ctx)
 	if (!lw_thread_started (ctx))
 	  return (void *) -1;
 
-	void * exit_code;
+	void * exit_result;
 
-	if (pthread_join (ctx->thread, &exit_code))
+	if (pthread_join (ctx->thread, &exit_result))
 	  return (void *) -1;
 
-	return exit_code;
+	return exit_result;
 }
 
 void lw_thread_set_tag (lw_thread ctx, void * tag)
@@ -98,4 +98,3 @@ void * lw_thread_tag (lw_thread ctx)
 {
 	return ctx->tag;
 }
-
