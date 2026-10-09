@@ -40,7 +40,7 @@ static std::basic_ostream<_Elem, _Traits> & operator << (std::basic_ostream<_Ele
 			std::cout << timeBuffer;
 		return str;
 	}
-		
+
 	// Erase current line to end, then move to next line
 	std::cout << u8"\x1b[0K\n"sv;
 
@@ -130,7 +130,6 @@ static void GuessCertPath()
 		return;
 
 	// Search app directory for matching files
-
 	if (lw_file_exists("./fullchain.pem") && lw_file_exists("./privkey.pem"))
 	{
 		wsPrivKeyPath = "./privkey.pem"s;
@@ -142,7 +141,6 @@ static void GuessCertPath()
 	if (websocketNonSecurePort)
 	{
 		std::cout << yellow << u8"Couldn't auto-find TLS certficate files - expecting "sv;
-
 		std::cout << u8"\"fullchain.pem\" and \"privkey.pem\" in app folder."sv << lineEnd();
 	}
 }
@@ -250,7 +248,7 @@ static void PrintTotalStatistics(const bool endOfApp)
 		std::cout << u8"Program completed. Total statistics:"sv << lineEnd(false);
 	else
 		std::cout << u8"Manual statistics request. Statistics since start of server:" << lineEnd(false);
-	
+
 	const std::time_t curTime = time(NULL);
 	const std::uint64_t secondsUp = std::max<std::uint64_t>(1, (std::uint64_t)std::ceil(difftime(curTime, startTime)));
 	// Division is floor by default
@@ -288,69 +286,73 @@ int main(const int argcf, lw_char* argv[])
 	const std::size_t argc = static_cast<std::size_t>(argcf);
 	// If true, cmdline is set to require admin
 	bool requireAdmin = false;
-	
+
 	// GDB sometimes takes a while to link to stdout
 #ifdef _DEBUG
 	std::cout << std::flush;
 	std::cerr << std::flush;
 	std::this_thread::sleep_for(3s);
+	std::cout << argv[0];
 #endif
 
 	// Handle user and OS interrupts.
-	// 
+	//
 	// This is the other entry point from OS -> program. OS will pick a thread that has a handler
 	// to call CloseHandler on. We only use one thread in this app.
-	// 
+	//
 	// Registering no handler will result in default OS handling behavior, which may be
 	// an instant app terminate, a terminate after dumping RAM to a file in a system folder,
 	// or letting program continue as normal.
 	// Returning from some signal handlers will result in the signal being called again
 	// with default handler, so CloseHandler stalls to allow main thread to exit cleanly
 	// when it can.
-	// 
+	//
 	// All but SIGKILL and SIGSTOP can be intercepted.
 	struct sigaction act = { };
 	act.sa_handler = CloseHandler;
 	sigemptyset(&act.sa_mask);
+	const int handledSignals[] = {
 
-	// SIGINT is a more "friendly" signal caused by Ctrl-C. It is also raised if your code hits a debugger-set breakpoint.
-	sigaddset(&act.sa_mask, SIGINT);
+		// SIGINT is a more "friendly" signal caused by Ctrl-C. It is also raised if your code hits a debugger-set breakpoint.
+		SIGINT,
 
-	// SIGQUIT is caused by Ctrl-\, which closes your app and dumps the running state,
-	// basically requesting exit with a dump of all files your app is currently using.
-	// Returning from handler is instant app close.
-	sigaddset(&act.sa_mask, SIGQUIT);
+		// SIGQUIT is caused by Ctrl-\, which closes your app and dumps the running state,
+		// basically requesting exit with a dump of all files your app is currently using.
+		// Returning from handler is instant app close.
+		SIGQUIT,
 
-	// SIGABRT is caused by abort(), generally raised by internal CRT code for serious issues such as corrupt heap.
-	// Returning from handler usually causes abort() to reset the handler to OS default and raise it again,
-	// which causes instant app close.
-	sigaddset(&act.sa_mask, SIGABRT);
+		// SIGABRT is caused by abort(), generally raised by internal CRT code for serious issues such as corrupt heap.
+		// Returning from handler usually causes abort() to reset the handler to OS default and raise it again,
+		// which causes instant app close.
+		SIGABRT,
 
-	// These are caused by bad memory access (SIGSEGV), unaligned memory access (SIGBUS), or illegal CPU instructions (SIGILL).
-	// Returning from handler is likely going to crash the app and cause instant app close.
-	sigaddset(&act.sa_mask, SIGILL);
-	sigaddset(&act.sa_mask, SIGSEGV);
-	sigaddset(&act.sa_mask, SIGBUS);
+		// These are caused by bad memory access (SIGSEGV), unaligned memory access (SIGBUS), or illegal CPU instructions (SIGILL).
+		// Returning from handler is likely going to crash the app and cause instant app close.
+		SIGILL,
+		SIGSEGV,
+		SIGBUS,
 
-	// SIGFPE is floating-point exception, e.g. dividing by zero, float overflow, etc. It can be ignored,
-	// although it leads the running code in undefined state, so we close down in response.
-	// Returning from handler is instant app close.
-	//sigaddset(&act.sa_mask, SIGFPE);
+		// SIGFPE is floating-point exception, e.g. dividing by zero, float overflow, etc. It can be ignored,
+		// although it leads the running code in undefined state, so we close down in response.
+		// Returning from handler is instant app close.
+		//sigaddset(&act.sa_mask, SIGFPE);
 
-	// SIGPIPE is writing to a pipe that no longer exists.
-	// Returning from handler is instant app close.
-	sigaddset(&act.sa_mask, SIGPIPE);
+		// SIGPIPE is writing to a pipe that no longer exists.
+		// Returning from handler is instant app close.
+		SIGPIPE,
 
-	// SIGTERM is when OS is requesting app to instantly close. It is "gentle" compared to SIGKILL,
-	// which is not raised in processes and cannot be intercepted.
-	// Returning from handler is instant app close.
-	// On system shutdown, SIGTERM is sent; apps have usually 5s to close down before SIGKILL.
-	sigaddset(&act.sa_mask, SIGTERM);
-	if (sigaction(SIGINT, &act, NULL))
-	{
-		std::cout << u8"Could not set console close handler, error "sv << errno << u8".\n"sv;
-		return ENOTSUP;
-	}
+		// SIGTERM is when OS is requesting app to instantly close. It is "gentle" compared to SIGKILL,
+		// which is not raised in processes and cannot be intercepted.
+		// Returning from handler is instant app close.
+		// On system shutdown, SIGTERM is sent; apps have usually 5s to close down before SIGKILL.
+		SIGTERM,
+		// The handler also handles terminal disconnection and continuation.
+		SIGHUP,
+		SIGCONT
+	};
+	struct sigaction previousSignalActions[sizeof(handledSignals) / sizeof(handledSignals[0])] = { };
+	for (int signal : handledSignals)
+		sigaddset(&act.sa_mask, signal);
 
 #ifndef _DEBUG
 	// We don't use C-style printf(), so desync C++ console output (std::cout) and C (printf, puts).
@@ -360,7 +362,6 @@ int main(const int argcf, lw_char* argv[])
 	// we'll stick to C++ console.
 	std::ios_base::sync_with_stdio(false);
 #endif // !_DEBUG
-
 
 	// Update timeBuffer for startup output
 	OnTimerTick(nullptr);
@@ -722,7 +723,7 @@ int main(const int argcf, lw_char* argv[])
 		// In Linux, Ctrl-Z results in SIGTSTP signal being raised.
 		// It is an old design to allow single-task terminal to swap between multiple foreground programs,
 		// by suspending with Ctrl-Z (raising SIGTSP), and resuming with fg command (raising SIGCONT).
-		// 
+		//
 		// As Bluewing is a real-time server, that's a bad idea.
 		// Having a SIGTSP signal handler won't stop the enclosing terminal from freezing the server
 		// anyway, so we instead tell terminal to disable Ctrl-Z handling and treat Ctrl-Z as a
@@ -748,6 +749,19 @@ int main(const int argcf, lw_char* argv[])
 	std::cin.tie(nullptr);
 
 	globalpump = lacewing::eventpump_new();
+	// These signals rely on globalpump, so we init it here
+	for (std::size_t i = 0; i < std::size(handledSignals); ++i)
+	{
+		if (sigaction(handledSignals[i], &act, &previousSignalActions[i]))
+		{
+			const int signalError = errno;
+			for (; i > 0; --i)
+				sigaction(handledSignals[i - 1], &previousSignalActions[i - 1], NULL);
+			std::cout << red << u8"Could not set console close handler, error "sv << signalError << u8'.' << lineEnd();
+			lacewing::eventpump_delete(globalpump);
+			return ENOTSUP;
+		}
+	}
 	globalserver = new lacewing::relayserver(globalpump);
 	globalmsgrecvcounttimer = lacewing::timer_new(globalpump, "global message receiving tick-over");
 
@@ -865,8 +879,6 @@ int main(const int argcf, lw_char* argv[])
 	if (isConsoleOutput)
 	{
 		std::cout << u8"\x1b[?25l"sv;
-
-
 	}
 
 	// Start main event loop
@@ -888,7 +900,6 @@ int main(const int argcf, lw_char* argv[])
 		if (error)
 			std::cout << red << u8"Error occurred in pump: "sv << error->tostring() << lineEnd();
 	}
-
 	// ==================================================================
 	// Close down the server
 	// ==================================================================
@@ -905,14 +916,20 @@ cleanup:
 		globalserver->unhost_websocket(true, true);
 		delete globalserver;
 	}
-	lacewing::eventpump_delete(globalpump);
+
+	if (globalpump)
+	{
+		// Signals depend on globalpump
+		for (std::size_t i = 0; i < std::size(handledSignals); ++i)
+			sigaction(handledSignals[i], &previousSignalActions[i], NULL);
+		lacewing::eventpump_delete(globalpump);
+	}
 
 	// If we generated a flash policy, delete it
 	if (!flashPolicyPath.empty() && deleteFlashPolicyAtEndOfApp)
 	{
 		remove(flashPolicyPath.c_str());
 	}
-
 
 	// If we inited properly, show the end app stats
 	if (goodInit)
@@ -936,9 +953,8 @@ cleanup:
 				std::cin.get();
 			std::cout << std::flush;
 
-
 		}
-		
+
 		// Erase current line to end, then set console cursor visible
 		std::cout << u8"\x1b[0K\x1b[?25h"sv;
 		std::cout << u8'\r';
@@ -954,6 +970,7 @@ cleanup:
 		tcsetattr(STDIN_FILENO, TCSANOW, &origTerminalSettings);
 	}
 	std::cout << std::flush;
+	fflush(NULL);
 
 	return !goodInit;
 }
@@ -1281,10 +1298,10 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	//   "get my remote ip"
 	//   Reply is client's remote IPv4 "1.2.3.4" or IPv6 "[xx]".
 	//
-	// 
+	//
 	// A user is trusted if their IP matches IsIPTrusted().
 	// Trusted IPs have extra commands. If user is not trusted, the message is ignored.
-	// 
+	//
 	// Trusted users:
 	// * A report of server, including client list, channel list, ban list, and statistics.
 	//   "send report"
@@ -1578,86 +1595,48 @@ void GenerateFlashPolicy(int port)
 
 }
 
-// This CloseHandler is spawned by OS in a separate thread to main(), so output will be unsynced,
-// making it particularly messy in startup when you're waiting for user input and get a Ctrl-C instead.
-// We don't write to std::cout here, unless we know server is running - which is when globalpump is set.
 
+// POSIX may invoke this on any unblocked thread, including one interrupted during pump work.
+// Write the message directly and request exit through the pump's signal pipe.
 // Handles user interrupts and OS interrupts.
 void CloseHandler(const int sig)
 {
-	// The majority of these signals, once returning, results in app termination.
-	// For example, SIGSEGV is raised in this process when this process tries to read from invalid memory.
-	// Attempting to continue app after that sort of handler will result in termination, and if it didn't,
-	// the main thread probably has corrupt memory and can't continue anyway.
-	// Others are notifications from the OS that the app is requested to exit.
-	// 
-	// Other handlers are special user signals that are safe to return from, such as pressing Ctrl-C.
-	// 
-	// It is also possible to manually send any interrupt number via an option to the kill command,
-	// such as "kill /9 bluewing-cpp-server-linux.out", and raise it yourself e.g. "raise(SIGINT)".
+	// The OS does defer the same signal re-running, but different signal codes can interrupt a signal handler,
+	// e.g. a SIGQUIT can interrupt a SIGINT handler. Signals can interrupt a thread at any instruction.
+	// SIGINT is Ctrl-C; SIGQUIT is Ctrl-Z.
+	//
 	// For more info on signals:
 	// https://unix.stackexchange.com/a/317496
-	// Also note what functions you can call in a handler is heavily limited:
+	//
+	// What functions you can call in a handler is heavily limited:
 	// https://stackoverflow.com/a/2056565
-	std::string signalType;
+	// Due to that we cannot write to std::cout, call printf, post a function to event pump; we could manually use write,
+	// but that's five separate calls and not really worth doing.
 
-	// SIGINT: user pressed Ctrl-C. This is user quit request, and stops the server,
-	// although it does not have to.
-	if (sig == SIGINT)
-		signalType = "SIGINT: interactive attention signal, probably a Ctrl+C"s;
-	else if (sig == SIGQUIT)
+	// Ctrl-Z: post stats
+	if (sig == SIGQUIT)
 	{
 		statsDump = true;
 		return;
 	}
-	// SIGHUP: user interactive terminal disconnected. This usually means
-	// their SSH connection died.
-	// 
-	// Services/daemons do not run under interactive terminal, so they never get SIGHUP
-	// naturally. As a result, sometimes services use the SIGHUP signal to reload config.
-	// SIGUSR1 is otherwise used for this.
-	// We don't have a config, so we ignore SIGHUP.
-	// 
-	// If you are running this server under a terminal and don't want the server dying
-	// when terminal disconnects, then you run it under tmux, screen, nohup, etc.,
-	// and detach with specific keypresses: tmux (ctrl-b, d), screen (ctrl-a, d).
-	// Or you write it to be run as a service, e.g. under systemd.
-	else if (sig == SIGHUP)
-	{
-		signalType = "SIGHUP: console user has gone away"s;
-		return;
-	}
-	else if (sig == SIGCONT)
-	{
-		signalType = "SIGCONT: console user has returned"s;
-		return;
-	}
-	else // We'll assume it's deadly as it's preferable to close nicely
-		signalType = "Signal "s + std::to_string(sig);
 
-	const bool appDiesAfterReturn = sig != SIGINT;
+	// SIGHUP: May be tmux/screen user signing off
+	// Nowadays, SIGHUP often means a config file refresh, but we don't use configurations
+	if (sig == SIGHUP || sig == SIGCONT)
+		return;
+
 	// Only trigger once
 	if (!shutdowned)
 	{
-		// Don't wait for user to press a key to end app (if we were going to)
-		if (appDiesAfterReturn)
-			requestUserInput = false;
-
 		shutdowned = true;
 
-		if (globalpump)
-		{
-			std::cout << red << u8"Got a "sv << signalType << u8", ending app."sv << lineEnd();
-			globalpump->post_eventloop_exit();
-		}
-	}
+		// App dies after exit for most signals. Ctrl-C is considered graceful user exit request,
+		// so we still ask for keypress on end of app. Every other signal, we don't ask.
+		if (sig != SIGINT)
+			requestUserInput = false;
 
-	// Program may be terminated when handlers finish for most signals.
-	// Stall until main thread finishes and exits itself.
-	if (appDiesAfterReturn)
-	{
-		while (globalpump)
-			std::this_thread::sleep_for(25ms);
+		if (globalpump)
+			globalpump->post_eventloop_exit();
 	}
 }
 

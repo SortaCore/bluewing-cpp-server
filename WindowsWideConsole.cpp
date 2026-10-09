@@ -40,7 +40,7 @@ static std::basic_ostream<_Elem, _Traits> & operator << (std::basic_ostream<_Ele
 			std::wcout << timeBuffer;
 		return str;
 	}
-		
+
 	CONSOLE_SCREEN_BUFFER_INFO csbi = {};
 	if (GetConsoleScreenBufferInfo(hStdOut, &csbi))
 	{
@@ -264,7 +264,7 @@ static void PrintTotalStatistics(const bool endOfApp)
 		std::wcout << L"Program completed. Total statistics:"sv << lineEnd(false);
 	else
 		std::wcout << L"Manual statistics request. Statistics since start of server:" << lineEnd(false);
-	
+
 	const std::time_t curTime = time(NULL);
 	const std::uint64_t secondsUp = std::max<std::uint64_t>(1, (std::uint64_t)std::ceil(difftime(curTime, startTime)));
 	// Division is floor by default
@@ -302,7 +302,7 @@ int wmain(const int argcf, lw_char* argv[])
 	const std::size_t argc = static_cast<std::size_t>(argcf);
 	// If true, cmdline is set to require admin
 	bool requireAdmin = false;
-	
+
 #ifdef _DEBUG
 	// Enable memory tracking (does nothing in Release)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -311,7 +311,6 @@ int wmain(const int argcf, lw_char* argv[])
 	if (IsDebuggerPresent())
 		system("cls");
 #endif // _DEBUG
-
 
 	// Handle closing nicely - Ctrl-C, Ctrl-Break, and pressing the X on console window.
 	// Registering no handler will result in default behavior, which normally means OS will instantly terminate app.
@@ -638,7 +637,6 @@ int wmain(const int argcf, lw_char* argv[])
 		conOrigTextAttributes = csbi.wAttributes;
 		GetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
 
-
 		// Set console icon
 		{
 			// GetConsoleWindow() and undoc'd Kernel32 func SetConsoleIcon() doesn't work in Win 11,
@@ -831,7 +829,6 @@ int wmain(const int argcf, lw_char* argv[])
 		std::wcout << L'.' << lineEnd(false);
 	}
 
-
 	lastTimeAndStatsSS.imbue(std::locale(std::string()));
 	setlocale(LC_ALL, ""); // set user's locale for C functions like strftime
 
@@ -879,7 +876,6 @@ int wmain(const int argcf, lw_char* argv[])
 		if (error)
 			std::wcout << red << L"Error occurred in pump: "sv << error->tostring() << lineEnd();
 	}
-
 	// ==================================================================
 	// Close down the server
 	// ==================================================================
@@ -896,7 +892,11 @@ cleanup:
 		globalserver->unhost_websocket(true, true);
 		delete globalserver;
 	}
-	lacewing::eventpump_delete(globalpump);
+
+	if (globalpump)
+	{
+		lacewing::eventpump_delete(globalpump);
+	}
 
 	// If we generated a flash policy, delete it
 	if (!flashPolicyPath.empty() && deleteFlashPolicyAtEndOfApp)
@@ -940,7 +940,7 @@ cleanup:
 			if (result == 1)
 				requestUserInput = false;
 		}
-		
+
 		// Erase current line to end, then set console cursor visible
 		SetConsoleCursorInfo(hStdOut, &conOrigCursorInfo);
 		std::wcout << L'\r';
@@ -965,6 +965,7 @@ cleanup:
 		DestroyIcon(conOrigBigIcon);
 	}
 	std::wcout << std::flush;
+	fflush(NULL);
 
 	return !goodInit;
 }
@@ -1130,7 +1131,6 @@ void OnTimerTick(lacewing::timer timer)
 		// Space key: write statistics
 		if (cinKey == L' ')
 			statsDump = true;
-
 		else // Unrecognised, do a warning beep
 			std::wcout << L'\a';
 	}
@@ -1286,10 +1286,10 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	//   "get my remote ip"
 	//   Reply is client's remote IPv4 "1.2.3.4" or IPv6 "[xx]".
 	//
-	// 
+	//
 	// A user is trusted if their IP matches IsIPTrusted().
 	// Trusted IPs have extra commands. If user is not trusted, the message is ignored.
-	// 
+	//
 	// Trusted users:
 	// * A report of server, including client list, channel list, ban list, and statistics.
 	//   "send report"
@@ -1640,7 +1640,7 @@ BOOL WINAPI CloseHandler(DWORD ctrlType)
 			while (globalpump)
 				Sleep(25);
 		}
-		
+
 		return TRUE;
 	}
 

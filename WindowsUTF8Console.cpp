@@ -40,7 +40,7 @@ static std::basic_ostream<_Elem, _Traits> & operator << (std::basic_ostream<_Ele
 			std::cout << timeBuffer;
 		return str;
 	}
-		
+
 	// Erase current line to end, then move to next line
 	std::cout << u8"\x1b[0K\n"sv;
 
@@ -256,7 +256,7 @@ static void PrintTotalStatistics(const bool endOfApp)
 		std::cout << u8"Program completed. Total statistics:"sv << lineEnd(false);
 	else
 		std::cout << u8"Manual statistics request. Statistics since start of server:" << lineEnd(false);
-	
+
 	const std::time_t curTime = time(NULL);
 	const std::uint64_t secondsUp = std::max<std::uint64_t>(1, (std::uint64_t)std::ceil(difftime(curTime, startTime)));
 	// Division is floor by default
@@ -294,7 +294,7 @@ int main(const int argcf, lw_char* argv[])
 	const std::size_t argc = static_cast<std::size_t>(argcf);
 	// If true, cmdline is set to require admin
 	bool requireAdmin = false;
-	
+
 #ifdef _DEBUG
 	// Enable memory tracking (does nothing in Release)
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -853,7 +853,6 @@ int main(const int argcf, lw_char* argv[])
 		std::cout << u8'.' << lineEnd(false);
 	}
 
-
 	lastTimeAndStatsSS.imbue(std::locale(std::string()));
 	setlocale(LC_ALL, ""); // set user's locale for C functions like strftime
 
@@ -900,7 +899,6 @@ int main(const int argcf, lw_char* argv[])
 		if (error)
 			std::cout << red << u8"Error occurred in pump: "sv << error->tostring() << lineEnd();
 	}
-
 	// ==================================================================
 	// Close down the server
 	// ==================================================================
@@ -917,7 +915,11 @@ cleanup:
 		globalserver->unhost_websocket(true, true);
 		delete globalserver;
 	}
-	lacewing::eventpump_delete(globalpump);
+
+	if (globalpump)
+	{
+		lacewing::eventpump_delete(globalpump);
+	}
 
 	// If we generated a flash policy, delete it
 	if (!flashPolicyPath.empty() && deleteFlashPolicyAtEndOfApp)
@@ -961,7 +963,7 @@ cleanup:
 			if (result == 1)
 				requestUserInput = false;
 		}
-		
+
 		// Erase current line to end, then set console cursor visible
 		std::cout << u8"\x1b[0K\x1b[?25h"sv;
 		std::cout << u8'\r';
@@ -986,6 +988,7 @@ cleanup:
 		DestroyIcon(conOrigBigIcon);
 	}
 	std::cout << std::flush;
+	fflush(NULL);
 
 	return !goodInit;
 }
@@ -1151,7 +1154,6 @@ void OnTimerTick(lacewing::timer timer)
 		// Space key: write statistics
 		if (cinKey == u8' ')
 			statsDump = true;
-
 		else // Unrecognised, do a warning beep
 			std::cout << u8'\a';
 	}
@@ -1307,10 +1309,10 @@ void OnServerMessage(lacewing::relayserver &server, std::shared_ptr<lacewing::re
 	//   "get my remote ip"
 	//   Reply is client's remote IPv4 "1.2.3.4" or IPv6 "[xx]".
 	//
-	// 
+	//
 	// A user is trusted if their IP matches IsIPTrusted().
 	// Trusted IPs have extra commands. If user is not trusted, the message is ignored.
-	// 
+	//
 	// Trusted users:
 	// * A report of server, including client list, channel list, ban list, and statistics.
 	//   "send report"
@@ -1647,7 +1649,7 @@ BOOL WINAPI CloseHandler(DWORD ctrlType)
 			while (globalpump)
 				Sleep(25);
 		}
-		
+
 		return TRUE;
 	}
 
