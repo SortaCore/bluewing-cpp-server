@@ -261,7 +261,6 @@ lw_error lwp_send_icmp_unreachable(lwp_socket icmpsock, int proto, lw_addr local
 extern struct in6_addr lwp_ipv6_public_fixed_addr;
 extern int lwp_ipv6_public_fixed_interface_index;
 extern void lwp_trigger_public_address_hunt (lw_bool block);
-extern lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg);
 
 #ifdef __cplusplus
 
@@ -285,7 +284,7 @@ extern lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg);
 	// https://github.com/wine-mirror/wine/blob/6d1b09405774c4f234ed3fa0088a9706deb7ad49/server/async.c#L280
 	// We may cancel IO without closing the socket, i.e. TLS <1.3 socket sent a close_notify, which requires
 	// a close_notify reply sent and strictly nothing else.
-	// 
+	//
 	// WSAESHUTDOWN can only mean shutdown() was called by us; we do that in graceful close.
 	// Treat it as non-error, whatever is closing down is responsible for closure.
 	//

@@ -596,9 +596,8 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 					const lw_bool isIPv4Mapped = IN6_IS_ADDR_V4MAPPED(&addrIn6);
 					lw_log_if_debug("!!! Mismatch %s IP detected. Differs at index %u.\n",
 						remote_address->ipv6() ? (isIPv4Mapped ? "ipv4-mapped" : "ipv6") : "ipv4", cmp);
-					// If IP is IPv4, under CG-NAT, it should match by first two IPv4 bytes, but not necessarily the rest.
-					// IPv6 takes up 4 bytes of padding before IPv4, so we expect at least a match up to 6.
-					if (!isIPv4Mapped || cmp < 6)
+					// IPv4-mapped IPv6 has 12 prefix bytes; require the first two IPv4 bytes to match.
+					if (!isIPv4Mapped || cmp < 14)
 						return;
 				}
 
@@ -647,8 +646,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 			}
 			else if (!clientsocket->lockedUDPAddress)
 			{
-				// IP matches, but port does not; the remote port used by a client on UDP often differs from TCP,
-				// due to NAT
+				// IP matches; the remote UDP port may differ from TCP due to NAT.
 				if (clientsocket->udpremoteaddress->port() != remote_address->port())
 				{
 					lw_log_if_debug("Locked UDP address (port-only) for client ID %hu, from \"%s\" to \"%s\".", clientsocket->id(),
@@ -662,6 +660,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 					lw_log_if_debug("Switched local UDP address for client ID %hu, from \"%s\" to \"%s\".", clientsocket->id(),
 						clientsocket->udplocaladdress->tostring(stringflags), local_address->tostring(stringflags));
 					//auto clientWriteLock = clientsocket->lock.createWriteLock();
+					lacewing::address_delete(clientsocket->udplocaladdress);
 					clientsocket->udplocaladdress = lacewing::address_new(local_address);
 					clientsocket->ifidx = ifidx;
 				}
@@ -683,9 +682,12 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 					clientsocket->getimplementation());
 				handlerudperror(udp, error);
 				error_delete(error);
+				lacewing::address_delete(clientsocket->udplocaladdress);
 				clientsocket->udplocaladdress = lacewing::address_new(local_address);
 				clientsocket->ifidx = ifidx;
 			}
+			if (local_address->port() != clientsocket->udplocaladdress->port())
+				clientsocket->udplocaladdress->port(local_address->port());
 
 
 			// A client ID is set to only have "fake UDP" but used real UDP.

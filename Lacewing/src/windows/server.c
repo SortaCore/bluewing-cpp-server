@@ -138,7 +138,7 @@ void lw_server_delete (lw_server ctx)
 	//free (ctx);
 }
 
-lw_bool issue_accept(lw_server ctx, accept_overlapped addTo);
+static lw_bool issue_accept(lw_server ctx, accept_overlapped addTo);
 typedef struct _lw_hole_punch_params {
 	lw_server server;
 	struct sockaddr_storage addr;
@@ -146,7 +146,7 @@ typedef struct _lw_hole_punch_params {
 	lw_ui16 local_port;
 	lw_pump_watch watch;
 } lw_hole_punch_params;
-lw_bool add_client_internal(lw_server ctx, accept_overlapped overlapped,
+static lw_bool add_client_internal(lw_server ctx, accept_overlapped overlapped,
 	struct sockaddr_storage* local_addr,
 	struct sockaddr_storage* remote_addr, lw_pump_watch watch);
 
@@ -192,7 +192,8 @@ void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 
 	lw_hole_punch_params* params = (lw_hole_punch_params*)lw_malloc_or_exit(sizeof(lw_hole_punch_params));
 	params->server = ctx;
-	params->addr = *(struct sockaddr_storage*)addr->info->ai_addr;
+	memset(&params->addr, 0, sizeof(params->addr));
+	memcpy(&params->addr, addr->info->ai_addr, addr->info->ai_addrlen);
 	params->addrlen = addr->info->ai_addrlen;
 	params->local_port = local_port;
 	params->watch = NULL;
@@ -208,7 +209,6 @@ void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 
 	char* errStr = NULL;
 	lw_bool fakeout = lw_true;
-	lw_bool forceipv6 = lw_false;
 	do {
 		lwp_socket* curSocket = fakeout ? &overlapped->punching_client_socket :
 			&overlapped->punch_listening_server_socket;
@@ -233,7 +233,7 @@ void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 		s.ss_family = params->addr.ss_family;
 		// Port is at same offset in both sockaddr_in and sockaddr_in6
 		((struct sockaddr_in6*)&s)->sin6_port = htons((lw_ui16)params->local_port);
-		
+
 		if (bind(*curSocket, (struct sockaddr*)&s,
 			(int)(s.ss_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) == -1)
 		{
@@ -297,7 +297,7 @@ void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 			lw_error_delete(error);
 			return;
 		}
-		
+
 		if (!issue_accept(params->server, overlapped))
 		{
 			lw_error error = lw_error_new();

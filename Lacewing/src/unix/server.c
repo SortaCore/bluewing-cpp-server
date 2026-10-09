@@ -336,7 +336,8 @@ void lw_server_hole_punch(lw_server ctx, lw_addr addr, lw_ui16 local_port)
 	lwp_retain(ctx, "hole punch");
 	lw_hole_punch_params* params = (lw_hole_punch_params*)lw_malloc_or_exit(sizeof(lw_hole_punch_params));
 	params->server = ctx;
-	params->addr = *(struct sockaddr_storage *)addr->info->ai_addr;
+	memset(&params->addr, 0, sizeof(params->addr));
+	memcpy(&params->addr, addr->info->ai_addr, addr->info->ai_addrlen);
 	params->addrlen = addr->info->ai_addrlen;
 	params->local_port = local_port;
 	params->sock = -1;
@@ -365,7 +366,7 @@ void lw_server_hole_punch(lw_server ctx, lw_addr addr, lw_ui16 local_port)
 		}
 		lwp_make_nonblocking(params->sock);
 		ssize_t conRet = connect(params->sock, (struct sockaddr *)&params->addr, params->addrlen);
-		if (conRet == -1 && errno != EWOULDBLOCK)
+		if (conRet == -1 && errno != EINPROGRESS && errno != EWOULDBLOCK)
 		{
 			errStr = "connect on TCP hole punch failed";
 			break;

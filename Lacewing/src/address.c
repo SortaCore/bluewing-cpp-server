@@ -274,7 +274,8 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 	{
 		tmp.sin_family = AF_INET;
 		tmp.sin_port = in6->sin6_port;
-		*(int*)&tmp.sin_addr = ((int*)&in6->sin6_addr)[3]; // Skip 8 0x00's, 4 0xFF
+		// Skip 8 0x00's, 4 0xFF, and copy IPv4 part of mapped into tmp
+		memcpy(&tmp.sin_addr, &in6->sin6_addr.s6_addr[12], sizeof(tmp.sin_addr));
 		in4 = &tmp;
 		in6 = NULL;
 	}
@@ -290,8 +291,10 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 		(LPDWORD)&length) == -1)
 	{
 		strcpy(ctx->buffer, "(invalid ip):0");
+		ctx->laststringflags = -1;
+		return ctx->buffer;
 	}
-	// length set to num chars incl null
+	// Keep length inclusive of the null terminator below.
 
 	// If port is 0, Windows won't print it
 	if (in4->sin_port == 0)
@@ -300,13 +303,13 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 		{
 			memmove(ctx->buffer + 1, ctx->buffer, length);
 			ctx->buffer[0] = '[';
-			ctx->buffer[length + 1] = ']';
-			ctx->buffer[length + 2] = '\0';
+			ctx->buffer[length] = ']';
+			ctx->buffer[length + 1] = '\0';
 			length += 2;
 		}
 		if ((flags & lw_addr_tostring_flag_remove_port) == 0)
 		{
-			strcat(ctx->buffer, ":0");
+			strcat(ctx->buffer + length - 1, ":0");
 			length += 2;
 		}
 	}
@@ -323,10 +326,12 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 	if (in4->sin_family == AF_INET6 && in4->sin_port && (flags & lw_addr_tostring_flag_box_ipv6) == 0)
 	{
 		assert(ctx->buffer[0] == '[');
+		char* end = strchr(ctx->buffer, ']');
+		assert(end);
+		// Move between [] left by 1, then after ] left by 2
+		memmove(ctx->buffer, ctx->buffer + 1, end - ctx->buffer - 1);
+		memmove(end - 1, end + 1, length - (end - ctx->buffer) - 1);
 		length -= 2;
-		ctx->buffer[length] = '\0';
-		for (char* s = ctx->buffer; s != ctx->buffer + length; ++s)
-			*s = *(s + 1);
 	}
 
 #else
@@ -341,6 +346,8 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 		{
 			always_log("Error %d converting address to string.", errno);
 			assert(lw_false);
+			ctx->laststringflags = -1;
+			return ctx->buffer;
 		}
 		length = strlen(ctx->buffer);
 		assert(length);
@@ -348,6 +355,7 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 	else // AF_INET6
 	{
 		ctx->buffer[0] = '[';
+		ctx->buffer[1] = '\0';
 		if (inet_ntop(AF_INET6,
 			&((struct sockaddr_in6*)
 				ctx->info->ai_addr)->sin6_addr,
@@ -356,6 +364,8 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 		{
 			always_log("Error %d converting address to string.", errno);
 			assert(lw_false);
+			ctx->laststringflags = -1;
+			return ctx->buffer;
 		}
 
 		length = strlen(ctx->buffer);
@@ -364,9 +374,12 @@ const char * lw_addr_tostring (lw_addr ctx, lw_addr_tostring_flags flags)
 		ctx->buffer[++length] = '\0';
 	}
 
-	// This is unexpected in normal operation
+#ifdef _DEBUG
+	// TODO: This is unexpected in normal operation; is this a netmask scenario?
+	// Otherwise, isolate when and how this happens.
 	if (!strcmp(ctx->buffer, "0.0.0.0"))
 		raise(SIGTRAP);
+#endif // _DEBUG
 
 	// Append port if not set to remove
 	if ((flags & lw_addr_tostring_flag_remove_port) == 0)
@@ -387,9 +400,10 @@ struct in6_addr lw_addr_toin6_addr (lw_addr ctx)
 		return ((struct sockaddr_in6 *) ctx->info->ai_addr)->sin6_addr;
 
 	struct in6_addr v4 = { 0 };
-	((lw_ui8 *)&v4)[10] = 0xff;
-	((lw_ui8 *)&v4)[11] = 0xff;
-	*(lw_ui32 *)(&(((char *)&v4)[12])) = *(lw_ui32 *)&((struct sockaddr_in *) ctx->info->ai_addr)->sin_addr;
+	v4.s6_addr[10] = 0xff;
+	v4.s6_addr[11] = 0xff;
+	memcpy(&v4.s6_addr[12], &((struct sockaddr_in *)ctx->info->ai_addr)->sin_addr,
+		sizeof(struct in_addr));
 	return v4;
 }
 

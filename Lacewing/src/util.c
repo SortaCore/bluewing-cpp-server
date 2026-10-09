@@ -963,9 +963,9 @@ lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)
 		else
 		{
 			lwp_addr_set_sockaddr(curAddr, ifa->ifa_addr);
-			lwp_addr_set_sockaddr(curAddr, ifa->ifa_netmask);
+			lwp_addr_set_sockaddr(netAddr, ifa->ifa_netmask);
 		}
-		
+
 		lwp_trace("Difference in addresses: \"%s\" does not match \"%s\". Netmask: \"%s\".",
 			lw_addr_tostring(curAddr, lw_addr_tostring_flag_remove_port),
 			lw_addr_tostring(passedAddr, lw_addr_tostring_flag_remove_port),
@@ -1102,7 +1102,7 @@ lw_error lwp_send_icmp_unreachable(lwp_socket icmp, int proto, lw_addr local, lw
 		uint16_t icmp_chk;
 		uint32_t icmp_unused;
 	} icmpv6;
-	
+
 	typedef struct _iphdrv4
 	  {
 		// IP version (4) + IP header length in 4-byte counts (min 5, i.e. 20 bytes)
@@ -1133,15 +1133,15 @@ lw_error lwp_send_icmp_unreachable(lwp_socket icmp, int proto, lw_addr local, lw
 		 uint8_t version : 4;
 		uint8_t priority : 8;
 		uint32_t flow : 20;
-		
+
 		uint16_t payload_len;
 		uint8_t nexthdr;
 		uint8_t hop_limit;
-		
+
 		struct in6_addr saddr;
 		struct in6_addr daddr;
 	} iphdrv6;
-	
+
 	typedef struct _fakeiphdr6
 	{
 		// Source address (IPv6 16 byte)
@@ -1284,23 +1284,4 @@ void lwp_trigger_public_address_hunt(lw_bool block)
 	}
 	if (block)
 		lw_thread_join(lw_udp_public_hunter);
-}
-
-lw_bool lwp_set_ipv6pktinfo_cmsg(void * cmsg2)
-{
-	struct _WSACMSGHDR * cmsg = (struct _WSACMSGHDR *)cmsg2;
-	// Trigger a lookup, or wait for existing lookup to finish
-	if (lwp_ipv6_public_fixed_interface_index == -1)
-		lwp_trigger_public_address_hunt(lw_true);
-
-	if (lwp_ipv6_public_fixed_interface_index < 0)
-		return lw_false;
-
-	cmsg->cmsg_level = IPPROTO_IPV6;
-	cmsg->cmsg_type = IPV6_PKTINFO;
-	cmsg->cmsg_len = WSA_CMSG_LEN(sizeof(struct in6_pktinfo));
-	struct in6_pktinfo* pktinfo = (struct in6_pktinfo*)WSA_CMSG_DATA(cmsg);
-	pktinfo->ipi6_addr = lwp_ipv6_public_fixed_addr;
-	pktinfo->ipi6_ifindex = (unsigned int)lwp_ipv6_public_fixed_interface_index;
-	return lw_true;
 }
