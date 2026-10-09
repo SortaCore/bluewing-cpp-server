@@ -433,7 +433,7 @@ lw_addr lw_client_local_addr(lw_client ctx)
 {
 	return ctx->local_address;
 }
-lw_ui32 lw_client_ifidx(lw_client ctx)
+lw_i32 lw_client_ifidx(lw_client ctx)
 {
 	return ctx->ifidx;
 }

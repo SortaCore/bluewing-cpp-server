@@ -527,7 +527,7 @@ typedef enum _lw_addr_tostring_flags
 	lw_import		 lw_bool  lw_client_connecting			(lw_client);
 	lw_import		 lw_addr  lw_client_server_addr			(lw_client);
 	lw_import		 lw_addr  lw_client_local_addr			(lw_client);
-	lw_import		 lw_ui32  lw_client_ifidx				(lw_client);
+	lw_import		  lw_i32  lw_client_ifidx				(lw_client);
 
 	typedef void (lw_callback * lw_client_hook_connect) (lw_client);
 	lw_import void lw_client_on_connect (lw_client, lw_client_hook_connect);
@@ -572,7 +572,7 @@ typedef enum _lw_addr_tostring_flags
 	lw_import			 lw_bool  lw_server_client_is_hole_punch  (lw_server_client);
 	lw_import			 lw_addr  lw_server_client_remote_addr	  (lw_server_client);
 	lw_import			 lw_addr  lw_server_client_local_addr	  (lw_server_client);
-	lw_import			 lw_ui32  lw_server_client_ifidx	  (lw_server_client);
+	lw_import			  lw_i32  lw_server_client_ifidx		  (lw_server_client);
 
 	typedef void (lw_callback * lw_server_hook_connect) (lw_server, lw_server_client);
 	lw_import void lw_server_on_connect (lw_server, lw_server_hook_connect);

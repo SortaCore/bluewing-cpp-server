@@ -90,7 +90,7 @@ lw_client lw_client_new (lw_pump pump)
 {
 	lw_client ctx = (lw_client)calloc (sizeof (*ctx), 1);
 
-	ctx->ifidx = UINT32_MAX;
+	ctx->ifidx = -1;
 
 	lwp_init ();
 
@@ -123,7 +123,7 @@ void lw_client_delete (lw_client ctx)
 	ctx->local_address = NULL;
 	lw_addr_delete(ctx->remote_address);
 	ctx->remote_address = NULL;
-	ctx->ifidx = UINT32_MAX;
+	ctx->ifidx = -1;
 
 	/* Drop the stream's owning reference instead of freeing the client inline.
 	 * Queued pump writes retain this same allocation until their work is done. */
@@ -468,7 +468,7 @@ lw_addr lw_client_local_addr (lw_client ctx)
 {
 	return ctx->local_address;
 }
-lw_ui32 lw_client_ifidx (lw_client ctx)
+lw_i32 lw_client_ifidx (lw_client ctx)
 {
 	return ctx->ifidx;
 }

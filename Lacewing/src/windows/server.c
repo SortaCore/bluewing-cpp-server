@@ -1465,7 +1465,7 @@ lw_addr lw_server_client_local_addr (lw_server_client client)
 {
 	return client->local_addr;
 }
-lw_ui32 lw_server_client_ifidx (lw_server_client client)
+lw_i32 lw_server_client_ifidx (lw_server_client client)
 {
 	return client->ifidx;
 }
