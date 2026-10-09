@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <sys/cdefs.h>
 // For cap_get_proc(), allows checking for raw socket and low port number binds; requires libcap-dev
-#if __has_include(<sys/capability.h>)
+#ifdef HAVE_LIBCAP
 #	include <sys/capability.h>
-#endif // __has_include
+#endif // HAVE_LIBCAP
 #include <pwd.h>
 #include <signal.h> // for SIGINT etc
 #if __has_include(<conio.h>)

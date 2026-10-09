@@ -108,6 +108,7 @@ endif()
 
 set(BLUEWING_PLATFORM_DEFINITIONS)
 set(BLUEWING_PLATFORM_LIBRARIES)
+set(BLUEWING_PLATFORM_INCLUDE_DIRECTORIES)
 
 if(WIN32)
     set(BLUEWING_PROJECT_NAME bluewing-cpp-server)
@@ -158,6 +159,16 @@ elseif(UNIX)
         Lacewing/src/unix/timer.c
         Lacewing/src/unix/udp.c
     )
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_path(BLUEWING_LIBCAP_INCLUDE_DIR sys/capability.h)
+        find_library(BLUEWING_LIBCAP_LIBRARY cap)
+        if(BLUEWING_LIBCAP_INCLUDE_DIR AND BLUEWING_LIBCAP_LIBRARY)
+            list(APPEND BLUEWING_PLATFORM_INCLUDE_DIRECTORIES "${BLUEWING_LIBCAP_INCLUDE_DIR}")
+            list(APPEND BLUEWING_PLATFORM_LIBRARIES "${BLUEWING_LIBCAP_LIBRARY}")
+            list(APPEND BLUEWING_PLATFORM_DEFINITIONS HAVE_LIBCAP)
+        endif()
+    endif()
 
     check_include_files(malloc.h HAVE_MALLOC_H)
     check_include_files(netdb.h HAVE_NETDB_H)
@@ -250,6 +261,7 @@ set_target_properties(bluewing-cpp-server PROPERTIES
 target_include_directories(bluewing-cpp-server PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/Lacewing"
+    ${BLUEWING_PLATFORM_INCLUDE_DIRECTORIES}
 )
 
 target_compile_definitions(bluewing-cpp-server PRIVATE

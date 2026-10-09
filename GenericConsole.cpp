@@ -889,24 +889,30 @@ int main(const int argcf, lw_char* argv[])
 		// Noteably, the websocket server ports are by default port 80 and 443, flash policy 843.
 		// This perm check will assume admin permissions if it cannot check.
 		bool isAdmin = true;
-#if __has_include(<sys/capabilities.h>)
+#ifdef HAVE_LIBCAP
 		const cap_t current = cap_get_proc();
 		if (current == NULL)
 		{
 			std::cout << red << "Warning: Failed to get process capabilities (error "sv << errno << "). Assuming raw socket + net bind capabilities are granted.\n"sv;
+		}
+		else
+		{
 			cap_flag_value_t on;
 			if (cap_get_flag(current, CAP_NET_BIND_SERVICE, CAP_PERMITTED, &on) != 0) {
 				std::cout << red << "Warning: Failed to check cap_net_bind_service value (error "sv << errno << "). Assuming it is granted.\n"sv;
 			}
-			isAdmin = on == 1;
+			else
+				isAdmin = on == CAP_SET;
 			if (cap_get_flag(current, CAP_NET_RAW, CAP_PERMITTED, &on) != 0) {
 				std::cout << red << "Warning: Failed to check cap_net_raw capability (error "sv << errno << "). Assuming it is granted.\n"sv;
 			}
-			isAdmin &= on == 1;
+			else
+				isAdmin &= on == CAP_SET;
+			cap_free(current);
 		}
-#else // __has_include 0
-		std::cout << red << "Warning: Server was built without libcap-dev. Checking for raw socket/port bind privileges is not possible. Assuming they are granted.\n"sv;
-#endif // __has_include
+#else // !HAVE_LIBCAP
+		std::cout << red << "Warning: Server was built without libcap support. Checking for raw socket/port bind privileges is not possible. Assuming they are granted.\n"sv;
+#endif // HAVE_LIBCAP
 
 		if (!isAdmin)
 		{
