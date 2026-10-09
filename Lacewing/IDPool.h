@@ -151,7 +151,7 @@ public:
 			for (lw_ui16 fakeID = nextID; fakeID < ID; ++fakeID)
 				releasedIDs.emplace(fakeID, decltype(safetyMargin)::zero());
 			always_log("Note: Unexpected ID %hu was used, causing reservation entries for IDs %hu to %hu.\n",
-				ID, nextID);
+				ID, nextID, ID);
 			nextID = static_cast<lw_ui16>(ID + 1);
 		}
 

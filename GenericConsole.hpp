@@ -6,7 +6,7 @@
  *
  * This file is used as a template to make OS-specific code. Several preprocessor-level things are both handled here, and
  * have their handling made redundant by the pre-build script.
- * 
+ *
  * You should not modify this template unless you are writing code for all platforms.
 */
 #pragma once
@@ -30,9 +30,9 @@
 // Use of UTF-8 with WinAPI A text, ANSI virtual terminal commands, and Windows Terminal, were all introduced
 // at around the same time, in later builds of Windows 10, probably in line with release of WSL.
 // For more reading on Unicode terms, see https://dark-wire.com/relay/help/Unicodenotes.html .
-// 
+//
 // Using UTF-8 doesn't work consistently either as it also may split.
-// 
+//
 // However, if you want to try using only UTF-8 and POSIX, you can do so.
 // These are used to prepend string literals.
 #if (defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 202207L)

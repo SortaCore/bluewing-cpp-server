@@ -3,7 +3,7 @@
  * Copyright (C) 2012, 2013 James McLaughlin et al.
  * Copyright (C) 2012-2026 Darkwire Software.
  * All rights reserved.
- * 
+ *
  * liblacewing and Lacewing Relay/Blue are provided under MIT license.
  */
 

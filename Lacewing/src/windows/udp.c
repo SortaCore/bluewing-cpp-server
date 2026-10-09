@@ -41,7 +41,7 @@ typedef struct _udp_receive_info
 
 } * udp_receive_info;
 
-udp_receive_info udp_receive_info_new ()
+static udp_receive_info udp_receive_info_new ()
 {
 	udp_receive_info info = (udp_receive_info) calloc (sizeof (*info), 1);
 
@@ -228,7 +228,8 @@ static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
 #ifdef _lacewing_debug
 					lw_addr filter_addr = lw_filter_remote(ctx->filter);
 					lwp_trace("UDP from unexpected source \"%s\", outside of filter \"%s\".\n",
-						lw_addr_tostring(&addr), lw_addr_tostring(filter_addr));
+						lw_addr_tostring(&remoteAddr, lw_addr_tostring_flags_default),
+						lw_addr_tostring(filter_addr, lw_addr_tostring_flags_default));
 #endif // _lacewing_debug
 				}
 				else if (ctx->on_data)

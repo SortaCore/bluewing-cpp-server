@@ -67,14 +67,14 @@ static inline lw_bool _lwp_release (struct lwp_refcount * refcount)
 	struct lwp_refcount refcount
 
 #define lwp_retain(x, name)						\
-	_lwp_retain ((struct lwp_refcount *) (x))								
+	_lwp_retain ((struct lwp_refcount *) (x))
 
 #define lwp_release(x, name)					\
-	_lwp_release ((struct lwp_refcount *) (x))	
+	_lwp_release ((struct lwp_refcount *) (x))
 
 #define lwp_set_dealloc_proc(x, proc) do {										\
   *(void **) &(((struct lwp_refcount *) (x))->on_dealloc) = (void *) (proc);	\
-} while (0);																
+} while (0);
 
 #define lwp_set_retain_proc(x, proc)
 #define lwp_set_release_proc(x, proc)

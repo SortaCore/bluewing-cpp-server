@@ -56,14 +56,12 @@ static void client_connect_on_pump (struct client_connect_post * post)
 
 lw_client lw_client_new (lw_pump pump)
 {
-	lwp_init ();
-
 	lw_client ctx = (lw_client) calloc (sizeof (*ctx), 1);
 
 	if (!ctx)
 		return 0;
 
-	lwp_init();
+	lwp_init ();
 	lwp_fdstream_init (&ctx->fdstream, pump);
 	ctx->fdstream.flags |= lwp_fdstream_flag_is_socket;
 

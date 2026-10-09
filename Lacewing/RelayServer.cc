@@ -239,11 +239,11 @@ struct relayserverinternal
 				// indicating UDP routing failed entirely for too long.
 				// An exact match here means no UDP was ever exchanged, but if client keeps sending only UDPHello
 				// beyond udpMaxHelloTimeMS, they will be kicked in the UDPHello handler, too.
-				// 
+				//
 				// Blue Client b106 introduced client-side UDP handshake timeout. Clients that have a
 				// UDPHello timeout should disconnect themselves before server does, by having a shorter timer.
 				// Currently client is 5s, server is 7s.
-				// 
+				//
 				// Before b106, most clients that failed to get a UDP Welcome reply, e.g. by bad NAT,
 				// would send UDP Hello forever, in limbo as they had Relay connect approval but couldn't
 				// progress beyond it to triggering client connect handler, which runs at first UDP Welcome received.
@@ -555,7 +555,7 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 				// As a UDP impersonator will result in the real TCP user disconnecting from UDP handshake failing,
 				// it's not a massive security risk, but it is potentially possible to prevent incoming connections
 				// to a server.
-				// 
+				//
 				// TODO: The fix would be to pass a secret to the TCP side on connection approval, which must be
 				// echoed back to the UDP side; but Relay wouldn't support that. When we kill Relay compatibility,
 				// that's the method to fix this security issue.
@@ -578,11 +578,6 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 						clientsocket->getimplementation());
 					handlerudperror(udp, error);
 					error_delete(error);
-					if (error)
-					{
-						handlerudperror(udp, error);
-						error_delete(error);
-					}
 					#endif // _lacewing_debug
 					udp->send_unreachable(local_address, ifidx, remote_address, foricmp.data(), foricmp.size());
 					return;
@@ -1790,7 +1785,7 @@ bool relayserverinternal::queue_or_run_action(bool wasDequeued, action::type act
 	// The way this action queue works is functions like client->disconnect don't disconnect, but queue_or_action in an if.
 	// If q or a returns false, then the disconnect continues and runs the actual disconnect code.
 	// If q or a returns true, that means it was queued, and the disconnect exits early.
-	// 
+	//
 	// wasDequeued = true means this function was just dequeued from action thread, and it is now trying to run action,
 	// by calling q and a itself.
 	// wasDequeued = false at this point means disconnect() called q or a, so we skip the queue entirely,
@@ -2601,6 +2596,10 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 				reader.failed = true;
 				break;
 			}
+
+			// UDPHello before connect request approved should be refused earlier,
+			// from IP mismatch. Connect approval time is invalid here.
+			assert(client->connectRequestApproved);
 
 			// UDP Hello sent beyond the UDPHello timeout window
 			// We don't want a server that can be inundated with useless UDPHello, so we kick
