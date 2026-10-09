@@ -36,7 +36,7 @@ lw_eventpump lw_eventpump_new ()
 
 	lwp_pump_init (&ctx->pump, &def_eventpump);
 
-	ctx->sync_signals = lw_sync_new ();
+	ctx->sync_signalparams = lw_sync_new ();
 
 	int signalpipe [2];
 	if (pipe(signalpipe) == -1)
@@ -62,30 +62,19 @@ lw_eventpump lw_eventpump_new ()
 	return ctx;
 }
 
-lw_bool process_event(lw_eventpump ctx, lwp_eventqueue_event event);
-
 static void def_cleanup (lw_pump pump)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
 	if (ctx->signalpipe_read != -1)
 	{
-		// Drain the signal queue; it may have sig_remove, may have sig_post with a post_remove,
-		// may have an extra event loop exit
-		for (size_t i = 0; i < 3; ++i)
-		{
-			lw_sync_lock(ctx->sync_signals);
-			int j = ctx->waiting_pipe_bytes;
-			lw_sync_release(ctx->sync_signals);
-			if (j == 0)
-				break;
-			assert(j > 0);
-
-			// Send a null event which will run all signals at end
-			// Only way this doesn't fully clear is a sig_post that has a sig_remove
-			lwp_eventqueue_event clear = { 0 };
-			process_event(ctx, clear);
-		}
+		// Drain deferred removals and posts, including any queued by their callbacks.
+		// An exit byte stops one pass, so keep going until the pipe is empty.
+		lwp_eventqueue_event clear = { 0 };
+		lw_bool drained;
+		do
+			drained = process_event(ctx, clear, lw_true);
+		while (!drained);
 		
 		close(ctx->signalpipe_read);
 		close(ctx->signalpipe_write);
@@ -101,7 +90,7 @@ static void def_cleanup (lw_pump pump)
 			lw_thread_join (ctx->watcher.thread);
 		}
 		lw_thread_delete(ctx->watcher.thread);
-		lw_sync_delete(ctx->sync_signals);
+		lw_sync_delete(ctx->sync_signalparams);
 
 		lw_event_delete (ctx->watcher.resume_event);
 	#endif
@@ -110,8 +99,9 @@ static void def_cleanup (lw_pump pump)
 	ctx->queue = (lwp_eventqueue)~0;
 }
 
-lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
+static lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event, lw_bool last_event)
 {
+	lw_bool keep_running = lw_true;
 	lw_bool read_ready = lwp_eventqueue_event_read_ready (event),
 			write_ready = lwp_eventqueue_event_write_ready (event);
 
@@ -126,7 +116,7 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 		if (event.filter == EVFILT_TIMER)
 		{
 			lw_timer_force_tick ((lw_timer) event.udata);
-			return lw_true;
+			goto done;
 		}
 
 	#endif
@@ -139,40 +129,38 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 		if (write_ready && watch->on_write_ready)
 			watch->on_write_ready (watch->tag);
 
-		return lw_true;
+		goto done;
 	}
 
 	/* A null tag means it must be the signal pipe */
 
-	lw_sync_lock (ctx->sync_signals);
+	lw_sync_lock (ctx->sync_signalparams);
 
-	do {
+	for (;;) {
 		char signal;
 
 		const ssize_t amountRead = read(ctx->signalpipe_read, &signal, sizeof(signal));
 		if (amountRead != 1)
 		{
-			// In theory, a null tag means signal pipe message was added. If signalparams is 0, that means
-			// either the signal and its params was already handled, or that it wasn't a signal pipe message
-			// and the tag is null by error.
-			if (amountRead == -1 && list_length(ctx->signalparams) == 0)
-			{
-				always_log("WARNING: read() of signal pump is -1, and signalparams is 0; was the watch %p or watch->tag %p incorrect?",
-					watch, watch ? watch->tag : NULL);
-			}
-			lw_sync_release(ctx->sync_signals);
-			return lw_true;
+			if (amountRead == -1 && errno == EINTR)
+				continue;
+			if (amountRead == 0)
+				always_log("signal pipe closed unexpectedly");
+			else if (errno != EAGAIN)
+				always_log("signal pipe read failed with error %d", errno);
+			break;
 		}
-
-		--ctx->waiting_pipe_bytes;
 
 		switch (signal)
 		{
 		case sig_exit_eventloop:
 		{
 			lwp_trace("eventpump process_event: signal is exit eventloop.");
-			lw_sync_release(ctx->sync_signals);
-			return lw_false;
+			lw_sync_release(ctx->sync_signalparams);
+			// The caller stops dispatching this fetched array on exit.
+			last_event = lw_true;
+			keep_running = lw_false;
+			goto done;
 		}
 
 		case sig_remove:
@@ -180,13 +168,8 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 			lwp_trace("eventpump process_event: signal is remove.");
 			lw_pump_watch to_remove = (lw_pump_watch)list_front(void*, ctx->signalparams);
 			list_pop_front(void*, ctx->signalparams);
-
-			// note: lw_pump_remove() is what causes sig_remove
-			lw_pump_remove_user((lw_pump)ctx);
-			memset(to_remove, 0, sizeof(*to_remove));
-			free(to_remove);
-
-			break; // out of switch
+			list_push(lw_pump_watch, ctx->closing_watches, to_remove);
+			break;
 		}
 
 		case sig_post:
@@ -199,21 +182,28 @@ lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event)
 			list_pop_front(void*, ctx->signalparams);
 
 			// Release in case the function causes signal
-			lw_sync_release (ctx->sync_signals);
-
+			lw_sync_release (ctx->sync_signalparams);
 			((void* (*) (void*)) func) (param);
-
-			lw_sync_lock (ctx->sync_signals); // regain for re-read of waiting_pipe_bytes
-
+			lw_sync_lock (ctx->sync_signalparams);
 			break; // out of switch
 		}
 		};
+	}
 
-	} while (ctx->waiting_pipe_bytes > 0);
+	lw_sync_release (ctx->sync_signalparams);
 
-	lw_sync_release (ctx->sync_signals);
-
-	return lw_true;
+	done:
+	// A later event in the fetched array may still name a removed watch.
+	if (last_event)
+	{
+		list_each(lw_pump_watch, ctx->closing_watches, watch)
+		{
+			free(watch);
+			lw_pump_remove_user((lw_pump)ctx);
+		}
+		list_clear(ctx->closing_watches);
+	}
+	return keep_running;
 }
 
 lw_error lw_eventpump_tick (lw_eventpump ctx)
@@ -227,8 +217,13 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 			/* sleepy ticking: the watcher thread already grabbed some events we
 			* need to process.
 			*/
-			for (int i = 0; i < ctx->watcher.num_events; ++ i)
-				process_event (ctx, ctx->watcher.events [i]);
+			for (int i = 0; i < ctx->watcher.num_events; ++i)
+				if (!process_event(ctx, ctx->watcher.events[i], i == ctx->watcher.num_events - 1))
+				{
+					ctx->watcher.num_events = 0;
+					need_watcher_resume = lw_true;
+					goto finish_tick;
+				}
 
 			ctx->watcher.num_events = 0;
 
@@ -242,8 +237,10 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 	int count = lwp_eventqueue_drain (ctx->queue, lw_false, max_events, events);
 
 	for (int i = 0; i < count; ++ i)
-		process_event (ctx, events [i]);
+		if (!process_event(ctx, events[i], i == count - 1))
+			break;
 
+	finish_tick:
 	#ifdef ENABLE_THREADS
 		if (need_watcher_resume)
 			lw_event_signal (ctx->watcher.resume_event);
@@ -273,7 +270,7 @@ lw_error lw_eventpump_start_eventloop (lw_eventpump ctx)
 
 	  for (int i = 0; i < count; ++ i)
 	  {
-		 if (!process_event (ctx, events [i]))
+		 if (!process_event(ctx, events[i], i == count - 1))
 		 {
 			do_loop = 0;
 			break;
@@ -286,15 +283,12 @@ lw_error lw_eventpump_start_eventloop (lw_eventpump ctx)
 
 void lw_eventpump_post_eventloop_exit (lw_eventpump ctx)
 {
-	lw_sync_lock (ctx->sync_signals);
-
-		char signal = sig_exit_eventloop;
-		if (write(ctx->signalpipe_write, &signal, sizeof(signal)) == -1)
-			always_log ("pipe failed to write with error %d.", errno);
-		else
-			++ctx->waiting_pipe_bytes;
-
-	lw_sync_release (ctx->sync_signals);
+	// Each post/remove writes one byte. Filling the pipe generally takes thousands
+	// of undrained events (often about 64K on Linux); capacity varies by OS.
+	// If it fills, this write blocks until the pump drains it.
+	char signal = sig_exit_eventloop;
+	if (write(ctx->signalpipe_write, &signal, sizeof(signal)) == -1)
+		always_log ("pipe failed to write with error %d.", errno);
 }
 
 lw_error lw_eventpump_start_sleepy_ticking
@@ -423,6 +417,8 @@ static void def_remove (lw_pump pump, lw_pump_watch watch, const char * deleteRe
 		Phi test: Actually, this falls over very quickly if you don't.
 	*/
 
+	// We can't remove the watch memory immediately, as queued events still reference it,
+	// so we make the events 
 	lwp_eventqueue_update(ctx->queue, watch->fd, deleteReason,
 		watch->on_read_ready != NULL, lw_false,
 		watch->on_write_ready != NULL, lw_false,
@@ -430,36 +426,31 @@ static void def_remove (lw_pump pump, lw_pump_watch watch, const char * deleteRe
 	watch->on_read_ready = NULL;
 	watch->on_write_ready = NULL;
 
-
-	lw_sync_lock (ctx->sync_signals);
+	lw_sync_lock (ctx->sync_signalparams);
 
 		list_push (void *, ctx->signalparams, watch);
 
 		char signal = sig_remove;
 		if (write(ctx->signalpipe_write, &signal, sizeof(signal)) == -1)
 			always_log("pipe failed to write with error %d.", errno);
-		else
-			++ctx->waiting_pipe_bytes;
 
-	lw_sync_release (ctx->sync_signals);
+	lw_sync_release (ctx->sync_signalparams);
 }
 
 static void def_post (lw_pump pump, void * func, void * param)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
-	lw_sync_lock (ctx->sync_signals);
+	lw_sync_lock (ctx->sync_signalparams);
 
 		list_push (void *, ctx->signalparams, func);
-		list_push (void*, ctx->signalparams, param);
+		list_push (void *, ctx->signalparams, param);
 
 		char signal = sig_post;
 		if (write(ctx->signalpipe_write, &signal, sizeof(signal)) == -1)
 			always_log("pipe failed to write with error %d.", errno);
-		else
-			++ctx->waiting_pipe_bytes;
 
-	lw_sync_release (ctx->sync_signals);
+	lw_sync_release (ctx->sync_signalparams);
 }
 
 const lw_pumpdef def_eventpump =

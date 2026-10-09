@@ -28,11 +28,11 @@ struct _lw_eventpump
 
 	lwp_eventqueue queue;
 
-	lw_sync sync_signals;
+	lw_sync sync_signalparams;
 
 	int signalpipe_read, signalpipe_write;
 	lw_list (void *, signalparams);
-	int waiting_pipe_bytes; // protected by sync_signals
+	lw_list (lw_pump_watch, closing_watches);
 
 	#ifndef _lacewing_no_threads
 
@@ -59,5 +59,3 @@ extern const lw_pumpdef def_eventpump;
 /* epoll/kqueue/select specific
  */
 int lwp_eventpump_create_queue ();
-
-
