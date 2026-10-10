@@ -51,6 +51,9 @@ typedef INT(WSAAPI* fn_WSARecvMsg) (SOCKET Handle,
 	LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 fn_WSARecvMsg compat_WSARecvMsg (SOCKET s);
 
+BOOL compat_ConnectEx (SOCKET s, const struct sockaddr * address,
+	int address_length, LPOVERLAPPED overlapped);
+
 typedef __time64_t (__stdcall * fn_mkgmtime64) (struct tm *);
 fn_mkgmtime64 compat_mkgmtime64 ();
 

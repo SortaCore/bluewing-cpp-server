@@ -10,6 +10,16 @@
 
 #include "../common.h"
 
+// Old MinGW may lack these
+#ifndef WSAID_CONNECTEX
+#	define WSAID_CONNECTEX  { 0x25a207b9, 0xddf3, 0x4660, \
+		{ 0x8e, 0xe9, 0x76, 0xe5, 0x8c, 0x74, 0x06, 0x3e }}
+#endif
+#ifndef WSAID_WSARECVMSG
+#	define WSAID_WSARECVMSG { 0xf689d7c8, 0x6f1f, 0x436b, \
+		{ 0x8a, 0x53, 0xe5, 0x4f, 0xe3, 0x51, 0xc3, 0x22 }}
+#endif
+
 static void * MSVCRT (const char * fn)
 {
 	static HINSTANCE DLL = 0;
@@ -81,12 +91,35 @@ fn_WSARecvMsg compat_WSARecvMsg(SOCKET s)
 	GUID ID = WSAID_WSARECVMSG;
 	DWORD bytes = 0;
 
-	WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,
+	if (WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER,
 		&ID, sizeof(ID), &fn, sizeof(fn),
-		&bytes, 0, 0);
+		&bytes, 0, 0) == SOCKET_ERROR)
+		return 0;
 
-	assert(fn);
 	return fn;
+}
+
+BOOL compat_ConnectEx (SOCKET s, const struct sockaddr * address,
+	int address_length, LPOVERLAPPED overlapped)
+{
+	typedef BOOL (PASCAL FAR * fn_ConnectEx) (SOCKET, const struct sockaddr FAR *,
+		int, PVOID, DWORD, LPDWORD, LPOVERLAPPED);
+
+	// ConnectEx belongs to the socket's provider, so look it up per socket
+	fn_ConnectEx fn = 0;
+	GUID id = WSAID_CONNECTEX;
+	DWORD bytes = 0;
+
+	int result = WSAIoctl (s, SIO_GET_EXTENSION_FUNCTION_POINTER,
+		&id, sizeof (id), &fn, sizeof (fn), &bytes, 0, 0);
+	if (result == SOCKET_ERROR || !fn)
+	{
+		if (result != SOCKET_ERROR)
+			WSASetLastError (WSAEOPNOTSUPP);
+		return FALSE;
+	}
+
+	return fn (s, address, address_length, 0, 0, 0, overlapped);
 }
 
 fn_mkgmtime64 compat_mkgmtime64 ()

@@ -502,6 +502,10 @@ lw_i32 lwp_get_ifidx(struct sockaddr_storage* ss)
 			if (lwp_sockaddr_equal((struct sockaddr *)ss, (struct sockaddr*)unicast->Address.lpSockaddr))
 			{
 				ret = ss->ss_family == AF_INET6 ? addrL->Ipv6IfIndex : addrL->IfIndex;
+				// Wine doesn't set Ipv6IfIndex
+				if (!ret && ss->ss_family == AF_INET6)
+					ret = addrL->IfIndex;
+				assert(ret);
 				break;
 			}
 

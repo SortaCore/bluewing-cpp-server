@@ -88,7 +88,8 @@ struct _lw_udp
 
 	void * tag;
 
-	// Function for sending with a specified outgoing address. Null on WinXP.
+	// Function for sending with a specified outgoing address.
+	// Null means OS selects; confirmed to be null on WinXP.
 	fn_WSASendMsg WSASendMsgPtr;
 	// Function for receiving msg and storing its local destination; required even on XP.
 	fn_WSARecvMsg WSARecvMsgPtr;
@@ -378,34 +379,36 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 		return;
 	}
 
-	if (madeipv6 && (ctx->icmpv6socket = lwp_create_server_socket
-		(filter, SOCK_RAW, IPPROTO_ICMPV6, NULL, error)) == -1)
+	// Without WSASendMsg we cannot select the received local IP for ICMP replies.
+	ctx->WSASendMsgPtr = compat_WSASendMsg();
+	if (ctx->WSASendMsgPtr)
 	{
-		lw_error_addf(error, "Creating ICMPv6 socket");
-		if (ctx->on_error)
-			ctx->on_error(ctx, error);
-		// Non-fatal, we don't need ICMP
+		if (madeipv6 && (ctx->icmpv6socket = lwp_create_server_socket
+			(filter, SOCK_RAW, IPPROTO_ICMPV6, NULL, error)) == -1)
+		{
+			lw_error_addf(error, "Creating ICMPv6 socket");
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+			// Non-fatal, we don't need ICMP
+		}
+		lw_filter ipv4filt = lw_filter_clone(filter);
+		lw_filter_set_ipv6(ipv4filt, lw_false);
+		if ((ctx->icmpsocket = lwp_create_server_socket
+			(ipv4filt, SOCK_RAW, IPPROTO_ICMP, NULL, error)) == -1)
+		{
+			lw_error_addf(error, "Creating ICMPv4 socket");
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+			// Non-fatal, we don't need ICMP
+		}
+		lw_filter_delete(ipv4filt);
 	}
-	lw_filter ipv4filt = lw_filter_clone(filter);
-	lw_filter_set_ipv6(ipv4filt, lw_false);
-	if ((ctx->icmpsocket = lwp_create_server_socket
-		(ipv4filt, SOCK_RAW, IPPROTO_ICMP, NULL, error)) == -1)
-	{
-		lw_error_addf(error, "Creating ICMPv4 socket");
-		if (ctx->on_error)
-			ctx->on_error(ctx, error);
-		// Non-fatal, we don't need ICMP
-	}
-	lw_filter_delete(ipv4filt);
 
 	lw_error_delete (error);
 
 	ctx->filter = lw_filter_clone (filter);
 
 	ctx->port = lwp_socket_port(ctx->socket);
-
-	// Not available on WinXP, but all IPv6 stuff is half-baked there
-	ctx->WSASendMsgPtr = compat_WSASendMsg();
 
 	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, "lw_udp_host", ctx, udp_socket_completion);
 
@@ -685,6 +688,9 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 
 void lw_udp_send_unreachable(lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const char * data, lw_ui32 size)
 {
+	if (!ctx->WSASendMsgPtr || !from)
+		return;
+
 	lwp_socket icmpsock = lw_addr_ipv6(from) ? ctx->icmpv6socket : ctx->icmpsocket;
 	lw_error err;
 	if (icmpsock == -1)
@@ -694,6 +700,7 @@ void lw_udp_send_unreachable(lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to
 		if (ctx->on_error)
 			ctx->on_error(ctx, err);
 		lw_error_delete(err);
+		return;
 	}
 
 	err = lwp_send_icmp_unreachable(icmpsock, IPPROTO_UDP, from, ifidx, to, data, size);
