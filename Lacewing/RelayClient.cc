@@ -409,17 +409,49 @@ namespace lacewing
 			return;
 		}
 
-		if (!internal.udplocaladdress)
+		// Not Relay connected yet; the first UDPWelcome selects the UDP path.
+		// TCP address is used for UDP addresses until we get a UDPWelcome.
+		//
+		// TODO: This is not properly tied to IP; TCP should arrange a basic key,
+		// but that is a breaking change to protocol.
+		if (!internal.connected && size == 1 && (lw_ui8)data[0] == (10 << 4))
 		{
-			lw_log_if_debug("Setting local UDP address to \"%s\", remote to \"%s\".\n",
+			lacewing::client tcpSocket = internal.socket;
+			if (!tcpSocket || !tcpSocket->connected())
+				return; // TCP socket closed down while this UDP was going
+
+			if (*internal.udpremoteaddress != remote_addr)
+			{
+				const in6_addr tcpIP = internal.udpremoteaddress->toin6_addr(),
+					udpIP = remote_addr->toin6_addr();
+				// IPv4-mapped addresses under CG-NAT may differ after the first two IPv4 bytes.
+				// The IPv4 is at index 12-13, after 10 zero bytes, 2 FF bytes.
+				// Regular IPv4 and IPv6 is expected to exactly match server.
+				if (!IN6_IS_ADDR_V4MAPPED(&udpIP) ||
+					lw_memcmp_diff_index(tcpIP.s6_addr, udpIP.s6_addr, sizeof(udpIP.s6_addr)) < 14)
+				{
+					lacewing::error err = lacewing::error_new();
+					err->add("Dropping incoming UDP message from \"%s\", does not match expected \"%s\".",
+						remote_addr->tostring(), internal.udpremoteaddress->tostring());
+					internal.handler_error(internal.client, err);
+					lacewing::error_delete(err);
+					return;
+				}
+			}
+
+			lw_log_if_debug("Setting UDP address from welcome: local \"%s\", remote \"%s\".\n",
 				local_addr->tostring(), remote_addr->tostring());
+
+			// We always copy address even when it matches, as it'll copy port,
+			// which isn't part of address compare
 			lacewing::writelock wl = internal.client.lock.createWriteLock();
-			internal.udplocaladdress = lacewing::address_new(local_addr);
-			internal.ifidx = ifidx;
+			lacewing::address_delete(internal.udplocaladdress);
 			lacewing::address_delete(internal.udpremoteaddress);
+			internal.udplocaladdress = lacewing::address_new(local_addr);
 			internal.udpremoteaddress = lacewing::address_new(remote_addr);
+			internal.ifidx = ifidx;
 		}
-		else
+		else // We're Relay connected; incoming data should exactly match IP
 		{
 			if (*internal.udpremoteaddress != remote_addr)
 			{
@@ -951,20 +983,16 @@ namespace lacewing
 					lacewing::client activeTcp = socket;
 					assert(activeTcp && activeTcp->connected());
 					const lw_ui16 udpLocalPort = lw_client_get_local_port((lw_client)activeTcp);
+					lacewing::filter filt = lacewing::filter_new();
 					if (udpLocalPort)
 					{
 						// Hole punching with an explicitly selected TCP source port needs UDP on that port too.
-						lacewing::filter filt = lacewing::filter_new();
-						// TODO: This locks down outgoing local IP, merging UDP + TCP. Worth for IPv6 due to Privacy Extensions,
-						// probably irrelevant for IPv4 as outgoing public IP will be determined by router/ISP NAT.
-						// filt->local(tcpLocalAddress);
 						filt->local_port(udpLocalPort);
-						filt->ipv6(udpremoteaddress->ipv6());
-						udp->host(filt);
-						lacewing::filter_delete(filt);
 					}
-					else
-						udp->host(udpremoteaddress);
+					// The UDP server address may differ from its TCP address.
+					filt->ipv6(udpremoteaddress->ipv6());
+					udp->host(filt);
+					lacewing::filter_delete(filt);
 
 					// Do tick immediately instead of after 500ms
 					udphellotimer->force_tick();
@@ -1511,8 +1539,9 @@ namespace lacewing
 
 			lw_log_if_debug("UDPWelcome received for message address %p, now connected.", message);
 
-			udphellotimer->stop();
 			connected = true;
+			// Server UDP pings prompt outbound replies to refresh the client's NAT mapping.
+			udphellotimer->stop();
 
 			if (handler_connect)
 				handler_connect(client);
@@ -1791,15 +1820,13 @@ namespace lacewing
 			return;
 		}
 
-		// udphellotick just sends UDPHello every 0.5s, and is managed by the relayclientinternal::udphellotimer var.
-		// It starts from the time the Connect Request Success message is sent.
-		assert(udp->hosting() && "udphellotick() called, but not hosting UDP.");
+		// During the handshake this sends UDPHello every 0.5s; afterward the same timer
+		// sends an occasional UDP ping reply to refresh the client's NAT mapping.
+		if (!udp->hosting())
+			return;
 
 		if (connected)
-		{
-			lwp_trace("Connected is true, already done?");
 			return;
-		}
 
 		// Shouldn't be trying to send UDPHello without a remote address,
 		// even in hole punch.
