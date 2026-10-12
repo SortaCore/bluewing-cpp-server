@@ -97,15 +97,9 @@ struct relayserverinternal
 		// max time between TCP raw connect and Relay connect approved response from server
 		maxNoConnectApprovedMS = 5000;
 
-		// Some firewalls/router set to mark UDP connections as over after 30 seconds of inactivity,
-		// but a general consensus is around 60 seconds.
-		// If this occurs, the server will stop accepting new UDP connections, basically keeping any
-		// connecting clients frozen in the udp handshake section, as their udphello messages are
-		// never received.
-		// This code makes the ping thread repeat the request 3 times before 30 seconds are reached.
-		// It's not perfect, but since the ping timer will keep repeating anyway past the 3 mark, and
-		// activity on either side won't cause the no-new-connections bug to occur, it shouldn't
-		// matter either way.
+		// Ping after 15 seconds without client UDP. Clients that answer send outbound
+		// UDP, refreshing their NAT mapping; the server retries on later ping ticks
+		// until it receives UDP again.
 		udpKeepAliveMS = 30000 - (tcpPingMS * 3);
 
 		// 7 seconds to send UDPHello after connect; this should be higher than the client's UDP Hello timeout,
@@ -172,8 +166,7 @@ struct relayserverinternal
 	long tcpPingMS;
 	// How long, in ms, a raw TCP connection can exist without sending a Relay Connect request.
 	long maxNoConnectApprovedMS;
-	// How long, in ms, a connection can send no data on UDP before a UDP ping is sent to keep the route alive in routers.
-	// This ping does not need a reply to keep the route alive.
+	// How long, in ms, a connection can send no data on UDP before a UDP ping is sent to keep the NAT mapping route alive in routers.
 	long udpKeepAliveMS;
 	// How long, in ms, a connection can be approved before zero UDP messages received results in disconnect.
 	long udpMaxHelloTimeMS;
@@ -189,9 +182,9 @@ struct relayserverinternal
 				  -> If client still hasn't responded after another tcpPingMS, notify server via error handler,
 					 and disconnect client.
 				  2) If the client has not sent a UDP message within udpKeepAliveMS milliseconds, send a ping request.
-				  -> UDP ping response is not checked for by this function; one-way UDP activity is enough to keep the
-					 UDP psuedo-connection alive in routers.
-					 Note that using default timings, three UDP messages will be sent before routers are likely to close connection.
+				  -> UDP ping response is not checked for by this function. Both directions need UDP activity
+					 to keep the UDP NAT mapping alive in routers; one way isn't enough.
+					 Older clients (Relay, Blue b82 and earlier) will ignore UDP pings, which means they won't keep the mapping alive.
 				  3) If the client has only replied to pings, and not sent any channel, peer, or server messages besides,
 					 within a period of maxInactivityMS, then the client will be messaged and disconnected, and the server notified
 					 via error handler.
@@ -294,12 +287,9 @@ struct relayserverinternal
 				msgBuilderTCP.send(client->socket, false);
 			}
 
-			// Keep UDP alive by sending a UDP message.
-			// Worth noting Relay clients and Blue client b82 and below don't have UDP ping responses; they will
-			// ignore the message entirely.
-			// Fortunately, we don't actually *need* a ping responses from the client; one-way activity ought to be
-			// enough to keep the UDP psuedo-connections open in routers... assuming, of course, that the UDP packet
-			// goes all the way to the client and thus through all the routers.
+			// Keep UDP NAT route alive by sending a UDP message when inactive.
+			// Worth noting Relay clients and Blue client b82 and below don't have UDP ping responses,
+			// they will ignore the message entirely, so the NAT mapping will expire.
 			if (!client->socket->is_websocket() && msElapsedUDP >= udpKeepAliveMS)
 			{
 				msgBuilderUDP.send(client->udppunch ? client->udppunch : server.udp,

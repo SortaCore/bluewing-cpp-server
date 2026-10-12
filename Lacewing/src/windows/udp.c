@@ -29,15 +29,17 @@ typedef struct _udp_overlapped
 
 typedef struct _udp_receive_info
 {
-	char buffer [lwp_default_buffer_size];
 	WSAMSG winsock_msg;
 	WSABUF winsock_buffer;
+	char buffer [lwp_default_buffer_size + 1];
 
-	// Size varies, but is based on cmsg size of ipv6_pktinfo + ip_pktinfo
-	char cmsg[64];
+	// Hold either packet-info type with alignment for WSACMSGHDR and its payload.
+	union {
+		WSACMSGHDR align;
+		char data[WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)) + WSA_CMSG_SPACE(sizeof(struct in_pktinfo))];
+	} control;
 
 	struct sockaddr_storage from;
-	int from_length;
 
 } * udp_receive_info;
 
@@ -48,16 +50,14 @@ static udp_receive_info udp_receive_info_new ()
 	if (!info)
 		return NULL;
 
-	info->winsock_buffer.buf = info->buffer;
-	info->winsock_buffer.len = sizeof (info->buffer);
 	info->winsock_msg.lpBuffers = &info->winsock_buffer;
 	info->winsock_msg.dwBufferCount = 1;
 	info->winsock_msg.name = (LPSOCKADDR)&info->from;
-	info->winsock_msg.namelen = info->from_length = sizeof (info->from);
-	info->winsock_msg.Control.buf = info->cmsg;
-	info->winsock_msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo))
-		+ WSA_CMSG_SPACE(sizeof(struct in_pktinfo));
-	assert(sizeof(info->cmsg) >= info->winsock_msg.Control.len);
+	info->winsock_msg.namelen = sizeof (info->from);
+	info->winsock_msg.Control.buf = info->control.data;
+	info->winsock_msg.Control.len = sizeof(info->control.data);
+	info->winsock_buffer.buf = info->buffer;
+	info->winsock_buffer.len = sizeof (info->buffer) - 1;
 
 	return info;
 }
@@ -90,7 +90,7 @@ struct _lw_udp
 
 	// Function for sending with a specified outgoing address. Null on WinXP.
 	fn_WSASendMsg WSASendMsgPtr;
-	// Function for receiving msg and storing local address it was received to. Null on WinXP.
+	// Function for receiving msg and storing its local destination; required even on XP.
 	fn_WSARecvMsg WSARecvMsgPtr;
 };
 
@@ -107,7 +107,6 @@ static lw_bool write_completed(lw_udp ctx)
 	--ctx->writes_posted;
 	return lwp_release(ctx, "udp write");
 }
-
 
 static void post_receives (lw_udp ctx)
 {
@@ -133,32 +132,13 @@ static void post_receives (lw_udp ctx)
 		overlapped->type = overlapped_type_receive;
 		overlapped->tag = receive_info;
 
-		DWORD flags = 0;
 		lwp_retain(ctx, "udp read");
 
-
-		fn_WSARecvMsg recvMsg = ctx->WSARecvMsgPtr;
-		int res;
-		if (recvMsg)
-		{
-			res = recvMsg(ctx->socket,
-				&receive_info->winsock_msg,
-				NULL,
-				&overlapped->overlapped,
-				0);
-		}
-		else
-		{
-			res = WSARecvFrom(ctx->socket,
-				&receive_info->winsock_buffer,
-				1,
-				0,
-				&flags,
-				(struct sockaddr*)&receive_info->from,
-				&receive_info->from_length,
-				&overlapped->overlapped,
-				0);
-		}
+		int res = ctx->WSARecvMsgPtr(ctx->socket,
+			&receive_info->winsock_msg,
+			NULL,
+			&overlapped->overlapped,
+			0);
 
 		if (res == SOCKET_ERROR)
 		{
@@ -213,11 +193,8 @@ static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
 
 			if (error == 0)
 			{
-				info->buffer[bytes_transferred] = 0;
-
 				struct _lw_addr remoteAddr = { 0 };
-				lwp_addr_set_sockaddr(&remoteAddr,
-					ctx->WSARecvMsgPtr ? info->winsock_msg.name : (struct sockaddr*)&info->from);
+				lwp_addr_set_sockaddr(&remoteAddr, info->winsock_msg.name);
 
 				// If address doesn't match filter, it's a UDP message from unauthorised source.
 				// There's no way to block UDP messages like that on Lacewing's side; firewall perhaps,
@@ -232,50 +209,71 @@ static void udp_socket_completion (void * tag, OVERLAPPED * _overlapped,
 						lw_addr_tostring(filter_addr, lw_addr_tostring_flags_default));
 #endif // _lacewing_debug
 				}
-				else if (ctx->on_data)
+				else
 				{
 					struct _lw_addr localAddr = { 0 };
-					int ifIdx = -1;
-					WSACMSGHDR* hdr = (WSACMSGHDR *)info->winsock_msg.Control.buf;
-					if (hdr)
-					{
-						// In Windows, a dual-stack socket will provide local IPv4 if address is IPv6-mapped,
-						// which is what you have to use to send back anyway. Linux provides local IPv6 mapped.
-						//
-						// IP4 pkt info given for IP6 incoming address, or vice versa
-						// IPv6 dual-stack will pass both IPv6-mapped + IPv4 pktinfo, pick the second
-						// note cmsg_type IP_PKTINFO + IPV6_PKTINFO are equal
-						/*
-						if ((info->winsock_msg.name->sa_family == AF_INET6) !=
-							(hdr->cmsg_level == IPPROTO_IPV6))
-						{
-							hdr = WSA_CMSG_NXTHDR(&info->winsock_msg, hdr);
-						}*/
+					lw_ui32 ifIdx = 0;
 
+					// A reply needs the received local destination and interface; never deliver without them
+					if (info->winsock_msg.dwFlags & MSG_CTRUNC)
+						goto packet_info_error;
+
+					// A mapped IPv4 sender uses IPv4 packet information on a dual-stack socket.
+					const lw_bool ipv4 = remoteAddr.info->ai_family == AF_INET ||
+						(remoteAddr.info->ai_family == AF_INET6 &&
+						IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)remoteAddr.info->ai_addr)->sin6_addr));
+					for (WSACMSGHDR* hdr = WSA_CMSG_FIRSTHDR(&info->winsock_msg); hdr;
+						hdr = WSA_CMSG_NXTHDR(&info->winsock_msg, hdr))
+					{
 						struct sockaddr_storage store = { 0 };
-						if (hdr->cmsg_level == IPPROTO_IP)
+						if (ipv4 && hdr->cmsg_level == IPPROTO_IP && hdr->cmsg_type == IP_PKTINFO &&
+							hdr->cmsg_len >= WSA_CMSG_LEN(sizeof(struct in_pktinfo)))
 						{
-							store.ss_family = AF_INET;
-							struct in_pktinfo* pktInfo = (struct in_pktinfo*)WSA_CMSG_DATA(info->winsock_msg.Control.buf);
-							((struct sockaddr_in*)&store)->sin_addr = pktInfo->ipi_addr;
-							((struct sockaddr_in*)&store)->sin_port = htons(ctx->port);
-							lwp_addr_set_sockaddr(&localAddr, (struct sockaddr *)&store);
+							const struct in_pktinfo* pktInfo = (const struct in_pktinfo*)WSA_CMSG_DATA(hdr);
+							struct sockaddr_in* addr = (struct sockaddr_in*)&store;
+							addr->sin_family = AF_INET;
+							addr->sin_addr = pktInfo->ipi_addr;
+							addr->sin_port = htons(ctx->port);
 							ifIdx = pktInfo->ipi_ifindex;
 						}
-						else if (hdr->cmsg_level == IPPROTO_IPV6)
+						else if (!ipv4 && hdr->cmsg_level == IPPROTO_IPV6 && hdr->cmsg_type == IPV6_PKTINFO &&
+							hdr->cmsg_len >= WSA_CMSG_LEN(sizeof(struct in6_pktinfo)))
 						{
-							store.ss_family = AF_INET6;
-							struct in6_pktinfo* pktInfo = (struct in6_pktinfo*)WSA_CMSG_DATA(info->winsock_msg.Control.buf);
-							((struct sockaddr_in6*)&store)->sin6_addr = pktInfo->ipi6_addr;
-							((struct sockaddr_in6*)&store)->sin6_port = htons(ctx->port);
-							lwp_addr_set_sockaddr(&localAddr, (struct sockaddr*)&store);
+							const struct in6_pktinfo* pktInfo = (const struct in6_pktinfo*)WSA_CMSG_DATA(hdr);
+							struct sockaddr_in6* addr = (struct sockaddr_in6*)&store;
+							addr->sin6_family = AF_INET6;
+							addr->sin6_addr = pktInfo->ipi6_addr;
+							addr->sin6_port = htons(ctx->port);
 							ifIdx = pktInfo->ipi6_ifindex;
 						}
 						else
-							lwp_trace("Unrecognised control data level %d, type %d", hdr->cmsg_level, hdr->cmsg_type);
+							continue;
+						lwp_addr_set_sockaddr(&localAddr, (struct sockaddr*)&store);
+						break;
 					}
 
-					ctx->on_data(ctx, ifIdx == -1 ? 0 : &localAddr, ifIdx, &remoteAddr, info->buffer, bytes_transferred);
+					if (!localAddr.info)
+						goto packet_info_error;
+					if (ctx->on_data)
+					{
+						// Just for defensiveness; won't help with UTF-16 though
+						info->buffer[bytes_transferred] = 0;
+						ctx->on_data(ctx, &localAddr, ifIdx, &remoteAddr, info->buffer, bytes_transferred);
+					}
+					goto packet_info_done;
+
+				packet_info_error:
+					{
+						lw_error err = lw_error_new();
+						if (info->winsock_msg.dwFlags & MSG_CTRUNC)
+							lw_error_addf(err, "UDP receive control data was truncated");
+						else
+							lw_error_addf(err, "UDP receive packet information was missing");
+						if (ctx->on_error)
+							ctx->on_error(ctx, err);
+						lw_error_delete(err);
+					}
+				packet_info_done:
 					lwp_addr_cleanup(&localAddr);
 				}
 
@@ -366,6 +364,20 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 	}
 	lw_log_if_debug("Hosted UDP port %d for %s.\n", (int)ctx->socket, madeipv6 ? "IPv6 + mapped IPv4" : "IPv4");
 
+	// Receiving packet information requires WSARecvMsg, including on XP.
+	ctx->WSARecvMsgPtr = compat_WSARecvMsg(ctx->socket);
+	if (!ctx->WSARecvMsgPtr)
+	{
+		lw_udp_unhost(ctx);
+		lw_error_addf(error, "WSARecvMsg is unavailable for this UDP socket");
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		else
+			always_log("%s\n", lw_error_tostring(error));
+		lw_error_delete(error);
+		return;
+	}
+
 	if (madeipv6 && (ctx->icmpv6socket = lwp_create_server_socket
 		(filter, SOCK_RAW, IPPROTO_ICMPV6, NULL, error)) == -1)
 	{
@@ -394,7 +406,6 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 
 	// Not available on WinXP, but all IPv6 stuff is half-baked there
 	ctx->WSASendMsgPtr = compat_WSASendMsg();
-	ctx->WSARecvMsgPtr = compat_WSARecvMsg(ctx->socket);
 
 	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, "lw_udp_host", ctx, udp_socket_completion);
 
@@ -516,6 +527,26 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 
 	if (sizeof(size) > 4)
 		assert(size < 0xFFFFFFFF);
+	const lw_bool ipv4 = to->info->ai_family == AF_INET ||
+		(to->info->ai_family == AF_INET6 &&
+		IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)to->info->ai_addr)->sin6_addr));
+	if (from)
+	{
+		const lw_bool source_ready = lw_addr_ready(from) && from->info && from->info->ai_addr;
+		const int family = source_ready ? from->info->ai_family : AF_UNSPEC;
+		const lw_bool source_ipv4 = family == AF_INET ||
+			(family == AF_INET6 &&
+			IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)from->info->ai_addr)->sin6_addr));
+		if (!source_ready || (family != AF_INET && family != AF_INET6) || source_ipv4 != ipv4)
+		{
+			lw_error error = lw_error_new();
+			lw_error_addf(error, "Cannot send datagram with the requested local source address");
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+			lw_error_delete(error);
+			return;
+		}
+	}
 
 	udp_overlapped overlapped = (udp_overlapped) lw_calloc_or_exit (sizeof (*overlapped) + size, 1);
 
@@ -528,7 +559,6 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	WSABUF winsock_buf = { (ULONG)size, ((CHAR*)overlapped) + sizeof(*overlapped) };
 
 	int res;
-	// if a non-local IPv6 destination, then specify the outgoing IP we send from explicitly
 	fn_WSASendMsg wsaSendMsg = from ? ctx->WSASendMsgPtr : NULL;
 	if (!wsaSendMsg)
 	{
@@ -538,43 +568,23 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	else // specify source address
 	{
 		assert((int)ifidx > -1);
-		char cmsgbuf[WSA_CMSG_SPACE(sizeof(struct in6_pktinfo)) + WSA_CMSG_SPACE(sizeof(struct in_pktinfo))];
-		memset(cmsgbuf, 0, sizeof(cmsgbuf));
-		WSACMSGHDR* cmsg = (WSACMSGHDR*)cmsgbuf;
-		WSAMSG msg;
+		union {
+			WSACMSGHDR align;
+			char data[WSA_CMSG_SPACE(sizeof(struct in6_pktinfo))];
+		} control = { 0 };
+		WSACMSGHDR* cmsg = (WSACMSGHDR*)control.data;
+		WSAMSG msg = { 0 };
 
-		// This will vomit if you use IPv4 address on an IPv6 dual-stack socket, claiming invalid pointer detection
-		// It will also vomit if you pass a sizeof sockaddr_storage. So I guess it only wants mapped.
-		// If you host a IPv6 dual-stack, only use IPv6 local and remote addresses.
-		// If you host IPv4, only use IPv4 local and remote addresses.
-		// Note that udp->host(port) will make IPv6 dual-stack by default.
 		msg.name = to->info->ai_addr;
-		msg.namelen = (int)to->info->ai_addrlen; // 16 = IPv4, 28 = IPv6, 128 = storage
-		//assert(msg.namelen == sizeof(struct sockaddr_in6));
+		msg.namelen = (int)to->info->ai_addrlen;
 
 		msg.lpBuffers = &winsock_buf;
 		msg.dwBufferCount = 1;
 		msg.dwFlags = 0;
-		msg.Control.buf = (CHAR *)cmsg;
+		msg.Control.buf = control.data;
 
-		//if (ctx->is_ipv6)
-		// If destination is IPv4 or IPv4-mapped IPv6, the cmsg must be in_pktinfo
-		// If destination is IPv6 non-mapped, source must be IPv6 in in6_pktinfo
-		if ((to->info->ai_family == AF_INET || IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)to->info->ai_addr)->sin6_addr)) &&
-			from->info->ai_family != AF_INET)
-		{
-			lw_log_if_debug("Warning: expecting IPv4 outgoing for this scenario: from \"%s\", to \"%s\".",
-				lw_addr_tostring(from, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_remove_port),
-				lw_addr_tostring(to, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_remove_port));
-		}
-		if ((to->info->ai_family == AF_INET6 && !IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)to->info->ai_addr)->sin6_addr)) &&
-			from->info->ai_family != AF_INET6)
-		{
-			lw_log_if_debug("Warning: expecting IPv6 outgoing for this scenario: from \"%s\" to \"%s\".",
-				lw_addr_tostring(from, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_remove_port),
-				lw_addr_tostring(to, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_remove_port));
-		}
-		if (from->info->ai_family == AF_INET)
+		// Packet-info family follows the destination, including IPv4-mapped IPv6.
+		if (ipv4)
 		{
 			msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in_pktinfo));
 			cmsg->cmsg_level = IPPROTO_IP;
@@ -582,12 +592,15 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 			cmsg->cmsg_len = WSA_CMSG_LEN(sizeof(struct in_pktinfo));
 
 			struct in_pktinfo* const pktinfo = (struct in_pktinfo*)WSA_CMSG_DATA(cmsg);
-			pktinfo->ipi_addr = ((struct sockaddr_in*)from->info->ai_addr)->sin_addr;
+			if (from->info->ai_family == AF_INET)
+				pktinfo->ipi_addr = ((struct sockaddr_in*)from->info->ai_addr)->sin_addr;
+			else
+				memcpy(&pktinfo->ipi_addr,
+					&((struct sockaddr_in6*)from->info->ai_addr)->sin6_addr.s6_addr[12], sizeof(struct in_addr));
 			pktinfo->ipi_ifindex = ifidx;
 		}
 		else // AF_INET6
 		{
-			assert(from->info->ai_family == AF_INET6);
 			msg.Control.len = WSA_CMSG_SPACE(sizeof(struct in6_pktinfo));
 			cmsg->cmsg_level = IPPROTO_IPV6;
 			cmsg->cmsg_type = IPV6_PKTINFO;

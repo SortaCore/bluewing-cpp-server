@@ -39,13 +39,18 @@ static void read_ready (void * ptr)
 	struct sockaddr_storage from;
 	socklen_t from_size = sizeof (from);
 
-	char buffer [lwp_default_buffer_size];
-	char cmsgbuf[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(struct in_pktinfo))];
-	struct cmsghdr* const cmsg = (struct cmsghdr*)cmsgbuf;
-	struct iovec iov = { .iov_base = buffer, .iov_len = sizeof(buffer) };
+	char buffer [lwp_default_buffer_size + 1];
+	
+	// These are needed to get receiving local IP address and interface,
+	// so we can reply with UDP on the same
+	union {
+		struct cmsghdr align;
+		char data[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(struct in_pktinfo))];
+	} control;
+	struct iovec iov = { .iov_base = buffer, .iov_len = lwp_default_buffer_size };
 	struct msghdr msg = {
-		.msg_control = cmsgbuf,
-		.msg_controllen = sizeof(cmsgbuf),
+		.msg_control = control.data,
+		.msg_controllen = sizeof(control.data),
 		.msg_name = &from,
 		.msg_namelen = from_size,
 		.msg_iov = &iov,
@@ -56,11 +61,13 @@ static void read_ready (void * ptr)
 	lwp_retain(ctx, "udp read");
 
 	struct _lw_addr remote_addr = { 0 }, local_addr = { 0 };
-	lw_ui32 ifidx;
 
-	for (;;)
+	for (ssize_t bytes, ifidx; ; )
 	{
-		ssize_t bytes = recvmsg(ctx->fd, &msg, MSG_NOSIGNAL);
+		msg.msg_namelen = sizeof(from);
+		msg.msg_controllen = sizeof(control.data);
+		msg.msg_flags = 0;
+		bytes = recvmsg(ctx->fd, &msg, 0);
 
 		if (bytes == -1)
 		{
@@ -91,38 +98,46 @@ static void read_ready (void * ptr)
 			continue;
 		}
 
-		struct cmsghdr* hdr = (struct cmsghdr*)cmsg;
+		// A reply needs the received local destination and interface; never deliver without them.
+		ifidx = 0;
+		if (msg.msg_flags & MSG_CTRUNC)
+			goto packet_info_error;
 		
-		// IP4 pkt info given for IP6 incoming address, or vice versa; skip to next
-		if ((from.ss_family == AF_INET6) != (hdr->cmsg_level == IPPROTO_IPV6))
+		// A mapped IPv4 sender uses IPv4 packet information on a dual-stack socket.
+		const lw_bool ipv4 = from.ss_family == AF_INET ||
+			(from.ss_family == AF_INET6 &&
+			IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)&from)->sin6_addr));
+			
+		for (struct cmsghdr* hdr = CMSG_FIRSTHDR(&msg); hdr; hdr = CMSG_NXTHDR(&msg, hdr))
 		{
-			hdr = CMSG_NXTHDR(&msg, hdr);
+			struct sockaddr_storage local = { 0 };
+			if (ipv4 && hdr->cmsg_level == IPPROTO_IP && hdr->cmsg_type == IP_PKTINFO &&
+				hdr->cmsg_len >= CMSG_LEN(sizeof(struct in_pktinfo)))
+			{
+				const struct in_pktinfo* pktinfo = (const struct in_pktinfo*)CMSG_DATA(hdr);
+				struct sockaddr_in* addr = (struct sockaddr_in*)&local;
+				addr->sin_family = AF_INET;
+				addr->sin_port = htons(lw_udp_port(ctx));
+				addr->sin_addr = pktinfo->ipi_addr;
+				ifidx = (ssize_t)pktinfo->ipi_ifindex;
+			}
+			else if (!ipv4 && hdr->cmsg_level == IPPROTO_IPV6 && hdr->cmsg_type == IPV6_PKTINFO &&
+				hdr->cmsg_len >= CMSG_LEN(sizeof(struct in6_pktinfo)))
+			{
+				const struct in6_pktinfo* pktinfo = (const struct in6_pktinfo*)CMSG_DATA(hdr);
+				struct sockaddr_in6* addr = (struct sockaddr_in6*)&local;
+				addr->sin6_family = AF_INET6;
+				addr->sin6_port = htons(lw_udp_port(ctx));
+				addr->sin6_addr = pktinfo->ipi6_addr;
+				ifidx = (ssize_t)pktinfo->ipi6_ifindex;
+			}
+			else
+				continue; // next pktinfo
+			lwp_addr_set_sockaddr(&local_addr, (struct sockaddr*)&local);
+			break;
 		}
-		if (cmsg->cmsg_type == IPV6_PKTINFO)
-		{
-			assert(remote_addr.info->ai_addr->sa_family == AF_INET6);
-			struct in6_pktinfo* const recvLocalAddr = (struct in6_pktinfo*)CMSG_DATA(cmsg);
-			((struct sockaddr_in6*)&from)->sin6_family = AF_INET6;
-			((struct sockaddr_in6*)&from)->sin6_addr = recvLocalAddr->ipi6_addr;
-			lwp_addr_set_sockaddr(&local_addr, (struct sockaddr*)&from);
-			ifidx = recvLocalAddr->ipi6_ifindex;
-		}
-		else if (((struct cmsghdr*)cmsg)->cmsg_type == IP_PKTINFO)
-		{
-			assert(remote_addr.info->ai_addr->sa_family == AF_INET);
-			struct in_pktinfo* const recvLocalAddr = (struct in_pktinfo*)CMSG_DATA(cmsg);
-			((struct sockaddr_in*)&from)->sin_family = AF_INET;
-			((struct sockaddr_in*)&from)->sin_addr.s_addr = recvLocalAddr->ipi_addr.s_addr;
-			lwp_addr_set_sockaddr(&local_addr, (struct sockaddr*)&from);
-			ifidx = (unsigned int)recvLocalAddr->ipi_ifindex;
-		}
-		else
-		{
-			ifidx = 0; // guess
-			assert(!"Invalid cmsg type");
-		}
-
-		buffer [bytes] = 0;
+		if (!local_addr.info)
+			goto packet_info_error;
 
 		// There's a race where UDP is unhosted, and ctx->on_data() is still queued.
 		// We can't unset on_data as the UDP is merely unhosted, not deleted.
@@ -131,8 +146,29 @@ static void read_ready (void * ptr)
 		// of FD from epoll in the same commit on 17th July 2021, but since it's a cheap test,
 		// we'll keep it.
 		if (ctx->fd != -1 && ctx->on_data)
-			ctx->on_data(ctx, ifidx ? &local_addr : NULL, ifidx, &remote_addr, buffer, (size_t)bytes);
+		{
+			// Just for defensiveness; won't help with UTF-16 though
+			buffer [bytes] = 0;
+			
+			ctx->on_data(ctx, &local_addr, (lw_ui32)ifidx, &remote_addr, buffer, (size_t)bytes);
+		}
+		goto next_datagram;
 
+	packet_info_error:
+		{
+			lw_error err = lw_error_new();
+			if (msg.msg_flags & MSG_CTRUNC)
+				lw_error_addf(err, "UDP receive control data was truncated");
+			else
+				lw_error_addf(err, "UDP receive packet information was missing");
+			if (ctx->on_error)
+				ctx->on_error(ctx, err);
+			else
+				always_log("%s\n", lw_error_tostring(err));
+			lw_error_delete(err);
+		}
+
+	next_datagram:
 		lwp_addr_cleanup(&local_addr);
 		memset(&local_addr, 0, sizeof(local_addr));
 
@@ -299,8 +335,26 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	if (sizeof(size) > 4)
 		assert(size < 0xFFFFFFFF);
 
-	if (!to->info)
-		return;
+	const lw_bool ipv4 = to->info->ai_family == AF_INET ||
+		(to->info->ai_family == AF_INET6 &&
+		IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)to->info->ai_addr)->sin6_addr));
+	if (from)
+	{
+		const lw_bool source_ready = lw_addr_ready(from) && from->info && from->info->ai_addr;
+		const int family = source_ready ? from->info->ai_family : AF_UNSPEC;
+		const lw_bool source_ipv4 = family == AF_INET ||
+			(family == AF_INET6 &&
+			IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6*)from->info->ai_addr)->sin6_addr));
+		if (!source_ready || (family != AF_INET && family != AF_INET6) || source_ipv4 != ipv4)
+		{
+			lw_error error = lw_error_new();
+			lw_error_addf(error, "Cannot send datagram with the requested local source address");
+			if (ctx->on_error)
+				ctx->on_error(ctx, error);
+			lw_error_delete(error);
+			return;
+		}
+	}
 
 	lwp_retain(ctx, "udp write");
 	++ctx->writes_posted;
@@ -309,19 +363,23 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	ssize_t res;
 	if (from)
 	{
-		assert(*(lw_i32 *)&ifidx >= 0); // negative is invalid
+		assert((lw_i32)ifidx >= 0); // negative is invalid
 		struct iovec iov = { .iov_base = (void*)data, .iov_len = size };
-		char cmsgdata[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+		union {
+			struct cmsghdr align;
+			char data[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+		} control = { 0 };
 		struct msghdr msg = {
 			.msg_name = to->info->ai_addr,
 			.msg_namelen = to->info->ai_addrlen,
 			.msg_iov = &iov,
 			.msg_iovlen = 1,
-			.msg_control = cmsgdata,
+			.msg_control = control.data,
 			.msg_flags = 0
 		};
-		struct cmsghdr* const cmsg = (struct cmsghdr*)cmsgdata;
-		if (from->info->ai_family == AF_INET)
+		struct cmsghdr* const cmsg = (struct cmsghdr*)control.data;
+		// Packet-info family follows the destination, including IPv4-mapped IPv6.
+		if (ipv4)
 		{
 			msg.msg_controllen = CMSG_SPACE(sizeof(struct in_pktinfo));
 			cmsg->cmsg_level = IPPROTO_IP;
@@ -329,7 +387,11 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 			cmsg->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
 
 			struct in_pktinfo* const pktinfo = (struct in_pktinfo*)CMSG_DATA(cmsg);
-			pktinfo->ipi_addr = ((struct sockaddr_in*)from->info->ai_addr)->sin_addr;
+			if (from->info->ai_family == AF_INET)
+				pktinfo->ipi_spec_dst = ((struct sockaddr_in*)from->info->ai_addr)->sin_addr;
+			else
+				memcpy(&pktinfo->ipi_spec_dst,
+					&((struct sockaddr_in6*)from->info->ai_addr)->sin6_addr.s6_addr[12], sizeof(struct in_addr));
 			pktinfo->ipi_ifindex = (int)ifidx;
 		}
 		else // AF_INET6
@@ -344,11 +406,11 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 			pktinfo->ipi6_ifindex = ifidx;
 		}
 
-		res = sendmsg(ctx->fd, &msg, MSG_NOSIGNAL);
+		res = sendmsg(ctx->fd, &msg, 0);
 	}
 	else
 	{
-		res = sendto(ctx->fd, data, size, MSG_NOSIGNAL, to->info->ai_addr,
+		res = sendto(ctx->fd, data, size, 0, to->info->ai_addr,
 			to->info->ai_addrlen);
 	}
 
@@ -389,6 +451,8 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 
 void lw_udp_send_unreachable(lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const char* data, lw_ui32 size)
 {
+	if (!from)
+		return;
 	lwp_socket icmpsock = lw_addr_ipv6(from) ? ctx->icmpv6fd : ctx->icmpfd;
 	if (icmpsock == -1)
 		return;
@@ -414,4 +478,3 @@ void * lw_udp_tag (lw_udp ctx)
 
 lwp_def_hook (udp, error)
 lwp_def_hook (udp, data)
-
