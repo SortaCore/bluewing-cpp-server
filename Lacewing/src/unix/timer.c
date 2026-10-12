@@ -36,18 +36,27 @@ struct _lw_timer
 
 static void timer_tick (lw_timer ctx)
 {
+	#ifdef _lacewing_use_timerfd
+		// a timerfd return is always a uint64_t, but the value is irrelevant
+		for (lw_i64 expirations, s;;)
+		{
+			if ((s = read (ctx->fd, &expirations, sizeof (expirations))) != -1)
+			{
+				if (s != sizeof (expirations))
+					always_log ("lw_timer \"%s\": timerfd read returned %zd bytes", ctx->timer_name, s);
+				break; // Expiration happened, go to tick
+			}
+			if (errno == EINTR)
+				continue; // EINTR: ignore, retry
+			// EAGAIN: no expiration read, so timer's not due yet; other codes are errors
+			if (errno != EAGAIN)
+				always_log ("lw_timer \"%s\": timerfd read failed: %s", ctx->timer_name, strerror (errno));
+			return;
+		}
+	#endif
+
 	if (ctx->on_tick)
 		ctx->on_tick (ctx);
-
-	#ifdef _lacewing_use_timerfd
-		lw_i64 expirations;
-		ssize_t s = read (ctx->fd, &expirations, sizeof (lw_i64));
-		(void)s;
-		int e = errno;
-		(void)e;
-		assert(s > 0);
-		// TODO: why was expirations read here? Is there an abort?
-	#endif
 }
 
 static void * lw_callback timer_thread (void * ptr)
