@@ -625,11 +625,10 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 
 	if (listen (ctx->socket, SOMAXCONN) == -1)
 	{
-		lw_error error = lw_error_new ();
-
 		lw_error_add (error, WSAGetLastError ());
 		lw_error_addf (error, "Error listening");
-
+		closesocket(ctx->socket);
+		ctx->socket = INVALID_SOCKET;
 		if (ctx->on_error)
 			ctx->on_error (ctx, error);
 
@@ -638,6 +637,16 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 	}
 
 	ctx->pump_watch = lw_pump_add(ctx->pump, (HANDLE) ctx->socket, ctx, listen_socket_completion);
+	if (!ctx->pump_watch)
+	{
+		lw_error_addf(error, "Watching TCP socket failed");
+		closesocket(ctx->socket);
+		ctx->socket = INVALID_SOCKET;
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		lw_error_delete(error);
+		return;
+	}
 
 	while (list_length (ctx->pending_accepts) < (size_t)ideal_pending_accept_count)
 		if (!issue_accept (ctx, NULL))

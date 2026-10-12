@@ -411,6 +411,16 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 	ctx->port = lwp_socket_port(ctx->socket);
 
 	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, ctx, udp_socket_completion);
+	if (!ctx->pump_watch)
+	{
+		lw_udp_unhost(ctx);
+		lw_error error = lw_error_new();
+		lw_error_addf(error, "UDP pump watch couldn't create");
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+		lw_error_delete(error);
+		return;
+	}
 
 	post_receives (ctx);
 }
@@ -466,6 +476,7 @@ static void lw_udp_dealloc(lw_udp ctx)
 	}
 
 	free(ctx);
+	lwp_deinit();
 }
 
 lw_udp lw_udp_new (lw_pump pump)
@@ -494,18 +505,8 @@ void lw_udp_delete (lw_udp ctx)
 	if (!ctx)
 	  return;
 
-	// delete succeeded, ctx is now freed
-	if (lwp_release(ctx, "udp new"))
-		return;
-
-	if (ctx->socket != INVALID_SOCKET)
-		lw_udp_unhost (ctx);
-
-	// memset(ctx, 0, sizeof(_lw_udp));
-
-	lwp_deinit();
-
-	// free (ctx) called by refcount reaching zero
+	lw_udp_unhost(ctx);
+	lwp_release(ctx, "udp new");
 }
 
 void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const char * buffer, size_t size)
