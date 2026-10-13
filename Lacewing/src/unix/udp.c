@@ -27,7 +27,7 @@ struct _lw_udp
 	int icmpv6fd;
 
 	long receives_posted;
-	long writes_posted;
+	// writes_posted is not tracked as they are instantly sent or discarded, unlike windows IOCP
 
 	void * tag;
 };
@@ -139,13 +139,7 @@ static void read_ready (void * ptr)
 		if (!local_addr.info)
 			goto packet_info_error;
 
-		// There's a race where UDP is unhosted, and ctx->on_data() is still queued.
-		// We can't unset on_data as the UDP is merely unhosted, not deleted.
-		// However, the FD is now close()'d and invalid.
-		// TODO: This check may not be necessary due to the shutdown() and manual dropping
-		// of FD from epoll in the same commit on 17th July 2021, but since it's a cheap test,
-		// we'll keep it.
-		if (ctx->fd != -1 && ctx->on_data)
+		if (ctx->on_data)
 		{
 			// Just for defensiveness; won't help with UTF-16 though
 			buffer [bytes] = 0;
@@ -163,8 +157,6 @@ static void read_ready (void * ptr)
 				lw_error_addf(err, "UDP receive packet information was missing");
 			if (ctx->on_error)
 				ctx->on_error(ctx, err);
-			else
-				always_log("%s\n", lw_error_tostring(err));
 			lw_error_delete(err);
 		}
 
@@ -263,6 +255,9 @@ lw_ui16 lw_udp_port (lw_udp ctx)
 
 void lw_udp_unhost (lw_udp ctx)
 {
+	// Hosting and teardown stay on the pump's owning thread; send may run elsewhere.
+	lw_pump_thread_check(ctx->pump);
+
 	// pump_watch has an FD, used to cancel pending events, so we don't use close_socket until it's used
 	if (ctx->fd != -1)
 		shutdown(ctx->fd, SHUT_RDWR);
@@ -327,8 +322,6 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 		return;
 	}
 
-	lw_pump_thread_check (ctx->pump);
-
 	if (size == SIZE_MAX)
 		size = strlen (data);
 
@@ -357,7 +350,6 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	}
 
 	lwp_retain(ctx, "udp write");
-	++ctx->writes_posted;
 
 	// Unlike Windows, Linux copies the data passed to sendmsg in non-blocking IO
 	ssize_t res;
@@ -417,8 +409,6 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	// Something went awry
 	if (res == -1)
 	{
-		--ctx->writes_posted;
-
 		// Ignore EAGAIN/EWOULDBLOCK since we're sending UDP; if there's not outgoing room
 		// to immediately send, then just discard
 		if (errno != EAGAIN && errno != EWOULDBLOCK)
