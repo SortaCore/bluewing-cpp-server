@@ -392,8 +392,8 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <Xml Include="manifest.xml">
+    <Manifest Include="app.manifest">
       <Filter>Resource Files</Filter>
-    </Xml>
+    </Manifest>
   </ItemGroup>
 </Project>

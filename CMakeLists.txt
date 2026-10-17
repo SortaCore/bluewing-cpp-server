@@ -273,7 +273,7 @@ if(WIN32)
         "Embed the Visual Studio project's Windows icon and manifest" ON)
     if(BLUEWING_ENABLE_WINDOWS_RESOURCES)
         enable_language(RC)
-        target_sources(bluewing-cpp-server PRIVATE Resource.rc)
+        target_sources(bluewing-cpp-server PRIVATE Resource.rc app.manifest)
     endif()
 
     if(MSVC)
@@ -288,12 +288,6 @@ if(WIN32)
         target_link_options(bluewing-cpp-server PRIVATE
             -Wl,--subsystem,console
             $<$<CONFIG:Release>:-Wl,--gc-sections>
-        )
-    endif()
-
-    if(MSVC AND BLUEWING_ENABLE_WINDOWS_RESOURCES)
-        target_link_options(bluewing-cpp-server PRIVATE
-            "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/manifest.xml"
         )
     endif()
 endif()
