@@ -145,16 +145,18 @@ typedef struct _lw_hole_punch_params {
 	size_t addrlen;
 	lw_ui16 local_port;
 	lw_pump_watch watch;
+	accept_overlapped overlapped;
+	lw_timer tcp_listen_timer;
 } lw_hole_punch_params;
 static lw_bool add_client_internal(lw_server ctx, accept_overlapped overlapped,
 	struct sockaddr_storage* local_addr,
 	struct sockaddr_storage* remote_addr, lw_pump_watch watch);
 
-static void hole_punch_socket_first_data(void* tag, accept_overlapped overlapped, unsigned long bytes, int error)
+// Called by pump, must be lw_pump_callback
+static void hole_punch_socket_first_data(void* tag, OVERLAPPED * overlapped, unsigned long bytes, int error)
 {
 	lw_log_if_debug("hole_punch_socket_first_data() running with %p, %p, %u, %i.\n", tag, overlapped, bytes, error);
 	lw_hole_punch_params* params = (lw_hole_punch_params *)tag;
-	//lw_pump_update_callbacks(params->server->pump, params->watch, params, NULL);
 	if (error != 0)
 	{
 		lw_error err = lw_error_new();
@@ -164,18 +166,68 @@ static void hole_punch_socket_first_data(void* tag, accept_overlapped overlapped
 		if (params->server->on_error)
 			params->server->on_error(params->server, err);
 		lw_error_delete(err);
-//		lwp_close_socket(overlapped->socket);
-//		lwp_release(params->server, "hole punch");
-//		free(params);
 		return;
 	}
 
 	// local address is null because we don't know it yet: this is used by add_client_internal
 	// to tell this is hole punch client
-	add_client_internal(params->server, overlapped, NULL, &params->addr, params->watch);
+	add_client_internal(params->server, (accept_overlapped)overlapped, NULL, &params->addr, params->watch);
 	lwp_release(params->server, "hole punch");
 	free(params);
 }
+
+static void lw_server_hole_punch_error(lw_hole_punch_params* const params, const char* errStr);
+
+// Stops the TCP timer, sets up TCP into pump and server
+static void lw_server_hole_punch_finalize(lw_hole_punch_params* const params)
+{
+	lw_timer_delete(params->tcp_listen_timer);
+	params->tcp_listen_timer = NULL;
+
+	params->watch = lw_pump_add(params->server->pump, (HANDLE)params->overlapped->punching_client_socket,
+		params, (lw_pump_callback)hole_punch_socket_first_data);
+	if (!params->watch)
+		lw_server_hole_punch_error(params, "Watch create failed");
+}
+
+// Triggered by timer, a lw_timer_hook_tick
+static void lw_callback lwp_server_hole_punch_tcp_listen (lw_timer timr)
+{
+	lw_hole_punch_params* const params = lw_timer_tag (timr);
+
+	// Timer should only tick once
+	lw_timer_stop(params->tcp_listen_timer);
+
+	if (listen(params->overlapped->punch_listening_server_socket, 1) == -1)
+	{
+		lw_server_hole_punch_error(params, "Error listening");
+		return;
+	}
+
+	if (!issue_accept(params->server, params->overlapped))
+	{
+		lw_server_hole_punch_error(params, "Error posting accept");
+		return;
+	}
+
+	lw_server_hole_punch_finalize(params); // finalize handles own errors
+}
+
+static void lw_server_hole_punch_error(lw_hole_punch_params* const params, const char * errStr)
+{
+	lw_error err = lw_error_new();
+	lw_error_add(err, WSAGetLastError());
+	lw_error_addf(err, "%s", errStr);
+	if (params->overlapped->socket != -1)
+		lwp_close_socket(params->overlapped->socket);
+	if (params->server->on_error)
+		params->server->on_error(params->server, err);
+	lw_error_delete(err);
+	lwp_release(params->server, "hole punch");
+	list_elem_remove(params->overlapped);
+	free(params);
+}
+
 void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 {
 	lw_pump_thread_check(ctx->pump);
@@ -197,144 +249,73 @@ void lw_server_hole_punch (lw_server ctx, lw_addr addr, lw_ui16 local_port)
 	params->addrlen = addr->info->ai_addrlen;
 	params->local_port = local_port;
 	params->watch = NULL;
+	params->tcp_listen_timer = NULL;
 
-	struct _accept_overlapped _overlapped = { 0 };
-	_overlapped.socket = INVALID_SOCKET;
+	{
+		struct _accept_overlapped _overlapped = { 0 };
+		_overlapped.socket = INVALID_SOCKET;
 
-	list_push(struct _accept_overlapped, ctx->pending_accepts, _overlapped);
+		list_push(struct _accept_overlapped, ctx->pending_accepts, _overlapped);
+	}
 	accept_overlapped overlapped = list_elem_back(struct _accept_overlapped, ctx->pending_accepts);
 	overlapped->is_hole_punch = lw_true;
 	overlapped->socket = overlapped->punching_client_socket =
 		overlapped->punch_listening_server_socket = INVALID_SOCKET;
+	params->overlapped = overlapped;
 
-	char* errStr = NULL;
-	lw_bool fakeout = lw_true;
-	do {
-		lwp_socket* curSocket = fakeout ? &overlapped->punching_client_socket :
+	struct sockaddr_storage s = { 0 };
+	s.ss_family = params->addr.ss_family;
+	// Port is at same offset in both sockaddr_in and sockaddr_in6
+	((struct sockaddr_in6*)&s)->sin6_port = htons((lw_ui16)params->local_port);
+
+	for (size_t i = 0, yes = 1; i < 2; ++i)
+	{
+		lwp_socket* curSocket = i == 0 ? &overlapped->punching_client_socket :
 			&overlapped->punch_listening_server_socket;
-		if ((*curSocket = WSASocket(params->addr.ss_family,
-			SOCK_STREAM,
-			IPPROTO_TCP,
-			0,
-			0,
-			WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
+		if ((*curSocket = WSASocket(params->addr.ss_family, SOCK_STREAM, IPPROTO_TCP,
+			0, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)
 		{
-			errStr = "Creating TCP hole punch failed";
-			break;
+			lw_server_hole_punch_error(params, "Creating TCP hole punch failed");
+			return;
 		}
 
-		// reuse addr on
-		char yes = 1;
 		lwp_setsockopt(*curSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&yes, sizeof(yes));
 		if (params->addr.ss_family == AF_INET6)
 			lwp_disable_ipv6_only(*curSocket);
 
-		struct sockaddr_storage s = { 0 };
-		s.ss_family = params->addr.ss_family;
-		// Port is at same offset in both sockaddr_in and sockaddr_in6
-		((struct sockaddr_in6*)&s)->sin6_port = htons((lw_ui16)params->local_port);
-
 		if (bind(*curSocket, (struct sockaddr*)&s,
 			(int)(s.ss_family == AF_INET ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6))) == -1)
 		{
-			errStr = "bind on TCP hole punch failed";
-			break;
-		}
-
-		if (fakeout)
-		{
-
-			static BOOL(PASCAL FAR * lw_ConnectEx)
-				(
-					SOCKET s,
-					const struct sockaddr FAR * name,
-					int namelen,
-					PVOID lpSendBuffer,
-					DWORD dwSendDataLength,
-					LPDWORD lpdwBytesSent,
-					LPOVERLAPPED lpOverlapped
-					);
-
-			GUID ID = { 0x25a207b9,0xddf3,0x4660,
-			  {0x8e,0xe9,0x76,0xe5,0x8c,0x74,0x06,0x3e} };
-
-			DWORD bytes = 0;
-
-			WSAIoctl(*curSocket, SIO_GET_EXTENSION_FUNCTION_POINTER,
-				&ID, sizeof(ID), &lw_ConnectEx, sizeof(lw_ConnectEx),
-				&bytes, 0, 0);
-
-			assert(lw_ConnectEx);
-
-			// lwp_in6_to_in4()
-			s = params->addr;
-
-			BOOL b = lw_ConnectEx(*curSocket, (struct sockaddr*)&params->addr,
-				(int)params->addrlen,
-				0, 0, 0, &overlapped->overlapped);
-			if (b == FALSE && WSAGetLastError() != ERROR_IO_PENDING)
-			{
-				errStr = "connect on TCP hole punch failed";
-				break;
-			}
-			assert(!b); // true?! client connected super fast
-
-			Sleep(500);
-			fakeout = lw_false;
-			continue;
-		}
-
-		if (listen(overlapped->punch_listening_server_socket, 1) == -1)
-		{
-			lw_error error = lw_error_new();
-
-			lw_error_add(error, WSAGetLastError());
-			lw_error_addf(error, "Error listening");
-
-			if (ctx->on_error)
-				ctx->on_error(ctx, error);
-
-			lw_error_delete(error);
+			lw_server_hole_punch_error(params, "bind on TCP hole punch failed");
 			return;
 		}
-
-		if (!issue_accept(params->server, overlapped))
-		{
-			lw_error error = lw_error_new();
-
-			lw_error_add(error, WSAGetLastError());
-			lw_error_addf(error, "Error posting accept");
-
-			if (ctx->on_error)
-				ctx->on_error(ctx, error);
-
-			lw_error_delete(error);
-			return;
-		}/*
-		lw_log_if_debug("Added an accept, overlap socket %d, punch listening %d, fake cli %d.\n",
-			(int)overlapped->socket, (int)overlapped->punch_listening_server_socket,
-			(int)overlapped->punching_client_socket);*/
-		params->watch = lw_pump_add(params->server->pump, (HANDLE)overlapped->punching_client_socket,
-			"TCP hole punch outgoing socket",
-			params, (lw_pump_callback)hole_punch_socket_first_data);
-		++params->server->num_hole_punches_pending;
-		break;
-	} while (1);
-
-	if (errStr)
-	{
-		lw_error err = lw_error_new();
-		lw_error_add(err, WSAGetLastError());
-		lw_error_addf(err, "%s", errStr);
-		if (overlapped->socket != -1)
-			lwp_close_socket(overlapped->socket);
-		if (params->server->on_error)
-			params->server->on_error(params->server, err);
-		lw_error_delete(err);
-		lwp_release(params->server, "hole punch");
-		list_elem_remove(overlapped);
-		free(params);
 	}
+
+	BOOL b = compat_ConnectEx(params->overlapped->punching_client_socket, (struct sockaddr*)&params->addr,
+		(int)params->addrlen, &params->overlapped->overlapped);
+	if (b == FALSE && WSAGetLastError() != ERROR_IO_PENDING)
+	{
+		lw_server_hole_punch_error(params, "connect on TCP hole punch failed");
+		return;
+	}
+
+	// True means client connected fast, so possibly client side was timed too early;
+	// we'll attempt to recover with us as TCP "client" rather than "server"
+	if (b)
+	{
+		lw_server_hole_punch_finalize(params);
+		return;
+	}
+
+	// Queue up TCP hosting
+	params->tcp_listen_timer = lw_timer_new(ctx->pump, "TCP hole punch host start");
+	lw_timer_set_tag(params->tcp_listen_timer, params);
+	lw_timer_on_tick(params->tcp_listen_timer, lwp_server_hole_punch_tcp_listen);
+	lw_timer_start(params->tcp_listen_timer, 500);
+
+	// TODO: if this tracks something pertinent, e.g. pending accept overlapped IOs,
+	// we'll have to check for leaks
+	++params->server->num_hole_punches_pending;
 }
 
 void lw_server_set_tag (lw_server ctx, void * tag)
@@ -599,7 +580,19 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 {
 	lw_pump_thread_check(ctx->pump);
 
-	lw_server_unhost (ctx);
+	// Unhosting is non-immediate due to needing to drain pending accept IOCP
+	if (lw_server_hosting (ctx))
+	{
+		lw_error error = lw_error_new();
+
+		lw_error_addf(error, "Still hosting; unhost first");
+
+		if (ctx->on_error)
+			ctx->on_error(ctx, error);
+
+		lw_error_delete(error);
+		return;
+	}
 
 	// TODO: LEAK: investigate how fast we can clean up server's accepts without pending ones still making events in pump
 	if (list_length(ctx->pending_accepts) > 0)

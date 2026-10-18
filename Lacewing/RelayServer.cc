@@ -1421,20 +1421,43 @@ void relayserver::hole_punch(const char* ip, lw_ui16 local_port)
 	{
 		err->add("Invalid remote address for hole punch: \"%s\" could not be resolved.", ip);
 		((relayserverinternal*)internaltag)->handlererror(*this, err);
-		lacewing::error_delete(err);
-		return;
+		goto cleanup;
 	}
 	if (!remote_addr->port())
 	{
 		err = lacewing::error_new();
 		err->add("Invalid remote address for hole punch: \"%s\" does not have required remote port.", ip);
 		((relayserverinternal*)internaltag)->handlererror(*this, err);
-		lacewing::error_delete(err);
+		goto cleanup;
+	}
+
+	if (!lw_pump_is_thread((lw_pump)pmp))
+	{
+		struct delayed_hole_punch_param
+		{
+			lacewing::server server;
+			lacewing::address remote_addr;
+			lw_ui16 local_port;
+			~delayed_hole_punch_param() {
+				lacewing::address_delete(remote_addr);
+			}
+		};
+		const auto lw_delayed_hole_punch = [](void* paramV)
+		{
+			const std::unique_ptr<delayed_hole_punch_param> param((delayed_hole_punch_param*)paramV);
+			param->server->hole_punch(param->remote_addr, param->local_port);
+			return (void*)nullptr;
+		};
+		pmp->post(lw_delayed_hole_punch, new delayed_hole_punch_param { socket, remote_addr, local_port });
 		return;
 	}
 
-	socket->hole_punch(remote_addr, local_port);
 	// UDP hole punch is done in connect_response, where we have local address/IP
+	socket->hole_punch(remote_addr, local_port);
+
+cleanup:
+	lacewing::error_delete(err);
+	lacewing::address_delete(remote_addr);
 }
 
 void relayserver::unhost()
@@ -1618,6 +1641,13 @@ void relayserverinternal::close_client (std::shared_ptr<lacewing::relayserver::c
 {
 	auto clientWriteLock = client->lock.createWriteLock();
 	client->_readonly = true;
+	if (client->udppunch)
+	{
+		client->udppunch->on_data(nullptr);
+		client->udppunch->on_error(nullptr);
+		lacewing::udp_delete(client->udppunch);
+		client->udppunch = nullptr;
+	}
 
 	while (!client->channels.empty())
 	{
