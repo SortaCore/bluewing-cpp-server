@@ -1477,6 +1477,9 @@ void OnTimerTick(lacewing::timer timer)
 		{
 			statsDump = true;
 		}
+		// Allow Q to quit; useful for Visual Studio Linux Console pane, which ignores Ctrl-C
+		else if (cinKey == TXT('q'))
+			globalpump->post_eventloop_exit();
 #endif // !_WIN32
 		else // Unrecognised, do a warning beep
 			std::cout << '\a';
