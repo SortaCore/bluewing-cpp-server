@@ -1285,7 +1285,8 @@ cleanup:
 		DestroyIcon(conOrigSmallIcon);
 		DestroyIcon(conOrigBigIcon);
 #else // !_WIN32
-		// Restore terminal settings
+		// Restore the default foreground color and terminal settings
+		std::cout << "\x1b[39m"sv;
 		tcsetattr(STDIN_FILENO, TCSANOW, &origTerminalSettings);
 #endif // _WIN32
 	}

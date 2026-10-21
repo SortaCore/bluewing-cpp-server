@@ -966,7 +966,8 @@ cleanup:
 			std::cin.get();
 		}
 
-		// Restore terminal settings
+		// Restore the default foreground color and terminal settings
+		std::cout << u8"\x1b[39m"sv;
 		tcsetattr(STDIN_FILENO, TCSANOW, &origTerminalSettings);
 	}
 	std::cout << std::flush;
