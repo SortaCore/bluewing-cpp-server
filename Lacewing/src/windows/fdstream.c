@@ -315,7 +315,7 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		// TODO: The client is unstable at that point, and will not properly disconnect from original connection
 		// nor acknowledge the server on the new connection, resulting in ping disconnect.
 		// Thankfully, after a ping disconnect, it should be back to functional again.
-		// 
+		//
 		// Phi note 16th Dec 2025: This situation may have been fixed by adding the lw_stream_close call in first_time_write_ready
 		// connect error handling; at same time I also made disconnects immediate during the mid-connecting stage in relayclient::disconnect,
 		// and added a closing flag check there, which also makes a race less likely
@@ -324,7 +324,7 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 		// These following lines prevent an issue where the old callbacks/pump are sent to new callback,
 		// which will result in accumulating On Disconnect events, apparently.
 		lw_pump pump = lw_stream_pump((lw_stream)ctx);
-		lw_pump_update_callbacks(pump, ctx->stream.watch, NULL, NULL);
+		lw_pump_update_callbacks(pump, ctx->stream.watch, NULL);
 		lw_pump_post_remove(pump, ctx->stream.watch);
 		ctx->stream.watch = NULL;
 	}*/
@@ -386,12 +386,12 @@ void lw_fdstream_set_fd (lw_fdstream ctx, HANDLE fd,
 	if (ctx->stream.watch)
 	{
 		lw_pump_update_callbacks (lw_stream_pump ((lw_stream) ctx),
-								ctx->stream.watch, "lw_fdstream_set_fd", ctx, completion);
+								ctx->stream.watch, ctx, completion);
 	}
 	else
 	{
 		ctx->stream.watch = lw_pump_add (lw_stream_pump ((lw_stream) ctx),
-								fd, "lw_fdstream_set_fd", ctx, completion);
+								fd, ctx, completion);
 	}
 
 	if (ctx->reading_size != 0)

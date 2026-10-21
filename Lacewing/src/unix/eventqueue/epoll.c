@@ -13,7 +13,7 @@
 
 lwp_eventqueue lwp_eventqueue_new ()
 {
-	lwp_eventqueue queue = (lwp_eventqueue)malloc(sizeof(_lw_eventqueue));
+	lwp_eventqueue queue = (lwp_eventqueue)calloc(1, sizeof(_lw_eventqueue));
 	if (!queue)
 		return NULL;
 
@@ -27,7 +27,7 @@ lwp_eventqueue lwp_eventqueue_new ()
 
 	// create list_head, makes lists less strange
 	_lwp_fd_monitoring first = {
-		.fd = 0, .desc = 0, .lastUpdate = 0
+		.fd = 0
 	};
 	list_push(lwp_fd_monitoring, queue->fds, &first);
 	list_pop_front(lwp_fd_monitoring, queue->fds);
@@ -39,30 +39,21 @@ void lwp_eventqueue_delete (lwp_eventqueue queue)
 	lw_sync_lock(queue->sync);
 	if (queue->numFDsWatched > 0)
 	{
-		char log[512];
-		int logAt = sprintf(log, "lwp_eventqueue_delete warning: had %i FDs left when closing eventqueue. Event pump must be deleted last.",
+		always_log("lwp_eventqueue_delete warning: had %i FDs left when closing eventqueue. Event pump must be deleted last.",
 			queue->numFDsWatched);
-		logAt += sprintf(log + logAt, " FDs still open: ");
-		int i = 0;
-		list_each(_lwp_fd_monitoring, queue->fds, e)
-		{
-			logAt += sprintf(log + logAt, "[%i] FD %i, desc \"%s\", last update \"%s\"; ",
-				i++, e.fd, e.desc, e.lastUpdate);
-		}
-		log[logAt - 2] = 0;
-		always_log("%s", logAt);
 		assert(lw_false);
 	}
 	close (queue->epollFD);
 	queue->epollFD = -1;
 	lw_sync_release(queue->sync);
 
+	list_clear(queue->fds);
+	lw_sync_delete(queue->sync);
 	free (queue);
 }
 
 void lwp_eventqueue_add (lwp_eventqueue queue,
 						 int fd,
-						 const char * desc,
 						 lw_bool read,
 						 lw_bool write,
 						 lw_bool edge_triggered,
@@ -83,16 +74,14 @@ void lwp_eventqueue_add (lwp_eventqueue queue,
 		epoll_ctl (queue->epollFD, EPOLL_CTL_ADD, fd, &event);
 
 		++queue->numFDsWatched;
-		_lwp_fd_monitoring item = {
-			.fd = fd, .desc = strdup(desc), .lastUpdate = strdup("create")
-		};
+		_lwp_fd_monitoring item = { .fd = fd };
 		list_push(_lwp_fd_monitoring, queue->fds, item);
 
 	lw_sync_release(queue->sync);
 }
 
 void lwp_eventqueue_update (lwp_eventqueue queue,
-							int fd, const char * updateReason,
+							int fd,
 							lw_bool was_reading, lw_bool read,
 							lw_bool was_writing, lw_bool write,
 							lw_bool was_edge_triggered, lw_bool edge_triggered,
@@ -115,16 +104,13 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 		{
 			if (e.fd == fd)
 			{
-				free(e.lastUpdate);
-				e.lastUpdate = strdup(updateReason);
 				found = lw_true;
 				break;
 			}
 		}
 		if (!found)
 		{
-			always_log("Couldn't update eventqueue fd %d, not found in list. Update reason \"%s\".",
-				fd, updateReason);
+			always_log("Couldn't update eventqueue fd %d, not found in list.", fd);
 			assert(lw_false);
 		}
 
@@ -153,8 +139,7 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 				{
 					if (valid)
 					{
-						always_log("Error in deleting a pump FD %d. It was still valid! Desc \"%s\", last update \"%s\".",
-							fd, e->desc, e->lastUpdate);
+						always_log("Error in deleting a pump FD %d. It was still valid!", fd);
 						assert (lw_false);
 					}
 					list_elem_remove(e);

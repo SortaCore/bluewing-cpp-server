@@ -230,8 +230,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	 * RelayClient only reuses this client after the old session has drained. */
 	if (ctx->fdstream.fd == INVALID_HANDLE_VALUE && ctx->fdstream.stream.watch)
 	{
-		lw_pump_remove(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch,
-			"lw_client reconnect after drained session");
+		lw_pump_remove(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch);
 		ctx->fdstream.stream.watch = NULL;
 	}
 
@@ -292,9 +291,9 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	lwp_disable_ipv6_only ((lwp_socket) ctx->fdstream.fd);
 
 	if (ctx->fdstream.stream.watch)
-		lw_pump_update_callbacks(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch, "lw_client_connect_addr setting first_time_write_ready", ctx, first_time_write_ready);
+		lw_pump_update_callbacks(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch, ctx, first_time_write_ready);
 	else
-		ctx->fdstream.stream.watch = lw_pump_add (ctx->fdstream.stream.pump, ctx->fdstream.fd, "lw_client_connect_addr starting with first_time_write_ready", ctx, first_time_write_ready);
+		ctx->fdstream.stream.watch = lw_pump_add (ctx->fdstream.stream.pump, ctx->fdstream.fd, ctx, first_time_write_ready);
 
 	struct sockaddr_storage local_address = { 0 };
 

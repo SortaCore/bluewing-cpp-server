@@ -193,7 +193,7 @@ static lw_bool add_client_internal(lw_server ctx,
 		lwp_trace("Failed allocating client");
 		lwp_close_socket(fd);
 		if (watch)
-			lw_pump_remove(ctx->pump, watch, "hole punch client allocation failed");
+			lw_pump_remove(ctx->pump, watch);
 		return lw_false;
 	}
 
@@ -298,7 +298,7 @@ static lw_callback void hole_punch_connect_ready(lw_hole_punch_params params)
 	if (error)
 	{
 		lwp_close_socket(params->sock);
-		lw_pump_remove(server->pump, params->watch, "hole punch connect failed");
+		lw_pump_remove(server->pump, params->watch);
 	}
 	list_elem_remove(params->elem);
 	if (error)
@@ -358,7 +358,6 @@ void lw_server_hole_punch(lw_server ctx, lw_addr addr, lw_ui16 local_port)
 		}
 
 		params->watch = lw_pump_add(params->server->pump, params->sock,
-			"lw_server doing TCP hole punch",
 			params, (lw_pump_callback)hole_punch_connect_ready, NULL, lw_true);
 		if (!params->watch)
 		{
@@ -427,9 +426,7 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 
 	lwp_make_nonblocking(ctx->socket);
 
-	char name[128];
-	lwp_snprintf(name, sizeof(name), "lw_server tcp port %li", lw_filter_local_port(filter));
-	ctx->pump_watch = lw_pump_add (ctx->pump, ctx->socket, name,
+	ctx->pump_watch = lw_pump_add (ctx->pump, ctx->socket,
 		ctx, listen_socket_read_ready, 0, lw_true);
 	if (!ctx->pump_watch)
 	{
@@ -451,7 +448,7 @@ void lw_server_unhost (lw_server ctx)
 	list_each(lw_hole_punch_params, ctx->pending_punches, params)
 	{
 		lwp_close_socket(params->sock);
-		lw_pump_remove(ctx->pump, params->watch, "lw_server_unhost cancelling TCP hole punch");
+		lw_pump_remove(ctx->pump, params->watch);
 		free(params);
 	}
 	list_clear(ctx->pending_punches);
@@ -461,7 +458,7 @@ void lw_server_unhost (lw_server ctx)
 		close (ctx->socket);
 		ctx->socket = -1;
 
-		lw_pump_remove(ctx->pump, ctx->pump_watch, "lw_server_unhost");
+		lw_pump_remove(ctx->pump, ctx->pump_watch);
 		ctx->pump_watch = NULL;
 	}
 

@@ -257,8 +257,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	 * reuses a client only after the prior session has completely drained. */
 	if (ctx->fdstream.fd == -1 && ctx->fdstream.stream.watch)
 	{
-		lw_pump_remove(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch,
-			"lw_client reconnect after drained session");
+		lw_pump_remove(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch);
 		ctx->fdstream.stream.watch = 0;
 	}
 	ctx->local_port_next_connect = local_port_next_connect;
@@ -422,9 +421,9 @@ good:
 
 	if (ctx->fdstream.stream.watch)
 		lw_pump_update_callbacks(ctx->fdstream.stream.pump, ctx->fdstream.stream.watch,
-			"lw_client_connect_addr resetting to first_time_write_ready", ctx, 0, first_time_write_ready, lw_true);
+			ctx, 0, first_time_write_ready, lw_true);
 	else
-		ctx->fdstream.stream.watch = lw_pump_add(ctx->fdstream.stream.pump, ctx->socket, "lw_client_connect_addr first init with first_time_write_ready", ctx, 0, first_time_write_ready, lw_true);
+		ctx->fdstream.stream.watch = lw_pump_add(ctx->fdstream.stream.pump, ctx->socket, ctx, 0, first_time_write_ready, lw_true);
 }
 
 void lw_client_set_local_port (lw_client ctx, lw_ui16 localport)

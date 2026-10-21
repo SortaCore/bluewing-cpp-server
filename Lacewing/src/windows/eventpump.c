@@ -251,8 +251,7 @@ lw_error lw_eventpump_start_sleepy_ticking
 	return 0;
 }
 
-static lw_pump_watch def_add (lw_pump _ctx, HANDLE handle, const char* desc,
-							  void * tag, lw_pump_callback callback)
+static lw_pump_watch def_add (lw_pump _ctx, HANDLE handle, void * tag, lw_pump_callback callback)
 {
 	lw_eventpump ctx = (lw_eventpump) _ctx;
 
@@ -265,9 +264,8 @@ static lw_pump_watch def_add (lw_pump _ctx, HANDLE handle, const char* desc,
 
 	watch->on_completion = callback;
 	watch->tag = tag;
-	always_log("Watch created at %p, for %p, %p.\n", watch, callback, tag);
 
-	// If this fails; it does rarely happen as a race condition during a server shutdown
+	// This may rarely fail if pump is shutting down during def_add
 	if (CreateIoCompletionPort (handle, ctx->completion_port,
 								(ULONG_PTR) watch, 0) == NULL)
 	{
@@ -281,12 +279,15 @@ static lw_pump_watch def_add (lw_pump _ctx, HANDLE handle, const char* desc,
 
 /* Note: the caller of lw_pump_remove is responsible for waiting for or
  * cancelling any pending overlapped operations first.  If a watch is freed
- * before any associated overlapped operations have completed, the behaviour
- * is undefined.
+ * before any associated overlapped operations are cleared, it WILL break,
+ * so ensure you track them in implementation and do a graceful shutdown.
+ * The correct process is to close the handle to abort IOCPs, wait
+ * for all pending ops to drain - two codes for that, see lw_op_aborted() - and
+ * then free the memory after.
  */
-static void def_remove (lw_pump _ctx, lw_pump_watch watch, const char * deleteReason)
+static void def_remove (lw_pump ctx, lw_pump_watch watch)
 {
-	lw_eventpump ctx = (lw_eventpump) _ctx;
+	//lw_eventpump ctx = (lw_eventpump) _ctx;
 
 	watch->on_completion = NULL;
 	watch->tag = NULL;
@@ -305,7 +306,6 @@ static void def_post (lw_pump _ctx, void * function, void * parameter)
 
 static void def_update_callbacks (lw_pump ctx,
 								  lw_pump_watch watch,
-								  const char * updateReason,
 								  void * tag,
 								  lw_pump_callback on_completion)
 {

@@ -410,7 +410,7 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 
 	ctx->port = lwp_socket_port(ctx->socket);
 
-	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, "lw_udp_host", ctx, udp_socket_completion);
+	ctx->pump_watch = lw_pump_add (ctx->pump, (HANDLE) ctx->socket, ctx, udp_socket_completion);
 
 	post_receives (ctx);
 }
@@ -461,7 +461,7 @@ static void lw_udp_dealloc(lw_udp ctx)
 
 	if (ctx->pump_watch)
 	{
-		lw_pump_remove(ctx->pump, ctx->pump_watch, "lw_udp_dealloc");
+		lw_pump_remove(ctx->pump, ctx->pump_watch);
 		ctx->pump_watch = NULL;
 	}
 

@@ -23,13 +23,12 @@ void lwp_eventqueue_delete (lwp_eventqueue queue)
 
 void lwp_eventqueue_add (lwp_eventqueue queue,
 						 int fd,
-						 const char * desc,
 						 lw_bool read,
 						 lw_bool write,
 						 lw_bool edge_triggered,
 						 void * tag)
 {
-	lwp_eventqueue_update (queue, fd, desc,
+	lwp_eventqueue_update (queue, fd,
 						  lw_false, read,
 						  lw_false, write,
 						  lw_false, edge_triggered,
@@ -37,7 +36,7 @@ void lwp_eventqueue_add (lwp_eventqueue queue,
 }
 
 void lwp_eventqueue_update (lwp_eventqueue queue,
-							int fd, const char* updateReason,
+							int fd,
 							lw_bool was_reading, lw_bool read,
 							lw_bool was_writing, lw_bool write,
 							lw_bool was_edge_triggered, lw_bool edge_triggered,
@@ -117,5 +116,4 @@ void * lwp_eventqueue_event_tag (lwp_eventqueue_event event)
 {
 	return event.udata;
 }
-
 

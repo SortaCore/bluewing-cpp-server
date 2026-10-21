@@ -82,9 +82,8 @@ lw_timer lw_timer_new (lw_pump pump, const char * timer_name)
 	ctx->timer_thread = lw_thread_new (buffer, timer_thread);
 
 	#ifdef _lacewing_use_timerfd
-		lwp_snprintf(buffer, sizeof(buffer), "lw_timer %s", timer_name);
 		ctx->fd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK);
-		ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, buffer, ctx, (lw_pump_callback)timer_tick, 0, lw_true);
+		ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, ctx, (lw_pump_callback)timer_tick, 0, lw_true);
 	#endif
 
 	return ctx;
@@ -99,7 +98,7 @@ void lw_timer_delete (lw_timer ctx)
 
 	#ifdef _lacewing_use_timerfd
 		close (ctx->fd);
-		lw_pump_remove(ctx->pump, ctx->pump_watch, "lw_timer delete");
+		lw_pump_remove(ctx->pump, ctx->pump_watch);
 	#endif
 
 	lw_thread_delete (ctx->timer_thread);

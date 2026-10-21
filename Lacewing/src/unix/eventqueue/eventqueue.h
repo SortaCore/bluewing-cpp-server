@@ -27,8 +27,6 @@
 	typedef struct _lwp_fd_monitoring
 	{
 		int fd;
-		char* desc; // strdup'd
-		char* lastUpdate; // strdup'd
 	} _lwp_fd_monitoring;
 	typedef struct _lwp_fd_monitoring * lwp_fd_monitoring;
 
@@ -73,7 +71,6 @@ void lwp_eventqueue_delete (lwp_eventqueue);
  */
 void lwp_eventqueue_add (lwp_eventqueue,
 						 int fd,
-						 const char * desc,
 						 lw_bool read,
 						 lw_bool write,
 						 lw_bool edge_triggered,
@@ -83,7 +80,7 @@ void lwp_eventqueue_add (lwp_eventqueue,
 /* update: update an existing watched file descriptor
  */
 void lwp_eventqueue_update (lwp_eventqueue,
-							int fd, const char * updateReason,
+							int fd,
 							lw_bool was_reading, lw_bool read,
 							lw_bool was_writing, lw_bool write,
 							lw_bool was_edge_triggered, lw_bool edge_triggered,
@@ -100,6 +97,5 @@ lw_bool lwp_eventqueue_event_read_ready (lwp_eventqueue_event);
 lw_bool lwp_eventqueue_event_write_ready (lwp_eventqueue_event);
 
 void * lwp_eventqueue_event_tag (lwp_eventqueue_event);
-
 
 

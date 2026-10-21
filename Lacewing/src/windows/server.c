@@ -637,9 +637,7 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 		return;
 	}
 
-	char name[128];
-	lwp_snprintf(name, sizeof(name), "lw_server tcp port %li", lw_filter_local_port(filter));
-	ctx->pump_watch = lw_pump_add(ctx->pump, (HANDLE) ctx->socket, name, ctx, listen_socket_completion);
+	ctx->pump_watch = lw_pump_add(ctx->pump, (HANDLE) ctx->socket, ctx, listen_socket_completion);
 
 	while (list_length (ctx->pending_accepts) < (size_t)ideal_pending_accept_count)
 		if (!issue_accept (ctx, NULL))
@@ -678,7 +676,7 @@ void lw_server_unhost (lw_server ctx)
 
 //	list_clear (ctx->pending_accepts);
 
-	lw_pump_post_remove (ctx->pump, ctx->pump_watch, "lw_server_unhost");
+	lw_pump_post_remove (ctx->pump, ctx->pump_watch);
 	ctx->pump_watch = NULL;
 }
 

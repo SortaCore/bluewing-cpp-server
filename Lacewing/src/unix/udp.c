@@ -248,7 +248,7 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 
 	ctx->filter = lw_filter_clone (filter);
 
-	ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, "udp host", ctx, read_ready, 0, lw_true);
+	ctx->pump_watch = lw_pump_add (ctx->pump, ctx->fd, ctx, read_ready, 0, lw_true);
 }
 
 lw_bool lw_udp_hosting (lw_udp ctx)
@@ -277,7 +277,7 @@ void lw_udp_unhost (lw_udp ctx)
 
 	// Close pump only after sockets are closed; epoll and kqueue will automatically remove their FDs,
 	// but select is also an event model
-	lw_pump_remove(ctx->pump, ctx->pump_watch, "udp unhost");
+	lw_pump_remove(ctx->pump, ctx->pump_watch);
 	ctx->pump_watch = NULL;
 }
 

@@ -37,7 +37,7 @@ static lw_i64 sendfile_error_result (int error)
 		if (error == ENOTSUP)
 			return lw_stream_sink_stream_unsupported;
 	#endif
-	
+
 	// Any errors that aren't any of those are assumed unrecoverable failures
 	return lw_stream_sink_stream_error;
 }
@@ -228,12 +228,12 @@ void lw_fdstream_set_fd (lw_fdstream ctx, lw_fd fd,
 	if (ctx->stream.watch)
 	{
 		/* Given an existing pump watch - change it to use our callbacks */
-		lw_pump_update_callbacks (pump, ctx->stream.watch, "lw_fdstream_set_fd", ctx,
+		lw_pump_update_callbacks (pump, ctx->stream.watch, ctx,
 			read_ready, write_ready, lw_true);
 	}
 	else
 	{
-		ctx->stream.watch = lw_pump_add (pump, fd, "lw_fdstream_set_fd", ctx, read_ready,
+		ctx->stream.watch = lw_pump_add (pump, fd, ctx, read_ready,
 			write_ready, lw_true);
 	}
 }
@@ -394,8 +394,7 @@ static lw_bool def_close (lw_stream stream_ctx, lw_bool immediate)
 		 close (fd);
 		 if (ctx->stream.watch)
 		 {
-			lw_pump_remove (lw_stream_pump (stream_ctx), ctx->stream.watch,
-				"fdstream close");
+			lw_pump_remove (lw_stream_pump (stream_ctx), ctx->stream.watch);
 			ctx->stream.watch = NULL;
 		 }
 		}

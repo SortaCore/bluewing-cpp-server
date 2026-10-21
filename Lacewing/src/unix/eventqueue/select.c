@@ -77,6 +77,7 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 							lw_bool was_edge_triggered, lw_bool edge_triggered,
 							void * old_tag, void * tag)
 {
+	(void)old_tag;
 	if (read)
 	{
 	  FD_SET (fd, &queue->read_set);
@@ -95,6 +96,7 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 	{
 	  FD_CLR (fd, &queue->read_set);
 	  FD_CLR (fd, &queue->read_set_LT);
+	  FD_CLR (fd, &queue->read_ready_set);
 	}
 
 	if (write)
@@ -115,9 +117,10 @@ void lwp_eventqueue_update (lwp_eventqueue queue,
 	{
 	  FD_CLR (fd, &queue->write_set);
 	  FD_CLR (fd, &queue->write_set_LT);
+	  FD_CLR (fd, &queue->write_ready_set);
 	}
 
-	queue->tags [fd] = tag;
+	queue->tags [fd] = read || write ? tag : NULL;
 }
 
 int lwp_eventqueue_drain (lwp_eventqueue queue,
@@ -164,7 +167,7 @@ int lwp_eventqueue_drain (lwp_eventqueue queue,
 	*/
 	int num_events = 0;
 
-	for (int fd = 0; fd < queue->max_fd; ++ fd)
+	for (int fd = 0; fd < queue->max_fd && num_events < max_events; ++ fd)
 	{
 	  lw_i8 flags = 0;
 
@@ -210,5 +213,3 @@ void * lwp_eventqueue_event_tag (lwp_eventqueue_event event)
 {
 	return event.tag;
 }
-
-

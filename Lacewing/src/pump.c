@@ -69,56 +69,54 @@ lw_bool lw_pump_in_use (lw_pump ctx)
 	return ctx->use_count > 0;
 }
 
-void lw_pump_post (lw_pump ctx, void * proc, void * param)
+void lw_pump_post (lw_pump ctx, lw_pump_post_func proc, void * const param)
 {
 	ctx->def->post (ctx, proc, param);
 }
 
 #ifdef _WIN32
 
-	lw_pump_watch lw_pump_add (lw_pump ctx, HANDLE handle, const char* desc,
-							  void * tag, lw_pump_callback callback)
+	lw_pump_watch lw_pump_add (lw_pump ctx, HANDLE handle, void * tag, lw_pump_callback callback)
 	{
-	  lw_pump_add_user (ctx);
-
-	  return ctx->def->add (ctx, handle, desc, tag, callback);
+		const lw_pump_watch watch = ctx->def->add (ctx, handle, tag, callback);
+		if (watch)
+			lw_pump_add_user (ctx);
+		return watch;
 	}
 
-	void lw_pump_update_callbacks (lw_pump ctx, lw_pump_watch watch, const char* updateReason,
-								  void * tag, lw_pump_callback callback)
+	void lw_pump_update_callbacks (lw_pump ctx, lw_pump_watch watch, void * tag, lw_pump_callback callback)
 	{
-	  ctx->def->update_callbacks (ctx, watch, updateReason, tag, callback);
+		ctx->def->update_callbacks (ctx, watch, tag, callback);
 	}
 
 #else
 
-	lw_pump_watch lw_pump_add (lw_pump ctx, int fd, const char* desc, void * tag,
-							  lw_pump_callback on_read_ready,
-							  lw_pump_callback on_write_ready,
-							  lw_bool edge_triggered)
+	lw_pump_watch lw_pump_add (lw_pump ctx, int fd, void * tag,
+		lw_pump_callback on_read_ready, lw_pump_callback on_write_ready,
+		lw_bool edge_triggered)
 	{
-	  lw_pump_add_user (ctx);
-
-	  return ctx->def->add (ctx, fd, desc, tag, on_read_ready,
-							on_write_ready, edge_triggered);
+		const lw_pump_watch watch = ctx->def->add (ctx, fd, tag,
+			on_read_ready, on_write_ready, edge_triggered);
+		if (watch)
+			lw_pump_add_user (ctx);
+		return watch;
 	}
 
-	void lw_pump_update_callbacks (lw_pump ctx, lw_pump_watch watch, const char* updateReason, void * tag,
-								  lw_pump_callback on_read_ready,
-								  lw_pump_callback on_write_ready,
-								  lw_bool edge_triggered)
+	void lw_pump_update_callbacks (lw_pump ctx, lw_pump_watch watch, void * tag,
+		lw_pump_callback on_read_ready, lw_pump_callback on_write_ready,
+		lw_bool edge_triggered)
 	{
-	  ctx->def->update_callbacks (ctx, watch, updateReason, tag, on_read_ready,
-								  on_write_ready, edge_triggered);
+		ctx->def->update_callbacks (ctx, watch, tag,
+			on_read_ready, on_write_ready, edge_triggered);
 	}
 
 #endif
 
-void lw_pump_remove (lw_pump ctx, lw_pump_watch watch, const char * delReason)
+void lw_pump_remove (lw_pump ctx, lw_pump_watch watch)
 {
 	if (watch == NULL)
 		return;
-	ctx->def->remove (ctx, watch, delReason);
+	ctx->def->remove (ctx, watch);
 
 	lw_pump_remove_user (ctx);
 }
@@ -127,26 +125,25 @@ struct remove_proc_data
 {
 	lw_pump pump;
 	lw_pump_watch watch;
-	const char* delReason; // strdup
 };
 
-static void remove_proc (struct remove_proc_data * data)
+static void * remove_proc (void * const data)
 {
-	lw_pump_remove (data->pump, data->watch, data->delReason);
+	lw_pump_remove (((struct remove_proc_data *)data)->pump, ((struct remove_proc_data*)data)->watch);
 
 	free (data);
+	return NULL;
 }
 
-void lw_pump_post_remove (lw_pump ctx, lw_pump_watch watch, const char * delReason)
+void lw_pump_post_remove (lw_pump ctx, lw_pump_watch watch)
 {
-	struct remove_proc_data * data =
+	struct remove_proc_data * const data =
 	  (struct remove_proc_data *) lw_malloc_or_exit (sizeof (*data));
 
 	data->pump = ctx;
 	data->watch = watch;
-	data->delReason = strdup(delReason);
 
-	lw_pump_post (ctx, (void *)remove_proc, data);
+	lw_pump_post (ctx, remove_proc, data);
 }
 
 void * lw_pump_tag (lw_pump ctx)
@@ -168,7 +165,7 @@ void lw_pump_thread_check (lw_pump ctx)
 	}
 }
 
-lw_bool lw_pump_is_thread (lw_pump ctx)
+lw_bool lw_pump_is_thread (const struct _lw_pump * const ctx)
 {
 #ifdef ENABLE_THREADS
 	return !ctx || lw_thread_id_equal(ctx->thread_id, lw_thread_id_current());

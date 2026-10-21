@@ -55,48 +55,10 @@ lw_eventpump lw_eventpump_new ()
 	ctx->queue = lwp_eventqueue_new ();
 
 	lwp_eventqueue_add (ctx->queue, ctx->signalpipe_read,
-						"signal pipe reader for eventpump",
 						lw_true, lw_false, lw_true,
 						NULL);
 
 	return ctx;
-}
-
-static void def_cleanup (lw_pump pump)
-{
-	lw_eventpump ctx = (lw_eventpump) pump;
-
-	if (ctx->signalpipe_read != -1)
-	{
-		// Drain deferred removals and posts, including any queued by their callbacks.
-		// An exit byte stops one pass, so keep going until the pipe is empty.
-		lwp_eventqueue_event clear = { 0 };
-		lw_bool drained;
-		do
-			drained = process_event(ctx, clear, lw_true);
-		while (!drained);
-		
-		close(ctx->signalpipe_read);
-		close(ctx->signalpipe_write);
-	}
-
-	lwp_eventqueue_update(ctx->queue, ctx->signalpipe_read, "eventpump cleanup removing signalpipe",
-		lw_true, lw_false, lw_false, lw_false, lw_true, lw_false, NULL, NULL);
-
-	#ifdef ENABLE_THREADS
-		if (lw_thread_started (ctx->watcher.thread))
-		{
-			lw_event_signal (ctx->watcher.resume_event);
-			lw_thread_join (ctx->watcher.thread);
-		}
-		lw_thread_delete(ctx->watcher.thread);
-		lw_sync_delete(ctx->sync_signalparams);
-
-		lw_event_delete (ctx->watcher.resume_event);
-	#endif
-
-	lwp_eventqueue_delete(ctx->queue);
-	ctx->queue = (lwp_eventqueue)~0;
 }
 
 static lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event, lw_bool last_event)
@@ -206,6 +168,43 @@ static lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event, lw_b
 	return keep_running;
 }
 
+static void def_cleanup(lw_pump pump)
+{
+	lw_eventpump ctx = (lw_eventpump)pump;
+
+	if (ctx->signalpipe_read != -1)
+	{
+		// Drain deferred removals and posts, including any queued by their callbacks;
+		// an entirely empty event has null function pointers, but will continue
+		// past to cause the pump signal pipe to be emptied.
+		lwp_eventqueue_event clear = { 0 };
+		
+		while (!process_event(ctx, clear, lw_true))
+			;
+
+		close(ctx->signalpipe_read);
+		close(ctx->signalpipe_write);
+	}
+
+	lwp_eventqueue_update(ctx->queue, ctx->signalpipe_read,
+		lw_true, lw_false, lw_false, lw_false, lw_true, lw_false, NULL, NULL);
+
+#ifdef ENABLE_THREADS
+	if (lw_thread_started(ctx->watcher.thread))
+	{
+		lw_event_signal(ctx->watcher.resume_event);
+		lw_thread_join(ctx->watcher.thread);
+	}
+	lw_thread_delete(ctx->watcher.thread);
+	lw_sync_delete(ctx->sync_signalparams);
+
+	lw_event_delete(ctx->watcher.resume_event);
+#endif
+
+	lwp_eventqueue_delete(ctx->queue);
+	ctx->queue = (lwp_eventqueue)~0;
+}
+
 lw_error lw_eventpump_tick (lw_eventpump ctx)
 {
 	lw_bool need_watcher_resume = lw_false;
@@ -218,12 +217,14 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 			* need to process.
 			*/
 			for (int i = 0; i < ctx->watcher.num_events; ++i)
+			{
 				if (!process_event(ctx, ctx->watcher.events[i], i == ctx->watcher.num_events - 1))
 				{
 					ctx->watcher.num_events = 0;
 					need_watcher_resume = lw_true;
 					goto finish_tick;
 				}
+			}
 
 			ctx->watcher.num_events = 0;
 
@@ -342,7 +343,7 @@ static void * lw_callback watcher (void * data)
 
 #endif
 
-static lw_pump_watch def_add (lw_pump pump, int fd, const char * desc, void * tag,
+static lw_pump_watch def_add (lw_pump pump, int fd, void * tag,
 							  lw_pump_callback on_read_ready,
 							  lw_pump_callback on_write_ready,
 							  lw_bool edge_triggered)
@@ -367,7 +368,6 @@ static lw_pump_watch def_add (lw_pump pump, int fd, const char * desc, void * ta
 
 	lwp_eventqueue_add (ctx->queue,
 						fd,
-						desc,
 						on_read_ready != NULL,
 						on_write_ready != NULL,
 						edge_triggered,
@@ -381,7 +381,7 @@ static lw_pump_watch def_add (lw_pump pump, int fd, const char * desc, void * ta
 lw_bool global_delete_block = lw_false;
 
 static void def_update_callbacks (lw_pump pump,
-								  lw_pump_watch watch, const char* updateReason, void * tag,
+								  lw_pump_watch watch, void * tag,
 								  lw_pump_callback on_read_ready,
 								  lw_pump_callback on_write_ready,
 								  lw_bool edge_triggered)
@@ -394,7 +394,7 @@ static void def_update_callbacks (lw_pump pump,
 		 || tag != watch->tag)
 	{
 	  lwp_eventqueue_update (ctx->queue,
-							 watch->fd, updateReason,
+							 watch->fd,
 							 watch->on_read_ready != NULL, on_read_ready != NULL,
 							 watch->on_write_ready != NULL, on_write_ready != NULL,
 							 watch->edge_triggered, edge_triggered,
@@ -407,7 +407,7 @@ static void def_update_callbacks (lw_pump pump,
 	watch->tag = tag;
 }
 
-static void def_remove (lw_pump pump, lw_pump_watch watch, const char * deleteReason)
+static void def_remove (lw_pump pump, lw_pump_watch watch)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
@@ -417,15 +417,14 @@ static void def_remove (lw_pump pump, lw_pump_watch watch, const char * deleteRe
 		Phi test: Actually, this falls over very quickly if you don't.
 	*/
 
-	// We can't remove the watch memory immediately, as queued events still reference it,
-	// so we make the events 
-	lwp_eventqueue_update(ctx->queue, watch->fd, deleteReason,
+	lwp_eventqueue_update(ctx->queue, watch->fd,
 		watch->on_read_ready != NULL, lw_false,
 		watch->on_write_ready != NULL, lw_false,
 		watch->edge_triggered, watch->edge_triggered, watch->tag, watch->tag);
 	watch->on_read_ready = NULL;
 	watch->on_write_ready = NULL;
 
+	// The signal retires the watch; the last fetched event frees it.
 	lw_sync_lock (ctx->sync_signalparams);
 
 		list_push (void *, ctx->signalparams, watch);
@@ -437,11 +436,13 @@ static void def_remove (lw_pump pump, lw_pump_watch watch, const char * deleteRe
 	lw_sync_release (ctx->sync_signalparams);
 }
 
-static void def_post (lw_pump pump, void * func, void * param)
+static void def_post (lw_pump pump, const lw_pump_post_func func, void * param)
 {
 	lw_eventpump ctx = (lw_eventpump) pump;
 
 	lw_sync_lock (ctx->sync_signalparams);
+
+		_Static_assert(sizeof(lw_pump_post_func) == sizeof(void*), "Function pointer and regular pointer diff");
 
 		list_push (void *, ctx->signalparams, func);
 		list_push (void *, ctx->signalparams, param);

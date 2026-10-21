@@ -291,38 +291,39 @@ typedef enum _lw_addr_tostring_flags
 
 /* Pump */
 
+	typedef void * (lw_callback * const lw_pump_post_func)(void *);
+
 	lw_import		void  lw_pump_delete		(lw_pump);
 	lw_import		void  lw_pump_add_user		(lw_pump);
 	lw_import		void  lw_pump_remove_user	(lw_pump);
 	lw_import	 lw_bool  lw_pump_in_use		(lw_pump);
-	lw_import		void  lw_pump_remove		(lw_pump, lw_pump_watch, const char* deleteReason);
-	lw_import		void  lw_pump_post_remove	(lw_pump, lw_pump_watch, const char* deleteReason);
-	lw_import		void  lw_pump_post			(lw_pump, void * fn, void * param);
+	lw_import		void  lw_pump_remove		(lw_pump, lw_pump_watch);
+	lw_import		void  lw_pump_post_remove	(lw_pump, lw_pump_watch);
+	lw_import		void  lw_pump_post			(lw_pump, lw_pump_post_func fn, void * const param);
 	lw_import	  void *  lw_pump_tag			(lw_pump);
 	lw_import		void  lw_pump_set_tag		(lw_pump, void *);
 	lw_import		void  lw_pump_thread_check  (lw_pump);
-	lw_import	 lw_bool  lw_pump_is_thread		(lw_pump);
+	lw_import	 lw_bool  lw_pump_is_thread		(const struct _lw_pump * const);
 
 	#ifdef _WIN32
 
 	typedef void (lw_callback * lw_pump_callback)
 		(void * tag, OVERLAPPED *, unsigned long bytes, int error);
 
-	lw_import lw_pump_watch lw_pump_add (lw_pump, HANDLE, const char * desc, void * tag,
+	lw_import lw_pump_watch lw_pump_add (lw_pump, HANDLE, void * tag,
 										 lw_pump_callback);
 
-	lw_import void lw_pump_update_callbacks (lw_pump, lw_pump_watch, const char * updateReason,
-											 void * tag, lw_pump_callback);
+	lw_import void lw_pump_update_callbacks (lw_pump, lw_pump_watch, void * tag, lw_pump_callback);
 	#else
 
 	typedef void (lw_callback * lw_pump_callback) (void * tag);
 
-	lw_import lw_pump_watch lw_pump_add (lw_pump, int fd, const char* desc, void * tag,
+	lw_import lw_pump_watch lw_pump_add (lw_pump, int fd, void * tag,
 										 lw_pump_callback on_read_ready,
 										 lw_pump_callback on_write_ready,
 										 lw_bool edge_triggered);
 
-	lw_import void lw_pump_update_callbacks (lw_pump, lw_pump_watch, const char* updateReason, void * tag,
+	lw_import void lw_pump_update_callbacks (lw_pump, lw_pump_watch, void * tag,
 											 lw_pump_callback on_read_ready,
 											 lw_pump_callback on_write_ready,
 											 lw_bool edge_triggered);
@@ -334,24 +335,23 @@ typedef enum _lw_addr_tostring_flags
 	{
 		#ifdef _WIN32
 
-		lw_pump_watch (* add)	  (lw_pump, HANDLE, const char * desc, void * tag, lw_pump_callback);
-		void (* update_callbacks) (lw_pump, lw_pump_watch, const char* updateReason,
-								   void * tag, lw_pump_callback);
+		lw_pump_watch (* add)	  (lw_pump, HANDLE, void * tag, lw_pump_callback);
+		void (* update_callbacks) (lw_pump, lw_pump_watch, void * tag, lw_pump_callback);
 		#else // !_WIN32
 
-		lw_pump_watch (* add) (lw_pump, int FD, const char* desc, void * tag,
+		lw_pump_watch (* add) (lw_pump, int FD, void * tag,
 							   lw_pump_callback on_read_ready,
 							   lw_pump_callback on_write_ready,
 							   lw_bool edge_triggered);
-		void (* update_callbacks) (lw_pump, lw_pump_watch, const char* updateReason, void * tag,
+		void (* update_callbacks) (lw_pump, lw_pump_watch, void * tag,
 								   lw_pump_callback on_read_ready,
 								   lw_pump_callback on_write_ready,
 								   lw_bool edge_triggered);
 
 		#endif // _WIN32
 
-		void (* remove)	 (lw_pump, lw_pump_watch, const char* deleteReason);
-		void (* post)	 (lw_pump, void * fn, void * param);
+		void (* remove)	 (lw_pump, lw_pump_watch);
+		void (* post)	 (lw_pump, lw_pump_post_func fn, void * const param);
 		void (* cleanup) (lw_pump);
 
 		size_t tail_size;
@@ -898,27 +898,29 @@ struct _pump
 
 	#ifdef _WIN32
 
-		lw_import lw_pump_watch add (HANDLE, const char * desc, void * tag, lw_pump_callback);
-		lw_import void update_callbacks (lw_pump_watch, const char* updateReason, void * tag, lw_pump_callback);
+		lw_import lw_pump_watch add (HANDLE, void * tag, lw_pump_callback);
+		lw_import void update_callbacks (lw_pump_watch, void * tag, lw_pump_callback);
 
 	#else
 
-		lw_import lw_pump_watch add (int fd, const char* desc, void * tag,
+		lw_import lw_pump_watch add (int fd, void * tag,
 									 lw_pump_callback on_read_ready,
 									 lw_pump_callback on_write_ready = 0,
 									 bool edge_triggered = true);
 
-		lw_import void update_callbacks (lw_pump_watch, const char* updateReason, void * tag,
+		lw_import void update_callbacks (lw_pump_watch, void * tag,
 										 lw_pump_callback on_read_ready,
 										 lw_pump_callback on_write_ready = 0,
 										 bool edge_triggered = true);
 
 	#endif
 
-	void remove (lw_pump_watch, const char* deleteReason);
-	void post_remove (lw_pump_watch, const char* deleteReason);
+	lw_import lw_bool is_pump_thread () const;
 
-	void post (void * proc, void * parameter = 0);
+	lw_import void remove (lw_pump_watch);
+	lw_import void post_remove (lw_pump_watch);
+
+	lw_import void post (lw_pump_post_func, void * const parameter = 0);
 
 	lw_import void tag (void *);
 	lw_import void * tag ();
