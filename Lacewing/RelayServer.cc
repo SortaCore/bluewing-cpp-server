@@ -195,7 +195,7 @@ struct relayserverinternal
 		std::vector<std::shared_ptr<relayserver::client>> pingUnresponsivesToDisconnect;
 		std::vector<std::shared_ptr<relayserver::client>> inactivesToDisconnects;
 
-		framebuilder msgBuilderTCP(server.pmp, false), msgBuilderUDP(server.pmp, true);
+		framebuilder msgBuilderTCP(server.pmp, false), msgBuilderUDP(server.pmp, false);
 		msgBuilderTCP.addheader(11, 0);			/* ping header */
 		msgBuilderUDP.addheader(11, 0, true);	/* ping header, true for UDP */
 
@@ -2082,7 +2082,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 	lw_ui8 variant		 = (type & 0xF);
 
 	messagereader reader (messageP.data(), messageP.size());
-	framebuilder builder(server.pmp, true);
+	framebuilder builder(server.pmp, false);
 
 	if (messagetypeid != 0 && messagetypeid != 9 && !client->connectRequestApproved)
 	{
@@ -2648,10 +2648,8 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 				break;
 			}
 
-			lw_log_if_debug("Got UDPHello from local address \"%s\", ifidx %u, remote \"%s\", attempting UDPWelcome reply.\n",
-				client->udplocaladdress->tostring(lw_addr_tostring_flag_box_ipv6),
-				client->ifidx,
-				client->udpremoteaddress->tostring(lw_addr_tostring_flag_box_ipv6));
+			lw_log_if_debug("Got UDPHello from remote IP \"%s\", expecting client ID %d, attempting UDPWelcome reply.\n",
+				client->udpremoteaddress->tostring(lw_addr_tostring_flag_box_ipv6), client->_id);
 			builder.addheader(10, 0, true); /* udpwelcome */
 			builder.send(client->udppunch ? client->udppunch : server.udp,
 				client->udplocaladdress, client->ifidx, client->udpremoteaddress);
