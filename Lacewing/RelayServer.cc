@@ -1261,6 +1261,11 @@ relayserver::relayserver(lacewing::pump pump) noexcept :
 
 	flash->on_error	(lacewing::handlerflasherror);
 
+	// 2 second timeout, legit web browser clients will only read root and favicon,
+	// and websocket clients ignore inactivity.
+	// Note the websocket inactivity timer runs every 5 seconds so this won't exactly match.
+	websocket->idle_timeout(2);
+
 	websocket->on_error (lacewing::handlerwebservererror);
 	websocket->on_get	(lacewing::handlerwebserverget);
 	websocket->on_websocket_accept (lacewing::handlerwebsocketaccept);
