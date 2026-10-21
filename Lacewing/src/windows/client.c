@@ -110,6 +110,8 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 {
 	lw_client ctx = (lw_client) tag;
 
+	// ConnectEx errors may be triggered already at ConnectEx, in sync,
+	// but the op aborted will still trigger here
 	assert (ctx->connecting);
 
 	if (errorNum)
@@ -361,10 +363,12 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 		if (code == WSA_IO_PENDING)
 			return; // No problem
 
-		ctx->connecting = lw_false;
+		// Note: Connecting errors also occur in the first_time_write_ready callback,
+		// as op aborted; as a result, we don't clear connecting here, but we do report error,
+		// as op aborted is not informative.
+		// ctx->connecting = lw_false;
 		ctx->local_port_next_connect = 0;
 
-		// Note: Connecting errors also occur in the first_time_write_ready callback.
 		lw_error error = lw_error_new();
 
 		lw_error_add(error, code);
@@ -438,9 +442,12 @@ static void on_close (lw_stream stream, void * tag)
 {
 	lw_client ctx = (lw_client) tag;
 
-	ctx->connecting = lw_false;
-	ctx->local_port_next_connect = 0;
-	ctx->on_disconnect (ctx);
+	// If we have a connect error, the connect handler will trigger close itself,
+	// resulting in one close call from disconnect request, and one close call from
+	// ConnectEx calling first time write ready which'll call close.
+	// So to avoid two disconnects, we only trigger when this is false.
+	if (!ctx->connecting)
+		ctx->on_disconnect (ctx);
 }
 
 void lw_client_on_disconnect (lw_client ctx,

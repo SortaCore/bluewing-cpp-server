@@ -276,6 +276,8 @@ namespace lacewing
 		// rather than the main thread that created it
 		message.updatethreadowner();
 
+		lw_pump_thread_check((lw_pump)socket->pump());
+
 		message.addheader(0, 0);	 /* request */
 		message.add<lw_ui8>(0);		 /* connect */
 		message.add("revision 3"sv); /* version, not null terminated */
@@ -515,34 +517,51 @@ namespace lacewing
 	void relayclient::connect(address address)
 	{
 		relayclientinternal& internal = *((relayclientinternal*)internaltag);
-		lacewing::address addressCopy = lacewing::address_new(address);
-		if (!addressCopy->port())
-			addressCopy->port(6121);
 
-		lacewing::error err = addressCopy->resolve();
+		// Validate the domain first, as cloning the address fails if unresolvable
+		lacewing::error err = address->resolve();
 		if (err)
 		{
 			err->add("Error resolving address to connect to");
 			if (internal.handler_error)
 				internal.handler_error(internal.client, err);
 			lacewing::error_delete(err);
-			lacewing::address_delete(addressCopy);
 			return;
 		}
 
-		lacewing::client socket = internal.socket == internal.tcp[0].socket ?
-			internal.tcp[1].socket : internal.tcp[0].socket;
-		internal.socket = socket;
-		if (internal.tcp[0].socket == socket ? internal.tcp[0].in_use : internal.tcp[1].in_use)
+		lacewing::address addressCopy = lacewing::address_new(address);
+		if (!addressCopy->port())
+			addressCopy->port(6121);
+
+		// Pump have started ticking and updated its thread; update ours
+		internal.messageMF.updatethreadowner();
+
+		// To connect, the current socket can be in use, but must be disconnecting;
+		// the new socket must not be in use
+		// Note the internal.socket is not touched by the pump thread, but pump does modify in_use
+		if (internal.connected && !internal.disconnect_cleanup_pending)
 		{
 			err = lacewing::error_new();
-			err->add("Cannot connect: TCP session slot is still in use");
+			err->add("Cannot connect: already connected/connecting");
 			if (internal.handler_error)
 				internal.handler_error(internal.client, err);
 			lacewing::error_delete(err);
 			lacewing::address_delete(addressCopy);
 			return;
 		}
+		const size_t curSocketID = internal.socket == internal.tcp[0].socket ? 0 : 1;
+		if (internal.tcp[1 - curSocketID].in_use)
+		{
+			err = lacewing::error_new();
+			err->add("Cannot connect: Both TCP slots in use");
+			if (internal.handler_error)
+				internal.handler_error(internal.client, err);
+			lacewing::error_delete(err);
+			lacewing::address_delete(addressCopy);
+			return;
+		}
+		lacewing::client newSocket = internal.tcp[1 - curSocketID].socket;
+		internal.socket = newSocket;
 		lw_ui16 local_port;
 		{
 			lacewing::writelock writeLock = lock.createWriteLock();
@@ -551,11 +570,11 @@ namespace lacewing
 		}
 		// lw_client_set_local_port is a caller-thread setting. The queued relay
 		// connect will consume it when the pump starts this socket's connect.
-		socket->setlocalport(local_port);
-		lw_pump pump = (lw_pump)socket->pump();
+		newSocket->setlocalport(local_port);
+		lw_pump pump = (lw_pump)newSocket->pump();
 		if (lw_pump_is_thread(pump))
 		{
-			internal.connect_on_pump(socket, addressCopy);
+			internal.connect_on_pump(newSocket, addressCopy);
 			lacewing::address_delete(addressCopy);
 			return;
 		}
@@ -1529,12 +1548,14 @@ namespace lacewing
 				break;
 			}
 
-			// UDP connection completed before TCP, possibly from bad use of hole punch.
-			lacewing::client tcpSocket = socket;
-			if (!tcpSocket || !tcpSocket->connected())
 			{
-				lw_log_if_debug("Discarding UDPWelcome at message address %p, TCP is not ready.", message);
-				break;
+				// UDP connection completed before TCP, possibly from bad use of hole punch.
+				lacewing::client tcpSocket = socket;
+				if (!tcpSocket || !tcpSocket->connected())
+				{
+					lw_log_if_debug("Discarding UDPWelcome at message address %p, TCP is not ready.", message);
+					break;
+				}
 			}
 
 			lw_log_if_debug("UDPWelcome received for message address %p, now connected.", message);
@@ -1633,7 +1654,7 @@ namespace lacewing
 
 	relayclientinternal::relayclientinternal(relayclient &_client, pump _eventpump) :
 		client(_client), tcp{ tcp_session(_eventpump), tcp_session(_eventpump) }, udp(udp_new(_eventpump)),
-		udphellotimer(timer_new(_eventpump, "udphello")),
+		udphellotimer(timer_new(_eventpump, "udphello")), reader(_eventpump),
 		message(_eventpump, true), messageMF(_eventpump, true)
 	{
 		udp->on_data(lacewing::handlerclientudpreceive);
@@ -1680,9 +1701,10 @@ namespace lacewing
 			socket->on_data(lacewing::handlerreceive);
 			socket->on_error(lacewing::handlererror);
 			socket->nagle(false);
-			if (slot == 1)
-				this->socket = socket;
 		}
+
+		// Set to last; our first connect switches slot to first then queues connect op
+		this->socket = tcp[std::size(tcp)-1].socket;
 	}
 
 	void relayclientinternal::connect_on_pump(lacewing::client socket, lacewing::address address)
@@ -1722,7 +1744,15 @@ namespace lacewing
 		lw_pump_thread_check((lw_pump)socket->pump());
 		lacewing::writelock cliWriteLock = client.lock.createWriteLock();
 		if (!socket->connecting() && !socket->connected())
+		{
+#if 0 //def _DEBUG
+			// Idiot check: if current slot is not in use, other slot must not be in use either;
+			// we only rotate current slot when connecting.
+			auto sess = socket == tcp[0].socket ? tcp[1] : tcp[0];
+			assert((!sess.in_use || disconnect_cleanup_pending) && !"Failed to switch session");
+#endif // _DEBUG
 			return;
+		}
 
 		const bool connected = this->connected;
 		this->connected = false;
