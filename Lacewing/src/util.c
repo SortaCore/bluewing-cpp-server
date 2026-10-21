@@ -1254,7 +1254,7 @@ lw_error lwp_send_icmp_unreachable(lwp_socket icmp, int proto, lw_addr local, lw
 		// compute checksum over ICMP header, IP, UDP
 		icmphdrS->icmp_chk = checksum(pkt, icmp_len, NULL, 0);
 	}
-	lw_i32 sent = (lw_i32)sendto(icmp, pkt, icmp_len, 0, (struct sockaddr*)remote->info->ai_addr, (socklen_t) remote->info->ai_addrlen);
+	lw_i32 sent = (lw_i32)sendto(icmp, pkt, icmp_len, 0, (struct sockaddr*)remoteAsIPv4, sizeof(*remoteAsIPv4));
 	if (sent < 0) {
 		lw_error err = lw_error_new();
 #ifdef _WIN32

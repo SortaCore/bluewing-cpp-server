@@ -221,6 +221,8 @@ void lw_udp_host_filter (lw_udp ctx, lw_filter filter)
 		error = lw_error_new ();
 		// non-fatal, we don't need ICMP
 	}
+
+	lw_filter_set_ipv6(filter, lw_false);
 	if ((ctx->icmpfd = lwp_create_server_socket
 		(filter, SOCK_RAW, IPPROTO_ICMP, NULL, error)) == -1)
 	{
