@@ -1270,9 +1270,8 @@ lw_error lwp_send_icmp_unreachable(lwp_socket icmp, int proto, lw_addr local, lw
 		return err;
 	}
 	free(pkt);
-	lw_error err = lw_error_new();
-	lw_error_addf(err, "(not an error) Sent %zd bytes ICMP Unreachable to \"%s\"", sent, lw_addr_tostring(remote, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_unmap_ipv6));
-	return err;
+	lw_log_if_debug("(not an error) Sent %zd bytes ICMP Unreachable to \"%s\"", sent, lw_addr_tostring(remote, lw_addr_tostring_flag_box_ipv6 | lw_addr_tostring_flag_unmap_ipv6));
+	return NULL;
 }
 
 // Attempts to populate lwp_ipv6_public_fixed_interface_index + lwp_ipv6_public_fixed_addr

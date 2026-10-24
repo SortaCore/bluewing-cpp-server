@@ -76,10 +76,7 @@ static void timer_completion (void * ptr)
 	lw_timer ctx = (lw_timer) ptr;
 
 	if (ctx->on_tick)
-	{
-		always_log("ctx->on_tick: %p", ctx->on_tick);
 		ctx->on_tick(ctx);
-	}
 }
 
 static void * lw_callback timer_thread (void * data)

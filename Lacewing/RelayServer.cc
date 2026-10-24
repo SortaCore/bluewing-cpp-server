@@ -584,8 +584,9 @@ void relayserverinternal::generic_handlerudpreceive(lacewing::udp udp, lacewing:
 				if (cmp != UINT32_MAX)
 				{
 					const lw_bool isIPv4Mapped = IN6_IS_ADDR_V4MAPPED(&addrIn6);
-					lw_log_if_debug("!!! Mismatch %s IP detected. Differs at index %u.\n",
-						remote_address->ipv6() ? (isIPv4Mapped ? "ipv4-mapped" : "ipv6") : "ipv4", cmp);
+					lw_log_if_debug("!!! Mismatch %s IP detected. Differs at index %u. IP expected \"%s\", IP got \"%s\".\n",
+						remote_address->ipv6() ? (isIPv4Mapped ? "ipv4-mapped" : "ipv6") : "ipv4", cmp,
+						clientsocket->udpremoteaddress->tostring(stringflags), remote_address->tostring(stringflags));
 					// IPv4-mapped IPv6 has 12 prefix bytes; require the first two IPv4 bytes to match.
 					if (!isIPv4Mapped || cmp < 14)
 						return;
