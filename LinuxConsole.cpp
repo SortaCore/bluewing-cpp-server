@@ -994,16 +994,30 @@ void UpdateTitle(std::size_t clientCount)
 		serverstats.maxChannels = channelCount;
 }
 
+static std::string darkwireIP;
+static time_t lastDarkwireIPUpdate = 0;
 // Trusted IPs can ask for statistics and unban any IP, and cannot be banned themselves
 static bool IsIPTrusted(const std::string_view addr)
 {
+	// Forced onto an evil dynamic DNS; update every hour
+	if (difftime(time(NULL), lastDarkwireIPUpdate) > 60.0 * 60.0)
+	{
+		auto addr = lacewing::address_new("nocloud.dark-wire.com", 80, lw_addr_hint_ipv4 | lw_addr_type_tcp);
+		lacewing::error err = addr->resolve();
+		if (err)
+			lacewing::error_delete(err);
+		else
+			darkwireIP = addr->tostring(lw_addr_tostring_flag_remove_port);
+		lacewing::address_delete(addr);
+	}
+
 	// Allow only from LAN addresses, and Darkwire
 	// This does not check IPv6 addresses, you may want to do that
 	return addr.substr(0, 3) == "10."sv || // class A private
 		// Class B private is subsection of 172.16.x.x and not checked for here
 		(addr.size() > "192.168.1."sv.size() && addr.substr(0, "192.168.1."sv.size()) == "192.168.1."sv) || // class C private
 		addr == "127.0.0.1"sv || // localhost
-		addr == "80.229.219.2"sv; // Darkwire
+		addr == "82.165.218.31"sv || addr == darkwireIP; // Darkwire
 }
 
 /**
