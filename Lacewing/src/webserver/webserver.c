@@ -26,6 +26,17 @@ static void on_connect (lw_server server, lw_server_client client_socket)
 
 	lw_stream_set_tag ((lw_stream) client_socket, client);
 
+	/* Linking the response stream can start TLS reads, which can close the socket.
+	   The server's on_connect lwp_retain should keep client_socket alive
+	   after write_stream call links. */
+	lw_stream_write_stream ((lw_stream) client_socket,
+		(lw_stream) ((lwp_ws_httpclient) client)->request, SIZE_MAX, lw_false);
+
+	// If now set, the underlying connect handler ran from write_stream,
+	// and the connect handler told the client to disconnect and deleted this HTTP client.
+	if (((lw_stream) client_socket)->flags & lwp_stream_flag_dead)
+		return;
+
 	lw_stream_write_stream
 	  ((lw_stream) client, (lw_stream) client_socket, SIZE_MAX, lw_false);
 }

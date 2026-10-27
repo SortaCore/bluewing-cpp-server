@@ -996,6 +996,7 @@ void relayserverinternal::generic_handlerdisconnect(lacewing::server serverParam
 	std::shared_ptr<lacewing::relayserver::client> clientShd = *clientIt;
 
 	lw_server_client_set_relay_tag((lw_server_client)clientsocket, nullptr);
+	client->socket = nullptr;
 
 	cliWriteLock.lw_unlock();
 
@@ -1818,7 +1819,12 @@ bool relayserverinternal::queue_or_run_action(bool wasDequeued, action::type act
 
 	// We also return false here, because we did not queue.
 	if (act == action::type::disconnect)
-		return cli->disconnect(), false;
+	{
+		int websocketReasonCode;
+		assert(reason.size() == sizeof(websocketReasonCode));
+		memcpy(&websocketReasonCode, reason.data(), sizeof(websocketReasonCode));
+		return cli->disconnect(cli, websocketReasonCode), false;
+	}
 	if (act == action::type::closechannelfinish)
 		return close_channel(ch), false;
 	if (act == action::type::joinchannelresponse)
@@ -3040,18 +3046,32 @@ void relayserver::client::disconnect(std::shared_ptr<relayserver::client> cli, i
 {
 	_readonly = true;
 
-	if (cli == nullptr && !server.isactiontimerthread())
+	if (!server.isactiontimerthread())
 	{
-		const auto readLock = server.server.lock_clientlist.createReadLock();
-		const auto cliIt = std::find_if(server.clients.cbegin(), server.clients.cend(), [this](auto& a) {
-			return this == &*a;
-		});
-		assert(cliIt != server.clients.cend());
-		cli = *cliIt;
+		if (cli == nullptr)
+		{
+			const auto readLock = server.server.lock_clientlist.createReadLock();
+			const auto cliIt = std::find_if(server.clients.cbegin(), server.clients.cend(), [this](auto& a) {
+				return this == &*a;
+			});
+			// Underlying socket cleanup already removed the client
+			// TODO: This may only be possible for WebSocket based clients only, needs confirming,
+			// and also needs confirming after two-state rework
+			if (cliIt == server.clients.cend())
+				return;
+			cli = *cliIt;
+		}
 
 		if (server.queue_or_run_action(false, relayserverinternal::action::type::disconnect, nullptr, cli, std::string_view((char *)&websocketReasonCode, sizeof(int))))
 			return;
 	}
+	assert(cli != nullptr);
+
+	lacewing::writelock clientWriteLock = lock.createWriteLock();
+	// Socket can be freed already
+	// TODO: review if this is websocket only as earlier todo, and after two-state rework
+	if (!socket)
+		return;
 
 	if (socket->is_websocket())
 	{
@@ -3063,8 +3083,7 @@ void relayserver::client::disconnect(std::shared_ptr<relayserver::client> cli, i
 		return;
 	}
 
-	lacewing::writelock clientWriteLock = lock.createWriteLock();
-	if (socket && socket->valid())
+	if (socket->valid())
 		socket->close();
 }
 

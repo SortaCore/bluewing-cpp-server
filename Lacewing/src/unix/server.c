@@ -222,9 +222,7 @@ static lw_bool add_client_internal(lw_server ctx,
 	if (lwp_release(client, "on_connect") ||
 		((lw_stream)client)->flags & lwp_stream_flag_dead)
 	{
-		if (ctx->on_disconnect)
-			ctx->on_disconnect(ctx, client);
-		/* Client was deleted by connect hook
+		/* Client was closed or deleted by connect hook
 		 */
 		return lw_false;
 	}

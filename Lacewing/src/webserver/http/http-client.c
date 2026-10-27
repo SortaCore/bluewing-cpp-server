@@ -88,9 +88,6 @@ lwp_ws_client lwp_ws_httpclient_new (lw_ws ws, lw_server_client socket,
 	ctx->parsing_headers = lw_true;
 	ctx->signal_eof = lw_false;
 
-	lw_stream_write_stream
-	  ((lw_stream) socket, (lw_stream) ctx->request, SIZE_MAX, lw_false);
-
 	lw_stream_begin_queue ((lw_stream) ctx->request);
 
 	/* When the retry mode is more_data and we can't sink everything, our sink
