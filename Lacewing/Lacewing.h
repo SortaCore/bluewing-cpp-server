@@ -2193,6 +2193,12 @@ struct relayserver
 		lw_ui16 _id = 0xFFFF;
 		bool _hidden = true;
 		bool _autoclose = false;
+		// If true, channel is waiting for first join approve, so should not be considered properly created yet
+		// However, a shared channel struct is needed to prevent duplicate channel names
+		bool firstJoinApprovePending = false;
+		// Cached pending join request settings, if multiple users try to create the same channel name
+		// More common than you'd think with matchmaking pre-arranging channel names
+		std::vector<std::pair<std::shared_ptr<client>, lw_ui8>> pendingjoins;
 		// TODO: should be weak_ptr?
 		std::shared_ptr<client> _channelmaster;
 

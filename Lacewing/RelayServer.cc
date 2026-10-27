@@ -1582,8 +1582,8 @@ void relayserverinternal::close_channel(std::shared_ptr<relayserver::channel> ch
 	auto channelWriteLock = channel->lock.createWriteLock();
 	channel->_readonly = true;
 
-	// Channel is closing, trigger handler
-	if (!channel->closehandlerrun && handlerchannel_close)
+	// Channel is closing, trigger handler only if it was approved to be created
+	if (!channel->firstJoinApprovePending && !channel->closehandlerrun && handlerchannel_close)
 	{
 		channelWriteLock.lw_unlock(); // TODO: This may not be necessary, since readonly should deny writes now.
 		channel->closehandlerrun = true;
@@ -1644,6 +1644,23 @@ void relayserverinternal::close_client (std::shared_ptr<lacewing::relayserver::c
 {
 	auto clientWriteLock = client->lock.createWriteLock();
 	client->_readonly = true;
+	// Unapproved channel creates are not in client->channels yet, clear them
+	clientWriteLock.lw_unlock();
+	{
+		auto serverChannelListReadLock = server.lock_channellist.createReadLock();
+		const auto pendingChannels = channels;
+		serverChannelListReadLock.lw_unlock();
+		for (const auto& channel : pendingChannels)
+		{
+			auto channelReadLock = channel->lock.createReadLock();
+			if (std::find_if(channel->pendingjoins.cbegin(), channel->pendingjoins.cend(),
+				[&](const auto& request) { return request.first == client; }) == channel->pendingjoins.cend())
+				continue;
+			channelReadLock.lw_unlock();
+			server.joinchannel_response(channel, client, "Client disconnected."sv);
+		}
+	}
+	clientWriteLock.lw_relock();
 	if (client->udppunch)
 	{
 		client->udppunch->on_data(nullptr);
@@ -2292,6 +2309,8 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 					std::shared_ptr<relayserver::channel> channel;
 
 					//auto cliReadLock = client->lock.createReadLock();
+					cliReadLock.lw_unlock();
+					auto serverChannelListWriteLock = server.lock_channellist.createWriteLock();
 					for (const auto& e : channels)
 					{
 						if (lw_sv_cmp (e->_namesimplified, channelnamesimplified))
@@ -2300,7 +2319,6 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 							break;
 						}
 					}
-					cliReadLock.lw_unlock();
 
 					/* creating a new channel */
 					if (!channel)
@@ -2310,9 +2328,12 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 						channel->_channelmaster = client;
 						channel->_hidden = (flags & 1) != 0;
 						channel->_autoclose = (flags & 2) != 0;
+						channel->firstJoinApprovePending = true;
+						// Reserve the name before the join handler can defer its response.
+						channels.push_back(channel);
 					}
-					/* joining an existing channel */
-					else
+					serverChannelListWriteLock.lw_unlock();
+					/* check existing membership and outstanding requests */
 					{
 						// Check if client trying to join channel they've already joined
 						auto channelReadLock = channel->lock.createReadLock();
@@ -2322,14 +2343,23 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 							server.joinchannel_response(channel, client, "You are already on this channel."sv);
 							break;
 						}
+						// One outstanding request per client/channel keeps responses unambiguous.
+						if (std::find_if(channel->pendingjoins.cbegin(), channel->pendingjoins.cend(),
+							[&](const auto& request) { return request.first == client; }) != channel->pendingjoins.cend())
+							break;
+					}
+					{
+						auto channelWriteLock = channel->lock.createWriteLock();
+						channel->pendingjoins.emplace_back(client, flags);
 					}
 
-					// Until this channel is destroyed by loss of reference, the only resources it uses is a
-					// potential reference to client via _channelmaster, and the id number, freed by channel dtor
+					// The reservation and outstanding request are released by the response or disconnect.
 
 					if (handlerchannel_join)
-						handlerchannel_join(server, client, channel, channel->_hidden, channel->_autoclose);
-					else // channel var is either deleted in joinchannel_response, or added to server channel list
+						handlerchannel_join(server, client, channel,
+							channel->firstJoinApprovePending ? (flags & 1) != 0 : channel->_hidden,
+							channel->firstJoinApprovePending ? (flags & 2) != 0 : channel->_autoclose);
+					else // joinchannel_response establishes the reservation or releases it on denial
 						server.joinchannel_response(channel, client, std::string_view());
 
 					break;
@@ -2408,7 +2438,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 					for (const auto& e : channels)
 					{
 						auto chLoopReadLock = e->lock.createReadLock();
-						if (e->_hidden)
+						if (e->firstJoinApprovePending || e->_hidden)
 							continue;
 
 						builder.add <lw_ui16> ((lw_ui16)e->clients.size());
@@ -3431,7 +3461,8 @@ static void validateorreplacestringview(std::string_view toValidate,
 }
 /** Approves or sends a deny response to channel join request. Pass empty for deny reason if approving.
  *	Even if you're denying, you still MUST call this event, or you will have a memory leak.
- *	For new channels, this will add them to server's channel list if approved, or delete them.
+ *	Protocol requests reserve new channels in the server list before the handler runs.
+ *	The first approval establishes the channel; the last denial releases an unused reservation.
  *	@param channel		[in] The channel. Name is as originally requested.
  *	@param client		[in] The client joining/creating the channel.
  *	@param denyReason	[in] The deny reason. If empty, the channel is approved.
@@ -3451,7 +3482,17 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 	// Hidden can be made pointless by disabling channel listing, and
 	// autoclose can be run manually (e.g. on channel leave, and no clients left, close channel)
 
-	lacewing::readlock channelReadLock = channel->lock.createReadLock();
+	lacewing::writelock channelWriteLock = channel->lock.createWriteLock();
+	int pendingFlags = -1;
+	for (auto request = channel->pendingjoins.begin(); request != channel->pendingjoins.end(); ++request)
+	{
+		if (request->first == client)
+		{
+			pendingFlags = request->second;
+			channel->pendingjoins.erase(request);
+			break;
+		}
+	}
 
 	// Shouldn't happen... closed channels shouldn't be in responses...?
 	if (channel->_readonly)
@@ -3469,14 +3510,11 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		denyReason = "You are already on this channel."sv;
 
 	lacewing::writelock clientWriteLock = client->lock.createWriteLock();
-	if (client->_readonly)
-		return; // No response possible
-
 	// Check channel name if it's the first client being joined
 	// If name is modified, it's done by channel->name() before joinchannel_response()
 	int rejectedCodePoint;
 	std::string failedCharDenyReason(50, '\0');
-	if (denyReason.empty() && channel->clientcount() == 0 &&
+	if (!client->_readonly && denyReason.empty() && channel->clientcount() == 0 &&
 		serverinternal.checkcodepointsallowed(codepointsallowlistindex::ChannelNames, channel->name(), &rejectedCodePoint) != -1)
 	{
 		utf8proc_uint8_t rejectCharAsStr[5] = u8"(?)";
@@ -3493,6 +3531,34 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		);
 		denyReason = failedCharDenyReason; // stays in scope
 	}
+
+	if (channel->firstJoinApprovePending)
+	{
+		if (denyReason.empty() && !client->_readonly)
+		{
+			channel->firstJoinApprovePending = false;
+			channel->_channelmaster = client;
+			if (pendingFlags != -1)
+			{
+				channel->_hidden = (pendingFlags & 1) != 0;
+				channel->_autoclose = (pendingFlags & 2) != 0;
+			}
+		}
+		else if (channel->pendingjoins.empty())
+		{
+			// Nobody can establish this reservation now. Retire it without a
+			// channel-close event; stale responses must not resurrect it.
+			channel->_readonly = true;
+			channel->_channelmaster.reset();
+			auto serverChannelListWriteLock = lock_channellist.createWriteLock();
+			const auto channelIt = std::find(serverinternal.channels.begin(), serverinternal.channels.end(), channel);
+			if (channelIt != serverinternal.channels.end())
+				serverinternal.channels.erase(channelIt);
+		}
+	}
+
+	if (client->_readonly)
+		return; // No response possible, but its pending request has been released.
 
 	// If non-empty, request denied.
 	if (!denyReason.empty())
@@ -3514,8 +3580,8 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		// A shared pointer will be destroyed upon close?
 		lwp_trace("Channel %s should be auto-destroyed...\n", channel->_name.c_str());
 
-		// Join request for new channel; request refused, so channel needs to be dropped.
-		// Can't use channelinternal client count, autoclose may be off.
+		// Unused reservations were released above; other outstanding requests may
+		// still need this channel. Can't use client count alone, autoclose may be off.
 		//if (!channelIsInServerList)
 		//	delete channelinternal;
 		return;
@@ -3526,9 +3592,6 @@ void relayserver::joinchannel_response(std::shared_ptr<relayserver::channel> cha
 		serverinternal.channels.push_back(channel);
 	serverChannelListWriteLock.lw_unlock();
 
-	// LW_ESCALATION_NOTE
-	channelReadLock.lw_unlock();
-	//lacewing::writelock channelWriteLock = channel->lock.createWriteLock();
 	// writelock made by channel_addclient
 	serverinternal.channel_addclient(channel, client);
 }
