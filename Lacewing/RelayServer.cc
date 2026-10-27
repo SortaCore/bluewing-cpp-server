@@ -1360,9 +1360,13 @@ void relayserver::host(lacewing::filter &_filter)
 	}
 
 	socket->host(filter);
-	assert(socket->hosting());
 	udp->host(filter);
+
+	// If not a Fusion ext, a failure to host is significant
+#ifndef COXSDK
+	assert(socket->hosting());
 	assert(udp->hosting());
+#endif // Fusion
 
 	lacewing::filter_delete(filter);
 
