@@ -1199,6 +1199,8 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 		req->status(301, "Moved Permanently");
 		req->add_header("Location", "//dark-wire.com/favicon.ico");
 	}
+	else if (!strcasecmp(req->url(), "robots.txt"))
+		req->writef("User-agent: *\nDisallow: /\n");
 	else
 	{
 		lacewing::error err = lacewing::error_new();
