@@ -275,6 +275,7 @@ void lwp_network_change_init ()
 	lw_network_change_sync = lw_sync_new();
 	lw_sync_lock(lw_network_change_sync);
 	list = NULL;
+	lw_sync_release(lw_network_change_sync);
 }
 void lwp_network_change_deinit ()
 {
@@ -287,6 +288,7 @@ void lwp_network_change_deinit ()
 	assert(!list);
 
 	lw_sync_delete(lw_network_change_sync);
+	lw_network_change_sync = NULL;
 }
 
 lw_bool lw_network_change_sub(lw_bool add, void (* handler)(lw_network_change_type, void*), void* tag)

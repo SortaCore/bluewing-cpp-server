@@ -132,7 +132,7 @@ void lwp_deinit()
 			lw_thread_delete(networkLostModeMonitorThread);
 		}
 		else
-			compat_CancelMibChangeNotify2()(&networkChanged);
+			compat_CancelMibChangeNotify2()(lwp_network_changed_overlapped.hEvent);
 
 		lwp_network_change_deinit();
 
