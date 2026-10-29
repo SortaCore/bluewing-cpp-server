@@ -895,6 +895,20 @@ cleanup:
 
 	if (globalpump)
 	{
+		// Shutting down objects can queue cleanup events, which may queue more when executed,
+		// so start_eventloop can't be used again.
+		for (lacewing::error result = globalpump->tick(10000); result || globalpump->in_use(); result = globalpump->tick(10000))
+		{
+			if (result != (lacewing::error)1)
+			{
+				std::wcout << red << L"Error while finishing pump shutdown: "sv
+					<< result->tostring() << lineEnd();
+				lacewing::error_delete(result);
+				globalpump = nullptr; // not the best recovery
+				break;
+			}
+			std::this_thread::yield();
+		}
 		lacewing::eventpump_delete(globalpump);
 	}
 
