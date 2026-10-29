@@ -27,6 +27,10 @@ struct _lw_eventpump
 	struct _lw_pump pump;
 
 	lwp_eventqueue queue;
+	double tick_deadline;
+	lw_bool tick_expired;
+	int pending_count, pending_index;
+	lwp_eventqueue_event pending_events[max_events];
 
 	lw_sync sync_signalparams;
 

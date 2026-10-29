@@ -369,6 +369,9 @@ typedef enum _lw_addr_tostring_flags
 
 	lw_import	lw_eventpump  lw_eventpump_new					();
 	lw_import		lw_error  lw_eventpump_tick					(lw_eventpump);
+	// Process available events for at most budget_us microseconds.
+	// Returns 0 if no events remain, 1 if time ran out (events may remain), or an lw_error.
+	lw_import		lw_error  lw_eventpump_tick_budget			(lw_eventpump, lw_ui32 budget_us);
 	lw_import		lw_error  lw_eventpump_start_eventloop		(lw_eventpump);
 	lw_import		lw_error  lw_eventpump_start_sleepy_ticking	(lw_eventpump, void (lw_callback * on_tick_needed) (lw_eventpump));
 	lw_import			void  lw_eventpump_post_eventloop_exit	(lw_eventpump);
@@ -941,6 +944,8 @@ struct _eventpump : public _pump
 
 	lw_import error start_eventloop ();
 	lw_import error tick ();
+	// Returns nullptr if drained, (error)1 if the budget expired, or an error the caller must delete.
+	lw_import error tick(lw_ui32 budget_us);
 
 	lw_import error start_sleepy_ticking
 		(void (lw_callback * on_tick_needed) (eventpump));

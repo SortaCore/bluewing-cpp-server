@@ -22,6 +22,7 @@ enum
 	static void * lw_callback watcher (void *);
 #endif
 
+
 lw_eventpump lw_eventpump_new ()
 {
 	lw_eventpump ctx = (lw_eventpump)calloc (sizeof (*ctx), 1);
@@ -55,10 +56,17 @@ lw_eventpump lw_eventpump_new ()
 	ctx->queue = lwp_eventqueue_new ();
 
 	lwp_eventqueue_add (ctx->queue, ctx->signalpipe_read,
-						lw_true, lw_false, lw_true,
+						lw_true, lw_false, lw_false,
 						NULL);
 
 	return ctx;
+}
+
+static double tick_time_us(void)
+{
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (double)now.tv_sec * 1000000.0 + (double)now.tv_nsec / 1000.0;
 }
 
 static lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event, lw_bool last_event)
@@ -99,6 +107,11 @@ static lw_bool process_event (lw_eventpump ctx, lwp_eventqueue_event event, lw_b
 	lw_sync_lock (ctx->sync_signalparams);
 
 	for (;;) {
+		if (ctx->tick_deadline && tick_time_us() >= ctx->tick_deadline)
+		{
+			ctx->tick_expired = lw_true;
+			break;
+		}
 		char signal;
 
 		const ssize_t amountRead = read(ctx->signalpipe_read, &signal, sizeof(signal));
@@ -172,6 +185,13 @@ static void def_cleanup(lw_pump pump)
 {
 	lw_eventpump ctx = (lw_eventpump)pump;
 
+	// Finish any fetched batch before freeing deferred watches
+	for (ctx->tick_deadline = 0; ctx->pending_index < ctx->pending_count; ++ctx->pending_index)
+	{
+		process_event(ctx, ctx->pending_events[ctx->pending_index - 1],
+			ctx->pending_index == ctx->pending_count);
+	}
+
 	if (ctx->signalpipe_read != -1)
 	{
 		// Drain deferred removals and posts, including any queued by their callbacks;
@@ -199,60 +219,103 @@ static void def_cleanup(lw_pump pump)
 	lw_sync_delete(ctx->sync_signalparams);
 
 	lw_event_delete(ctx->watcher.resume_event);
-#endif
+#endif // ENABLE_THREADS
 
 	list_clear(ctx->signalparams);
 	lwp_eventqueue_delete(ctx->queue);
 	ctx->queue = (lwp_eventqueue)~0;
 }
 
-lw_error lw_eventpump_tick (lw_eventpump ctx)
+static lw_error tick_until(lw_eventpump ctx, double deadline)
 {
-	lw_bool need_watcher_resume = lw_false;
-
-	#ifdef ENABLE_THREADS
-
-		if (ctx->watcher.num_events > 0)
+	lw_error result = NULL;
+	ctx->tick_expired = lw_false;
+	ctx->tick_deadline = deadline;
+#ifdef ENABLE_THREADS
+	ctx->pump.thread_id = lw_thread_id_current();
+#endif // ENABLE_THREADS
+	for (;;)
+	{
+		if (ctx->tick_deadline && tick_time_us() >= ctx->tick_deadline)
 		{
-			/* sleepy ticking: the watcher thread already grabbed some events we
-			* need to process.
-			*/
-			for (int i = 0; i < ctx->watcher.num_events; ++i)
-			{
-				if (!process_event(ctx, ctx->watcher.events[i], i == ctx->watcher.num_events - 1))
-				{
-					ctx->watcher.num_events = 0;
-					need_watcher_resume = lw_true;
-					goto finish_tick;
-				}
-			}
-
-			ctx->watcher.num_events = 0;
-
-			need_watcher_resume = lw_true;
-		}
-
-	#endif
-
-	lwp_eventqueue_event events [max_events];
-
-	int count = lwp_eventqueue_drain (ctx->queue, lw_false, max_events, events);
-
-	for (int i = 0; i < count; ++ i)
-		if (!process_event(ctx, events[i], i == count - 1))
+			result = (lw_error)1;
 			break;
+		}
+		if (ctx->pending_index == ctx->pending_count)
+		{
+			ctx->pending_index = ctx->pending_count = 0;
+#ifdef ENABLE_THREADS
+			if (ctx->watcher.num_events)
+			{
+				ctx->pending_count = ctx->watcher.num_events;
+				memcpy(ctx->pending_events, ctx->watcher.events,
+					ctx->pending_count * sizeof(ctx->pending_events[0]));
+				ctx->watcher.num_events = 0;
+				// Keep watcher paused until this fetched batch has been dispatched.
+			}
+			else
+#endif // ENABLE_THREADS
+			{
+				ctx->pending_count = lwp_eventqueue_drain(ctx->queue, lw_false,
+					max_events, ctx->pending_events);
+				if (ctx->pending_count < 0)
+				{
+					ctx->pending_count = 0;
+					if (errno == EINTR)
+						continue;
+					const int error = errno;
+					result = lw_error_new();
+					lw_error_add(result, error);
+					lw_error_addf(result, "Polling event queue");
+					break;
+				}
+				if (!ctx->pending_count)
+					break;
+			}
+		}
+		++ctx->pending_index;
+		if (!process_event(ctx, ctx->pending_events[ctx->pending_index - 1],
+			ctx->pending_index == ctx->pending_count))
+			break;
+#ifdef ENABLE_THREADS
+		if (ctx->pending_index == ctx->pending_count && ctx->on_tick_needed)
+			lw_event_signal(ctx->watcher.resume_event);
+#endif
+		if (ctx->tick_expired)
+		{
+			result = (lw_error)1;
+			break;
+		}
+		// Legacy tick processes a single readiness batch.
+		if (!deadline && ctx->pending_index == ctx->pending_count)
+			break;
+	}
+	ctx->tick_deadline = 0;
+	return result;
+}
 
-	finish_tick:
-	#ifdef ENABLE_THREADS
-		if (need_watcher_resume)
-			lw_event_signal (ctx->watcher.resume_event);
-	#endif
+lw_error lw_eventpump_tick(lw_eventpump ctx)
+{
+	return tick_until(ctx, 0);
+}
 
-	return 0;
+lw_error lw_eventpump_tick_budget(lw_eventpump ctx, lw_ui32 budget_us)
+{
+	return tick_until(ctx, tick_time_us() + budget_us);
 }
 
 lw_error lw_eventpump_start_eventloop (lw_eventpump ctx)
 {
+    // A prior budgeted tick may have retained readiness events.
+    if (ctx->pending_index < ctx->pending_count)
+    {
+        lw_error error = lw_eventpump_tick(ctx);
+        if (error)
+            return error;
+    }
+#ifdef ENABLE_THREADS
+    ctx->pump.thread_id = lw_thread_id_current();
+#endif
 	int do_loop = 1;
 
 	while (do_loop)

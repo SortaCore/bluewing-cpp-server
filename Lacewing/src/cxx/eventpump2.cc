@@ -30,6 +30,11 @@ error _eventpump::tick ()
 	return (error) lw_eventpump_tick ((lw_eventpump) this);
 }
 
+error _eventpump::tick(lw_ui32 budget_us)
+{
+	return (error)lw_eventpump_tick_budget((lw_eventpump)this, budget_us);
+}
+
 error _eventpump::start_sleepy_ticking
 	  (void (lw_callback * on_tick_needed) (eventpump))
 {

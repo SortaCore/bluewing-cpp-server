@@ -43,6 +43,14 @@ struct _lw_eventpump
 	size_t num_pending;
 };
 
+static double tick_time_us(void)
+{
+	LARGE_INTEGER now, frequency;
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&now);
+	return (double)now.QuadPart * 1000000.0 / (double)frequency.QuadPart;
+}
+
 static lw_bool process (lw_eventpump ctx, OVERLAPPED * overlapped,
 						unsigned int bytes_transferred, lw_pump_watch watch,
 						int error)
@@ -150,9 +158,13 @@ static void def_cleanup (lw_pump _ctx)
 	lwp_deinit();
 }
 
-lw_error lw_eventpump_tick (lw_eventpump ctx)
+static lw_error tick_until(lw_eventpump ctx, double deadline)
 {
+	lw_error result = NULL;
+
 	ctx->pump.thread_id = lw_thread_id_current();
+	if (deadline && tick_time_us() >= deadline)
+		return (lw_error)1;
 
 	if (ctx->on_tick_needed)
 	{
@@ -171,6 +183,11 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 
 	for (;;)
 	{
+		if (deadline && tick_time_us() >= deadline)
+		{
+			result = (lw_error)1;
+			break;
+		}
 		int error = 0;
 
 		if (!GetQueuedCompletionStatus (ctx->completion_port,
@@ -185,7 +202,12 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 				break;
 
 			if (!overlapped)
+			{
+				result = lw_error_new();
+				lw_error_add(result, error);
+				lw_error_addf(result, "Polling completion port");
 				break;
+			}
 		}
 
 		process (ctx, overlapped, bytes_transferred, watch, error);
@@ -194,7 +216,17 @@ lw_error lw_eventpump_tick (lw_eventpump ctx)
 	if (ctx->on_tick_needed)
 		lw_event_signal (ctx->watcher.resume_event);
 
-	return 0;
+	return result;
+}
+
+lw_error lw_eventpump_tick(lw_eventpump ctx)
+{
+	return tick_until(ctx, 0);
+}
+
+lw_error lw_eventpump_tick_budget(lw_eventpump ctx, lw_ui32 budget_us)
+{
+	return tick_until(ctx, tick_time_us() + budget_us);
 }
 
 lw_error lw_eventpump_start_eventloop (lw_eventpump ctx)
