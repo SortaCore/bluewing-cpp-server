@@ -48,6 +48,8 @@ void lw_pump_delete (lw_pump ctx)
 	if (!ctx)
 	  return;
 
+	// Pump users should have already deleted their structs and watches
+	assert (ctx->use_count == 0);
 	if (ctx->def->cleanup)
 	  ctx->def->cleanup (ctx);
 

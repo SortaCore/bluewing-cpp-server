@@ -191,17 +191,16 @@ static void def_cleanup(lw_pump pump)
 		process_event(ctx, ctx->pending_events[ctx->pending_index - 1],
 			ctx->pending_index == ctx->pending_count);
 	}
+	// The caller must finish queued callbacks and watch removals before deletion.
+	assert (ctx->pending_index == ctx->pending_count);
+	assert (list_length(ctx->signalparams) == 0);
+	assert (list_length(ctx->closing_watches) == 0);
+#ifdef ENABLE_THREADS
+	assert (ctx->watcher.num_events == 0);
+#endif
 
 	if (ctx->signalpipe_read != -1)
 	{
-		// Drain deferred removals and posts, including any queued by their callbacks;
-		// an entirely empty event has null function pointers, but will continue
-		// past to cause the pump signal pipe to be emptied.
-		lwp_eventqueue_event clear = { 0 };
-		
-		while (!process_event(ctx, clear, lw_true))
-			;
-
 		close(ctx->signalpipe_read);
 		close(ctx->signalpipe_write);
 	}
@@ -249,7 +248,7 @@ static lw_error tick_until(lw_eventpump ctx, double deadline)
 			{
 				ctx->pending_count = ctx->watcher.num_events;
 				memcpy(ctx->pending_events, ctx->watcher.events,
-					ctx->pending_count * sizeof(ctx->pending_events[0]));
+					(size_t)ctx->pending_count * sizeof(ctx->pending_events[0]));
 				ctx->watcher.num_events = 0;
 				// Keep watcher paused until this fetched batch has been dispatched.
 			}

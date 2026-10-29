@@ -145,6 +145,12 @@ static void def_cleanup (lw_pump _ctx)
 		lw_thread_join (ctx->watcher.thread);
 	}
 
+	// At point of pump deletion, all pump users must have removed their structs
+	// and watches, so there should be no events left in the IOCP
+	assert (!GetQueuedCompletionStatus(ctx->completion_port,
+		&ctx->watcher.bytes_transferred, (PULONG_PTR)&ctx->watcher.event,
+		&ctx->watcher.overlapped, 0) && GetLastError() == WAIT_TIMEOUT);
+
 	lw_thread_delete (ctx->watcher.thread);
 	ctx->watcher.thread = NULL;
 
