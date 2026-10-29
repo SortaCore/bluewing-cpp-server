@@ -2772,7 +2772,7 @@ bool relayserverinternal::client_messagehandler(std::shared_ptr<relayserver::cli
 			error->add("Booting client");
 
 		lwp_trace("%s", error->tostring());
-		handlererror(server, error);
+		if (handlererror) handlererror(server, error);
 
 		lacewing::error_delete(error);
 
