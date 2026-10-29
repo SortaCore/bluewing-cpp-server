@@ -33,8 +33,12 @@ lw_sync lw_sync_new ()
 
 void lw_sync_delete (lw_sync ctx)
 {
+	if (!ctx)
+		return;
+
 	pthread_mutex_destroy (&ctx->mutex);
 	pthread_mutexattr_destroy (&ctx->attr);
+	free(ctx);
 }
 
 void lw_sync_lock (lw_sync ctx)

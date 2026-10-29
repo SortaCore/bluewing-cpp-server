@@ -180,6 +180,11 @@ void lw_stream_delete (lw_stream ctx)
 	list_clear (ctx->front_queue);
 	list_clear (ctx->back_queue);
 
+	// Unlinking the final graph edge leaves an allocated empty list head.
+	assert (list_length (ctx->prev) == 0 && list_length (ctx->next) == 0);
+	list_clear (ctx->prev);
+	list_clear (ctx->next);
+
 	/*	This matches the lwp_retain in lw_stream_new, allowing the refcount to
 		become 0 and the stream to be destroyed.
 		However, the stream and its pump watch isn't deleted until all async IO has completed;

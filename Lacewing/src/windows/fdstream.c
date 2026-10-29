@@ -201,8 +201,8 @@ static void close_fd (lw_fdstream ctx)
 
 	// Note we cannot actually clear this yet; cancelled IOCP above will have queued some aborts.
 	// Similarly, we keep the pending_writes/reading until all the IOCP drains.
-	// The watch is freed by the final lw_stream_close(), triggered by write_completed or read_completed
-	// hitting their zero-ref count.
+	// Keep the watch until the stream's last reference is released, after the
+	// canceled operations have finished.
 
 	//list_clear(ctx->pending_writes);
 }
@@ -675,6 +675,9 @@ void lw_fdstream_dealloc(lw_fdstream ctx)
 	// No refs, so there should be no pending writes
 	assert(list_length(ctx->pending_writes) == 0);
 	list_clear(ctx->pending_writes);
+
+	if (ctx->stream.watch)
+		lw_pump_remove(ctx->stream.pump, ctx->stream.watch);
 
 	free(ctx);
 }

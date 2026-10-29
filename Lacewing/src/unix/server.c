@@ -153,6 +153,7 @@ void lw_server_delete (lw_server ctx)
 	  return;
 
 	lw_server_unhost (ctx);
+	list_clear(ctx->clients);
 
 #ifdef ENABLE_SSL
 	if (ctx->ssl_context)
@@ -839,6 +840,10 @@ void on_client_close (lw_stream stream, void * tag)
 		 lwp_sslclient_delete (client->ssl);
 	#endif
 
+	lw_addr_delete(client->remote_address);
+	client->remote_address = NULL;
+	lw_addr_delete(client->local_address);
+	client->local_address = NULL;
 	lw_stream_delete ((lw_stream) client);
 
 	lwp_release (client, "server_client_new");

@@ -201,6 +201,7 @@ static void def_cleanup(lw_pump pump)
 	lw_event_delete(ctx->watcher.resume_event);
 #endif
 
+	list_clear(ctx->signalparams);
 	lwp_eventqueue_delete(ctx->queue);
 	ctx->queue = (lwp_eventqueue)~0;
 }
