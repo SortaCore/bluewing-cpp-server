@@ -105,7 +105,7 @@ static lw_bool read_completed(lw_udp ctx)
 // Returns true if lw_udp was freed.
 static lw_bool write_completed(lw_udp ctx)
 {
-	--ctx->writes_posted;
+	InterlockedDecrement(&ctx->writes_posted);
 	return lwp_release(ctx, "udp write");
 }
 
@@ -555,7 +555,7 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 	udp_overlapped overlapped = (udp_overlapped) lw_calloc_or_exit (sizeof (*overlapped) + size, 1);
 
 	lwp_retain(ctx, "udp write");
-	++ctx->writes_posted;
+	InterlockedIncrement(&ctx->writes_posted);
 
 	overlapped->type = overlapped_type_send;
 	memcpy(((char*)overlapped) + sizeof(*overlapped), buffer, size);
@@ -627,7 +627,7 @@ void lw_udp_send (lw_udp ctx, lw_addr from, lw_ui32 ifidx, lw_addr to, const cha
 			if (code == WSA_IO_PENDING)
 				break;
 
-			--ctx->writes_posted;
+			InterlockedDecrement(&ctx->writes_posted);
 			free(overlapped);
 
 			// outgoing is overloaded; as it's UDP, just discard the message
