@@ -424,8 +424,10 @@ void lw_server_host_filter (lw_server ctx, lw_filter filter)
 
 	lwp_make_nonblocking(ctx->socket);
 
+	// The callback accepts one client; false means notify again if multiple clients are waiting,
+	// as opposed to true which will trigger once for any number of waiting
 	ctx->pump_watch = lw_pump_add (ctx->pump, ctx->socket,
-		ctx, listen_socket_read_ready, 0, lw_true);
+		ctx, listen_socket_read_ready, 0, lw_false);
 	if (!ctx->pump_watch)
 	{
 		lw_error_addf(error, "Watching TCP socket failed");
