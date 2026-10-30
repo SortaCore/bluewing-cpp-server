@@ -15,27 +15,12 @@ extern const lw_streamdef def_fdstream;
 
 static void issue_read (lw_fdstream);
 static void read_completed (lw_fdstream);
-static void write_completed (lw_fdstream);
 
-static void add_pending_write (lw_fdstream ctx)
+void lwp_fdstream_add_pending_write (lw_fdstream ctx)
 {
 	if ((++ ctx->num_pending_writes) == 1)
 	{
-	/* Since writes are now pending, the stream must be retained. */
-
-	lwp_retain (ctx, "fdstream pending write");
-	}
-}
-
-static void remove_pending_write (lw_fdstream ctx)
-{
-	if ((-- ctx->num_pending_writes) == 0)
-	{
-	/* If any writes were pending, the stream was being retained.  Since the
-		* last write has finished, we can release it now.
-		*/
-
-		lwp_release (ctx, "fdstream pending write");
+		lwp_retain (ctx, "fdstream pending write");
 	}
 }
 
@@ -58,6 +43,11 @@ static void completion (void * tag, OVERLAPPED * _overlapped,
 	case overlapped_type_read:
 		assert (overlapped == &ctx->read_overlapped);
 
+		if (ctx->flags & lwp_fdstream_flag_close_asap)
+		{
+			read_completed (ctx);
+			break; // A successful read may already have been queued when close canceled it.
+		}
 		read_completed (ctx);
 
 		if (lwp_op_aborted(error))
@@ -108,29 +98,29 @@ static void completion (void * tag, OVERLAPPED * _overlapped,
 		list_remove (fdstream_overlapped, ctx->pending_writes, overlapped);
 		free (overlapped);
 
-		write_completed (ctx);
+		lwp_fdstream_write_completed (ctx);
 		break;
 
 	case overlapped_type_transmitfile:
 	{
 		assert (overlapped == &ctx->transmitfile_overlapped);
 		lwp_streamgraph graph = ctx->stream.graph;
-		lwp_retain (graph, "deferred TransmitFile graph retry");
+		if (graph) lwp_retain (graph, "deferred TransmitFile graph retry");
 
-		ctx->transmit_file_from->transmit_file_to = 0;
-		write_completed (ctx->transmit_file_from);
-		ctx->transmit_file_from = 0;
+		ctx->transmitfile_from->transmitfile_to = 0;
+		lwp_fdstream_write_completed (ctx->transmitfile_from);
+		ctx->transmitfile_from = 0;
 
-		write_completed (ctx);
+		lwp_fdstream_write_completed (ctx);
 
-		if (!graph->dead && graph->retry_deferred)
+		if (graph && !error && !graph->dead && graph->retry_deferred)
 		{
 			graph->retry_deferred = lw_false;
 			lwp_streamgraph_expand (graph);
 			lwp_streamgraph_read (graph);
 		}
 
-		lwp_release (graph, "deferred TransmitFile graph retry");
+		if (graph) lwp_release (graph, "deferred TransmitFile graph retry");
 
 		break;
 	}
@@ -147,24 +137,17 @@ static void close_fd (lw_fdstream ctx)
 	lwp_trace ("FDStream %p with FD %d: close_fd", ctx, ctx->fd);
 
 	if (ctx->fd == INVALID_HANDLE_VALUE)
-	return;
+		return;
 
-	if (ctx->transmit_file_from)
+	// A file-to-socket transfer reports completion on the destination socket.
+	// Cancel there when it is the source file that is being closed.
+	if (ctx->transmitfile_to && ctx->transmitfile_to->fd != INVALID_HANDLE_VALUE)
 	{
-		ctx->transmit_file_from->transmit_file_to = 0;
-		write_completed (ctx->transmit_file_from);
-		ctx->transmit_file_from = 0;
-
-		/* Not calling write_completed for this stream because the FD
-		 * is closing anyway (and write_completed may result in our
-		 * destruction, which would be annoying here.) */
-	}
-
-	if (ctx->transmit_file_to)
-	{
-		ctx->transmit_file_to->transmit_file_from = 0;
-		write_completed (ctx->transmit_file_to);
-		ctx->transmit_file_to = 0;
+		if (compat_CancelIoEx())
+			compat_CancelIoEx()(ctx->transmitfile_to->fd,
+				&ctx->transmitfile_to->transmitfile_overlapped.overlapped);
+		else
+			lw_stream_close((lw_stream)ctx->transmitfile_to, lw_true);
 	}
 
 	if (ctx->flags & lwp_fdstream_flag_is_socket)
@@ -197,26 +180,21 @@ static void close_fd (lw_fdstream ctx)
 			ctx->fd = INVALID_HANDLE_VALUE;
 	}
 
-	ctx->flags &= ~lwp_fdstream_flag_close_asap;
-
-	// Note we cannot actually clear this yet; cancelled IOCP above will have queued some aborts.
-	// Similarly, we keep the pending_writes/reading until all the IOCP drains.
-	// Keep the watch until the stream's last reference is released, after the
-	// canceled operations have finished.
-
-	//list_clear(ctx->pending_writes);
+	// Keep records and pump watch until IOCP events have been processed;
+	// aborting still causes events in the IOCP.
 }
 
-void write_completed (lw_fdstream ctx)
+void lwp_fdstream_write_completed (lw_fdstream ctx)
 {
-	// If we were trying to close, check if we do it now
-	if (--ctx->num_pending_writes == 0 &&
-		(ctx->flags & lwp_fdstream_flag_close_asap) && !(ctx->flags & lwp_fdstream_flag_read_pending))
-	{
-		close_fd (ctx);
+	assert(ctx->num_pending_writes > 0);
+	if (--ctx->num_pending_writes != 0)
+		return;
 
-		lw_stream_close ((lw_stream) ctx, lw_true);
-	}
+	if ((ctx->flags & lwp_fdstream_flag_close_asap) &&
+		!(ctx->flags & lwp_fdstream_flag_read_pending))
+		lw_stream_close ((lw_stream)ctx, lw_true);
+
+	lwp_release(ctx, "fdstream pending write");
 }
 
 void issue_read (lw_fdstream ctx)
@@ -278,10 +256,7 @@ void read_completed (lw_fdstream ctx)
 {
 	ctx->flags &= ~ lwp_fdstream_flag_read_pending;
 
-	// matches retain in issue_read
-	// we don't have to call stream close/delete, as it must have been called if read is the last ref
-	// currently, read_completed is called within fdstream completion ref, so won't ever be last if async,
-	// but may be last if ReadFile sync error path is triggering
+	// Release the read's reference; the completion callback may hold another.
 	if (lwp_release (ctx, "fdstream read"))
 		return;
 
@@ -425,7 +400,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 	if (sizeof(size) > 4)
 		assert(size < 0xFFFFFFFF);
 
-	if (_ctx->flags & lwp_fdstream_flag_close_asap)
+	if (ctx->fd == INVALID_HANDLE_VALUE || (ctx->flags & lwp_fdstream_flag_close_asap))
 		return size; /* stream closing, cancel the write */
 
 	/* TODO : Pre-allocate a bunch of these and reuse them? */
@@ -454,7 +429,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 	* Same goes for ReadFile and WSARecv.
 	*/
 
-	++ctx->num_pending_writes;
+	lwp_fdstream_add_pending_write(ctx);
 	list_push(fdstream_overlapped, ctx->pending_writes, overlapped);
 
 	if (WriteFile(ctx->fd,
@@ -467,6 +442,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 
 		if (error != ERROR_IO_PENDING)
 		{
+			list_remove(fdstream_overlapped, ctx->pending_writes, overlapped);
 			free(overlapped);
 
 			// There's no error reporting function here, and not worth killing the app over
@@ -476,7 +452,7 @@ static size_t def_sink_data (lw_stream _ctx, const char * buffer, size_t size)
 			lwp_trace("Failed to write to socket %p, got error %s", ctx, lw_error_tostring(err));
 			lw_error_delete(err);
 #endif
-			--ctx->pending_writes;
+			lwp_fdstream_write_completed(ctx);
 
 			return size;
 		}
@@ -564,8 +540,8 @@ static lw_i64 def_sink_stream (lw_stream _dest, lw_stream _src, size_t size)
 	if (source->size != -1)
 		source->offset.QuadPart += size;
 
-	add_pending_write (dest);
-	add_pending_write (source);
+	lwp_fdstream_add_pending_write (dest);
+	lwp_fdstream_add_pending_write (source);
 
 	/* As far as stream is concerned, we've now written everything. */
 
@@ -610,26 +586,25 @@ static lw_bool def_close (lw_stream _ctx, lw_bool immediate)
 	lw_fdstream ctx = (lw_fdstream) _ctx;
 	lw_pump_thread_check(ctx->stream.pump);
 
-	// If ordered to close immediately, or we can anyway, do so.
-	if (immediate /*|| ctx->num_pending_writes == 0*/)
+	ctx->flags |= lwp_fdstream_flag_close_asap;
+	if (immediate || (!ctx->num_pending_writes && !(ctx->flags & lwp_fdstream_flag_read_pending)))
+		close_fd(ctx);
+
+	if (!ctx->num_pending_writes && !(ctx->flags & lwp_fdstream_flag_read_pending))
 	{
-		lwp_retain (ctx, "fdstream close");
-
-		close_fd (ctx);
-
-		lwp_release (ctx, "fdstream close");
-
+		ctx->flags &= ~lwp_fdstream_flag_close_asap;
 		return lw_true;
 	}
-	else
-	{
-		ctx->flags |= lwp_fdstream_flag_close_asap;
-		shutdown((SOCKET)ctx->fd, SD_RECEIVE);
 
+	if (!immediate && ctx->fd != INVALID_HANDLE_VALUE)
+	{
+		shutdown((SOCKET)ctx->fd, SD_RECEIVE);
 		if (compat_CancelIoEx())
 			compat_CancelIoEx()(ctx->fd, &ctx->read_overlapped.overlapped);
-		return lw_false;
 	}
+	
+	// Closing the handle causes abort events, so we're not good to delete yet
+	return lw_false;
 }
 
 void lw_fdstream_nagle (lw_fdstream ctx, lw_bool enabled)
@@ -673,6 +648,7 @@ const lw_streamdef def_fdstream =
 void lw_fdstream_dealloc(lw_fdstream ctx)
 {
 	// No refs, so there should be no pending writes
+	assert(ctx->num_pending_writes == 0 && !(ctx->flags & lwp_fdstream_flag_read_pending));
 	assert(list_length(ctx->pending_writes) == 0);
 	list_clear(ctx->pending_writes);
 

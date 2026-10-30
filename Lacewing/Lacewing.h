@@ -394,6 +394,8 @@ typedef enum _lw_addr_tostring_flags
 	lw_import		void  lw_stream_retry					(lw_stream, int when);
 	lw_import		void  lw_stream_add_filter_upstream		(lw_stream, lw_stream filter, lw_bool delete_with_stream, lw_bool close_together);
 	lw_import		void  lw_stream_add_filter_downstream	(lw_stream, lw_stream filter, lw_bool delete_with_stream, lw_bool close_together);
+	// Immediate means queued I/O gets discarded, as opposed to graceful, where prior I/O is delivered.
+	// In either case, the close callbacks run when all I/O events are finished.
 	lw_import	 lw_bool  lw_stream_close					(lw_stream, lw_bool immediate);
 	lw_import	  void *  lw_stream_tag						(lw_stream);
 	lw_import		void  lw_stream_set_tag					(lw_stream, void *);

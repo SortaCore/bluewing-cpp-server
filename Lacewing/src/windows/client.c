@@ -113,6 +113,14 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 	// ConnectEx errors may be triggered already at ConnectEx, in sync,
 	// but the op aborted will still trigger here
 	assert (ctx->connecting);
+	lwp_retain(ctx, "client connect completion");
+	free(overlapped);
+
+	if (ctx->fdstream.fd == INVALID_HANDLE_VALUE)
+	{
+		ctx->connecting = lw_false;
+		goto done; // Close canceled ConnectEx before this event was handled.
+	}
 
 	if (errorNum)
 	{
@@ -136,7 +144,7 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 
 		// This is a connection error, so we immediately close
 		lw_stream_close (&ctx->fdstream.stream, lw_true);
-		return;
+		goto done;
 	}
 
 	// Set to -1 when forced disconnect on local side happens during connecting phase,
@@ -161,6 +169,10 @@ static void first_time_write_ready (void * tag, OVERLAPPED * overlapped,
 	// Check on_connect did not result in disconnect
 	if ((ctx->fdstream.flags & (lwp_fdstream_flag_auto_close | lwp_fdstream_flag_close_asap)) == 0 && ctx->on_data)
 		lw_stream_read ((lw_stream) ctx, -1);
+
+	done:
+	lwp_fdstream_write_completed(&ctx->fdstream);
+	lwp_release(ctx, "client connect completion");
 }
 
 void lw_client_connect_addr (lw_client ctx, lw_addr address)
@@ -215,10 +227,11 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 	}
 
 	// This is an idiot check so we don't overwrite our FDs
-	if (ctx->fdstream.fd != INVALID_HANDLE_VALUE)
+	if (ctx->fdstream.fd != INVALID_HANDLE_VALUE || ctx->fdstream.num_pending_writes ||
+		(ctx->fdstream.flags & lwp_fdstream_flag_read_pending))
 	{
 		lw_error error = lw_error_new();
-		lw_error_addf(error, "Inconsistent socket state; socket should be invalid or marked connecting/connected");
+		lw_error_addf(error, "Previous socket has not finished closing");
 
 		if (ctx->on_error)
 			ctx->on_error(ctx, error);
@@ -355,6 +368,7 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 
 	OVERLAPPED * overlapped = (OVERLAPPED *) calloc (sizeof (*overlapped), 1);
 
+	lwp_fdstream_add_pending_write(&ctx->fdstream);
 	if (!compat_ConnectEx ((SOCKET) ctx->fdstream.fd, ctx->remote_address->info->ai_addr,
 			(int) ctx->remote_address->info->ai_addrlen, overlapped))
 	{
@@ -363,10 +377,9 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 		if (code == WSA_IO_PENDING)
 			return; // No problem
 
-		// Note: Connecting errors also occur in the first_time_write_ready callback,
-		// as op aborted; as a result, we don't clear connecting here, but we do report error,
-		// as op aborted is not informative.
-		// ctx->connecting = lw_false;
+		// A failure other than IO_PENDING has no completion event to wait for.
+		free(overlapped);
+		ctx->connecting = lw_false;
 		ctx->local_port_next_connect = 0;
 
 		lw_error error = lw_error_new();
@@ -378,6 +391,8 @@ static void client_connect_addr_internal (lw_client ctx, lw_addr address,
 			ctx->on_error(ctx, error);
 
 		lw_error_delete(error);
+		lw_stream_close((lw_stream)ctx, lw_true);
+		lwp_fdstream_write_completed(&ctx->fdstream);
 	}
 }
 

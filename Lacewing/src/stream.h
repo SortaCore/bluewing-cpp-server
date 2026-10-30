@@ -16,7 +16,7 @@
 /* BeginQueue has been called */
  #define lwp_stream_flag_queuing  ((lw_i8)1)
 
-/* Close was called with immediately = false, stream was busy */
+/* Close is waiting for buffered data or backend I/O to finish. */
  #define lwp_stream_flag_closeASAP  ((lw_i8)2)
 
 /* Currently in the process of an immediate Close (this is just to prevent

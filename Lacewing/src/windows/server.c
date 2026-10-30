@@ -92,12 +92,14 @@ static void lw_server_dealloc(lw_server ctx)
 {
 	// No refs, so there should be no pending accepts
 	assert(list_length(ctx->pending_accepts) == 0);
+	assert(list_length(ctx->clients) == 0);
 
 	// TODO: LEAK: If we clear this, and ticker thread keeps going, the listen_socket_completion will trigger,
 	// but have overlapped pointer addressing freed memory.
 	// If we don't clear this, in single-threaded, server will leak the overlapped, and refcount will be > 0 during server delete.
 	// Current expectation is that we don't clear it, and let the listen handle that.
 	// list_clear (ctx->pending_accepts);
+	list_clear(ctx->clients);
 	// We also cannot do lw_pump_remove here, as listen_socket_completion() will crash in process() due to watch->tag being invalid.
 	// We instead delete on delay, which is scuffed.
 	free(ctx);
@@ -355,6 +357,7 @@ lw_server_client lwp_server_client_new (lw_server ctx, SOCKET socket, lw_pump_wa
 	  return 0;
 
 	client->server = ctx;
+	lwp_retain(ctx, "server client");
 	client->is_websocket = lw_false;
 	client->is_hole_punch = watch ? lw_true : lw_false;
 
@@ -674,7 +677,7 @@ void lw_server_unhost (lw_server ctx)
 		// on_client_close will call lw_stream_delete.
 		lw_stream_close((lw_stream)client, lw_true);
 	}
-	list_clear(ctx->clients);
+	// Each close hook removes its client after the canceled operations finish.
 
 	list_each(struct _accept_overlapped, ctx->pending_accepts, overlapped)
 	{
@@ -1550,8 +1553,9 @@ void on_client_close (lw_stream stream, void * tag)
 	lw_stream_delete ((lw_stream) client);
 
 	lwp_release (client, "on_client_close");
+	lwp_release(ctx, "server client");
 
-	// lw_pump_remove happens in close_fd(), which happens in lw_stream_close()
+	// The stream's final release removes its pump watch.
 
 	// free(client); will happen when the stream delete handler is called
 }

@@ -30,9 +30,6 @@ struct _lw_fdstream
 	struct _fdstream_overlapped read_overlapped;
 	struct _fdstream_overlapped transmitfile_overlapped;
 
-	lw_fdstream transmit_file_from,
-				transmit_file_to;
-
 	char buffer [lwp_default_buffer_size];
 
 	HANDLE fd;
@@ -46,7 +43,8 @@ struct _lw_fdstream
 
 	/* The number of pending writes.  May not be the same as
 	* list_length(pending_writes) because transmitfile counts as a pending
-	* write too, in both the source and dest stream.
+	* write too, in both the source and dest stream. ConnectEx also holds one
+	* pending write until its completion event has been handled.
 	*/
 	int num_pending_writes;
 
@@ -58,9 +56,11 @@ struct _lw_fdstream
 #define lwp_fdstream_flag_read_pending	1
 #define lwp_fdstream_flag_nagle			2
 #define lwp_fdstream_flag_is_socket		4
-#define lwp_fdstream_flag_close_asap	8  /* FD close when all writes are done */
+#define lwp_fdstream_flag_close_asap	8  /* close requested; wait for pending I/O */
 #define lwp_fdstream_flag_auto_close	16
 
 void lwp_fdstream_init (lw_fdstream, lw_pump);
+void lwp_fdstream_add_pending_write (lw_fdstream);
+void lwp_fdstream_write_completed (lw_fdstream);
 
 #endif

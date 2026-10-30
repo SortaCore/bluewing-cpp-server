@@ -16,11 +16,13 @@ static void on_connect (lw_server server, lw_server_client client_socket)
 {
 	lw_ws ws = (lw_ws) lw_server_tag (server);
 	lw_bool secure = (server == ws->socket_secure);
+	lwp_retain(ws, "webserver client");
 
 	lwp_ws_client client = lwp_ws_httpclient_new (ws, client_socket, secure);
 	if (!client)
 	{
 	  lw_stream_close ((lw_stream) client_socket, lw_true);
+	  lwp_release(ws, "webserver client");
 	  return;
 	}
 
@@ -56,10 +58,12 @@ static void on_disconnect (lw_server server, lw_server_client client_socket)
 	assert (client);
 	assert (client->is_websocket == lw_server_client_is_websocket (client_socket));
 
+	lw_ws ws = client->ws;
 	client->cleanup (client);
 	lw_stream_delete ((lw_stream) client);
 
 	lw_stream_set_tag ((lw_stream) client_socket, 0);
+	lwp_release(ws, "webserver client");
 }
 
 static void on_error (lw_server server, lw_error error)
@@ -508,6 +512,8 @@ lw_ws lw_ws_new (lw_pump pump)
 	  return 0;
 
 	lwp_init ();
+	lwp_set_dealloc_proc(ctx, free);
+	lwp_retain(ctx, "webserver_new");
 
 	ctx->pump = pump;
 	ctx->auto_finish = lw_true;
@@ -544,6 +550,10 @@ void lw_ws_delete (lw_ws ctx)
 	if (!ctx)
 	  return;
 
+	lw_server_on_connect(ctx->socket, NULL);
+	lw_server_on_connect(ctx->socket_secure, NULL);
+	lw_server_on_error(ctx->socket, NULL);
+	lw_server_on_error(ctx->socket_secure, NULL);
 	lw_ws_unhost (ctx);
 	lw_ws_unhost_secure (ctx);
 
@@ -552,7 +562,8 @@ void lw_ws_delete (lw_ws ctx)
 
 	lw_timer_delete (ctx->timer);
 
-	free (ctx);
+	// Canceled socket operations may still need the webserver during client cleanup.
+	lwp_release(ctx, "webserver_new");
 }
 
 void lw_ws_host (lw_ws ctx, long port)

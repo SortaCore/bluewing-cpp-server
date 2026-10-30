@@ -55,6 +55,7 @@ struct _lw_ws_session
 
 struct _lw_ws
 {
+	lwp_refcounted;
 	lw_server socket, socket_secure;
 
 	lw_pump pump;

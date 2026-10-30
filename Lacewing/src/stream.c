@@ -821,6 +821,9 @@ list_type (struct _lwp_stream_queued) lwp_stream_write_queue(lw_stream ctx,
 				// Writing can cause the stream to putter out, in which case queued is now free'd and unsafe
 				if (ctx->flags & lwp_stream_flag_dead)
 					break; // abort
+				// Immediate close can discard this queue without deleting the stream.
+				if (ctx->front_queue != queue && ctx->back_queue != queue)
+					return NULL;
 
 				lwp_heapbuffer_trim_left(&queued->buffer, written);
 
@@ -847,6 +850,8 @@ list_type (struct _lwp_stream_queued) lwp_stream_write_queue(lw_stream ctx,
 			list_elem_remove (queued);
 
 			lwp_stream_write_stream (ctx, stream, bytes, flags);
+			if (ctx->front_queue != queue && ctx->back_queue != queue)
+				return NULL;
 
 			continue;
 		}
@@ -1019,13 +1024,21 @@ lw_bool lw_stream_close (lw_stream ctx, lw_bool immediate)
 	if (ctx->flags & lwp_stream_flag_dead)
 		return lw_true;
 
+	if (immediate)
+	{
+		list_each (struct _lwp_stream_queued, ctx->front_queue, queued)
+			lwp_heapbuffer_free(&queued.buffer);
+		list_each (struct _lwp_stream_queued, ctx->back_queue, queued)
+			lwp_heapbuffer_free(&queued.buffer);
+		list_clear(ctx->front_queue);
+		list_clear(ctx->back_queue);
+		ctx->flags &= ~lwp_stream_flag_queuing;
+	}
+
 	if (ctx->def->close && !ctx->def->close (ctx, immediate))
 	{
-		assert (!immediate);
-
-		/*	The stream itself is ready to close, but something higher up isn't.
-			lw_stream_close should be called again later with immediate = true	*/
-
+		// Reject new writes while the backend waits for canceled I/O to finish.
+		ctx->flags |= lwp_stream_flag_closeASAP;
 		return lw_false;
 	}
 
@@ -1135,7 +1148,7 @@ lw_bool lw_stream_close (lw_stream ctx, lw_bool immediate)
 			break;	/* close hook destroyed the stream */
 	}
 
-	ctx->flags &= ~ lwp_stream_flag_closing;
+	ctx->flags &= ~(lwp_stream_flag_closing | lwp_stream_flag_closeASAP);
 
 	lwp_release (ctx, "stream_close");
 
