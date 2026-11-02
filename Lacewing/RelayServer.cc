@@ -1223,7 +1223,16 @@ void handlerwebserverget(lacewing::webserver webserver, lacewing::webserver_requ
 }
 bool handlerwebsocketaccept(lacewing::webserver, lacewing::webserver_request req)
 {
-	return !strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing");
+	// Generic WebSocket request, not from Bluewing, toss it
+	if (strcasecmp(req->header("Sec-WebSocket-Protocol"), "bluewing"))
+		return false;
+
+	// Accept with bluewing WebSocket subprotocol.
+	// Firefox will ignore if you don't supply the expected WebSocket subprotocol reply,
+	// but Chromium-based browsers will fail with:
+	// Error during WebSocket handshake: Sent non-empty 'Sec-WebSocket-Protocol' header but no response was received
+	req->header("Sec-WebSocket-Protocol", "bluewing");
+	return true;
 }
 void handlerwebservererror(lacewing::webserver webserver, lacewing::error error)
 {
