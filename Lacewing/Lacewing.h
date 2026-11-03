@@ -264,7 +264,8 @@ typedef enum _lw_addr_tostring_flags
 
 	#define lw_addr_type_tcp		1
 	#define lw_addr_type_udp		2
-	#define lw_addr_hint_ipv6		4
+	#define lw_addr_hint_ipv4		4
+	#define lw_addr_hint_ipv6		8
 
 /* Filter */
 

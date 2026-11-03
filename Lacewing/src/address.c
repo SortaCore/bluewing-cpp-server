@@ -446,9 +446,15 @@ static void * lw_callback resolver(void * data)
 		hints.ai_flags |= AI_ADDRCONFIG;
 	#endif
 
+	// If no IP hint, use both IP hints
+	if (!(ctx->hints & (lw_addr_hint_ipv4 | lw_addr_hint_ipv6)))
+		ctx->hints |= lw_addr_hint_ipv4 | lw_addr_hint_ipv6;
+
 	if (ctx->hints & lw_addr_hint_ipv6)
 		hints.ai_family = AF_INET6;
-	else
+	else if (ctx->hints & lw_addr_hint_ipv4)
+		hints.ai_family = AF_INET;
+	else 
 		hints.ai_family = AF_UNSPEC;
 
 	result = getaddrinfo(ctx->hostname, ctx->service, &hints, &ctx->info_list);
